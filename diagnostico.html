@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Diagnóstico de viewport</title>
+<style>
+  body { font-family: -apple-system, sans-serif; font-size: 18px; padding: 20px; background: #111; color: #0f0; line-height: 1.8; }
+  .val { color: #ff0; font-weight: bold; }
+  .row { margin-bottom: 6px; border-bottom: 1px solid #333; padding-bottom: 6px; }
+</style>
+</head>
+<body>
+  <h2>Diagnóstico de viewport en vivo</h2>
+  <div class="row">window.innerWidth: <span class="val" id="iw"></span></div>
+  <div class="row">window.innerHeight: <span class="val" id="ih"></span></div>
+  <div class="row">document.documentElement.clientWidth: <span class="val" id="dcw"></span></div>
+  <div class="row">screen.width: <span class="val" id="sw"></span></div>
+  <div class="row">screen.height: <span class="val" id="sh"></span></div>
+  <div class="row">devicePixelRatio: <span class="val" id="dpr"></span></div>
+  <div class="row">orientation: <span class="val" id="or"></span></div>
+  <div class="row">document.body.scrollWidth: <span class="val" id="bsw"></span></div>
+  <div class="row">¿max-width:767px matchea AHORA?: <span class="val" id="mq"></span></div>
+  <hr>
+  <p>Sacale una captura a esta pantalla en VERTICAL tal cual la abriste, sin tocar nada.</p>
+  <script>
+    document.getElementById('iw').textContent = window.innerWidth;
+    document.getElementById('ih').textContent = window.innerHeight;
+    document.getElementById('dcw').textContent = document.documentElement.clientWidth;
+    document.getElementById('sw').textContent = screen.width;
+    document.getElementById('sh').textContent = screen.height;
+    document.getElementById('dpr').textContent = window.devicePixelRatio;
+    document.getElementById('or').textContent = screen.orientation ? screen.orientation.type : 'no disponible';
+    document.getElementById('bsw').textContent = document.body.scrollWidth;
+    document.getElementById('mq').textContent = window.matchMedia('(max-width: 767px)').matches ? 'SÍ' : 'NO';
+  </script>
+</body>
+</html>
