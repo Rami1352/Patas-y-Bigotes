@@ -8894,13 +8894,7 @@ function renderMascotasHero(myDogs) {
 
   // Cumpleaños este mes
   const now = new Date();
-  const bdaysThisMonth = myDogs.filter(d => {
-    if (!d.cumple) return false;
-    const parts = d.cumple.split('-');
-    if (parts.length < 2) return false;
-    const month = parseInt(parts[1]) - 1;
-    return month === now.getMonth();
-  });
+  const bdaysThisMonth = myDogs.filter(d => getCumpleMonth(d.cumple) === now.getMonth());
 
   // % info completa promedio
   const avgCompletion = total ? Math.round(myDogs.reduce((sum, d) => sum + petCompletionPct(d), 0) / total) : 0;
@@ -8982,12 +8976,7 @@ function refreshMascotasHero() {
 function showBirthdaysToast() {
   const myDogs = getMyDogsForMascotas();
   const now = new Date();
-  const names = myDogs.filter(d => {
-    if (!d.cumple) return false;
-    const parts = d.cumple.split('-');
-    if (parts.length < 2) return false;
-    return (parseInt(parts[1]) - 1) === now.getMonth();
-  }).map(d => d.name);
+  const names = myDogs.filter(d => getCumpleMonth(d.cumple) === now.getMonth()).map(d => d.name);
   showToast(names.length ? 'Cumplen este mes: ' + names.join(', ') : 'Nadie cumple años este mes', names.length ? 'success' : '');
 }
 
@@ -9540,6 +9529,33 @@ function saveAccountSettings() {
 ══════════════════════════════════ */
 function getDog(id) { return state.dogs.find(d=>d.id===id) || {}; }
 function daysUntil(s) { return Math.ceil((new Date(s)-new Date())/86400000); }
+/* Devuelve el mes (0-11) de una fecha de cumpleaños, sin importar si viene
+   en formato "YYYY-MM-DD" (el que usa formatDate/calcEdadDesde) o
+   "DD/MM/YYYY" (como puede llegar crudo desde el Sheet, ej: "3/08/2021").
+   Devuelve null si no se puede interpretar. Centraliza el parseo para que
+   "Cumpleaños este mes" y el modal "Ver quiénes son" nunca queden
+   desincronizados por un formato de fecha distinto. */
+function getCumpleMonth(cumple) {
+  if (!cumple) return null;
+  const str = String(cumple).trim();
+  if (str.includes('-')) {
+    // YYYY-MM-DD
+    const p = str.split('-');
+    if (p.length >= 2) {
+      const month = parseInt(p[1], 10) - 1;
+      if (!isNaN(month) && month >= 0 && month <= 11) return month;
+    }
+  }
+  if (str.includes('/')) {
+    // DD/MM/YYYY
+    const p = str.split('/');
+    if (p.length >= 2) {
+      const month = parseInt(p[1], 10) - 1;
+      if (!isNaN(month) && month >= 0 && month <= 11) return month;
+    }
+  }
+  return null;
+}
 function formatDate(s) {
   if (!s) return '—';
   const m = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
