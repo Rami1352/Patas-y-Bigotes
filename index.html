@@ -2408,6 +2408,155 @@ html[data-font-size="large"] .toast-container {
 @media (max-width: 639.98px) { .food-picker-sheet-footer { display: flex; } }
 .food-picker-sheet-footer .btn { flex: 1; }
 
+/* ══════════════════════════════════
+   SELECTOR VISUAL DE PRODUCTO DESPARASITARIO
+   (Registro de Desparasitación → campo "Producto")
+   Mismo patrón EXACTO que el selector de alimento de arriba
+   (.food-picker-*): dropdown ancho con tarjetas grandes en desktop,
+   bottom sheet propio en mobile. Clase .deworm-picker-* separada
+   (no se reutiliza .food-picker-*) para que cada uno pueda vivir
+   abierto/cerrado de forma independiente y no pisarse ids ni estado
+   si en algún momento ambos modales llegaran a coexistir en el DOM.
+   Toda la geometría, timing y breakpoints son un calco 1:1 de
+   .food-picker-*, así que ambos selectores se comportan y se ven
+   idénticos salvo por el color de acento (violeta en vez de ámbar,
+   ver .deworm-picker-option-thumb-fallback) y el ícono de fallback
+   (cápsula en vez de plato de comida).
+══════════════════════════════════ */
+.deworm-picker-trigger {
+  width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-sm);
+  font-size: 14px; font-family: 'Inter', sans-serif; color: var(--charcoal); background: var(--white);
+  outline: none; cursor: pointer; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  transition: border .15s;
+}
+.deworm-picker-trigger:hover { border-color: var(--fog); }
+.deworm-picker-trigger.open { border-color: var(--svc-deworm); box-shadow: 0 0 0 3px var(--svc-deworm-bg); }
+.deworm-picker-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deworm-picker-trigger-placeholder { color: var(--mist); }
+.deworm-picker-trigger i.fa-chevron-down { font-size: 12px; color: var(--stone); transition: transform .18s; flex-shrink: 0; }
+.deworm-picker-trigger.open i.fa-chevron-down { transform: rotate(180deg); }
+.deworm-picker-trigger-thumb {
+  width: 22px; height: 22px; border-radius: 5px; object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--border-sm); background: var(--cream);
+}
+
+/* Overlay propio del picker: en mobile actúa de fondo oscuro detrás
+   del bottom sheet; en desktop queda transparente (el dropdown se
+   ancla al trigger, no necesita tapar la pantalla) pero sigue
+   ocupando toda la ventana para poder cerrar clickeando afuera. */
+.deworm-picker-overlay {
+  position: fixed; inset: 0; z-index: 1001; display: none;
+}
+.deworm-picker-overlay.open { display: block; }
+@media (max-width: 639.98px) {
+  .deworm-picker-overlay.open { background: var(--surface-overlay); animation: overlayFadeIn .2s ease both; }
+}
+
+/* Panel: dropdown en desktop (posicionado por JS con top/left/width
+   fijos, calculados desde el rect del trigger), bottom sheet en
+   mobile (anclado abajo por CSS, como .modal). */
+.deworm-picker-panel {
+  position: fixed; background: var(--white); box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+@media (min-width: 640px) {
+  .deworm-picker-panel {
+    border-radius: var(--r-lg); max-height: min(520px, 70vh);
+    animation: foodPickerScaleIn .16s cubic-bezier(.22,1,.36,1) both;
+  }
+}
+@media (max-width: 639.98px) {
+  .deworm-picker-panel {
+    left: 0; right: 0; bottom: 0; top: auto; width: 100%;
+    border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 86vh;
+    animation: slideUp .24s cubic-bezier(.22,1,.36,1) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .deworm-picker-panel, .deworm-picker-overlay.open { animation: none !important; }
+}
+
+.deworm-picker-sheet-title {
+  display: none; padding: 18px 20px 4px; font-family: 'Inter', sans-serif;
+  font-size: 17px; font-weight: 700; color: var(--charcoal);
+}
+@media (max-width: 639.98px) { .deworm-picker-sheet-title { display: block; } }
+.deworm-picker-sheet-handle {
+  display: none; width: 36px; height: 4px; border-radius: 2px; background: var(--border);
+  margin: 10px auto 0;
+}
+@media (max-width: 639.98px) { .deworm-picker-sheet-handle { display: block; } }
+
+.deworm-picker-search {
+  display: flex; align-items: center; gap: 8px; margin: 12px 16px; padding: 9px 12px;
+  border: 1.5px solid var(--border); border-radius: var(--r-sm); background: var(--surface-input);
+  flex-shrink: 0;
+}
+.deworm-picker-search i { color: var(--mist); font-size: 13px; flex-shrink: 0; }
+.deworm-picker-search input {
+  border: none; outline: none; background: transparent; font-size: 13.5px; font-family: 'Inter', sans-serif;
+  color: var(--charcoal); width: 100%;
+}
+.deworm-picker-search input::placeholder { color: var(--mist); }
+
+.deworm-picker-list { overflow-y: auto; padding: 2px 10px 8px; flex: 1; min-height: 0; }
+.deworm-picker-option {
+  display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--r-md);
+  cursor: pointer; border: 1.5px solid transparent; margin-bottom: 6px; transition: background .12s, border-color .12s;
+  text-align: left; width: 100%; background: none;
+}
+.deworm-picker-option:hover { background: var(--surface-hover); }
+.deworm-picker-option.selected { background: var(--svc-deworm-bg); border-color: var(--svc-deworm); }
+.deworm-picker-option-thumb {
+  width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+  background: var(--cream); border: 1px solid var(--border-sm);
+}
+.deworm-picker-option-thumb-fallback {
+  width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; background: var(--svc-deworm-bg);
+  color: var(--svc-deworm); display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.deworm-picker-option-body { flex: 1; min-width: 0; }
+.deworm-picker-option-name { font-size: 14px; font-weight: 700; color: var(--charcoal); line-height: 1.3; }
+.deworm-picker-option-check {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 11px;
+  background: var(--white); transition: background .12s, border-color .12s;
+}
+.deworm-picker-option.selected .deworm-picker-option-check { background: var(--svc-deworm); border-color: var(--svc-deworm); }
+.deworm-picker-empty { padding: 30px 16px; text-align: center; color: var(--mist); font-size: 13px; }
+
+.deworm-picker-add-new {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin: 4px 10px 8px;
+  border-radius: var(--r-md); cursor: pointer; color: var(--svc-deworm); font-weight: 600; font-size: 13.5px;
+  border-top: 1px solid var(--border-sm); flex-shrink: 0;
+}
+.deworm-picker-add-new:hover { background: var(--svc-deworm-bg); }
+.deworm-picker-add-new i { font-size: 13px; }
+
+.deworm-picker-sheet-footer {
+  display: none; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border-sm); gap: 10px; flex-shrink: 0;
+}
+@media (max-width: 639.98px) { .deworm-picker-sheet-footer { display: flex; } }
+.deworm-picker-sheet-footer .btn { flex: 1; }
+
+/* Fila de "Producto" ingresado a mano (fallback texto libre), oculta
+   por default; se muestra cuando el usuario elige "Agregar producto
+   nuevo" dentro del picker, o si el catálogo vino vacío de la
+   planilla. Mismo layout que .food-manual-row de más abajo, pero con
+   su propio bloque (no se reutiliza esa clase) porque el link "Volver
+   al catálogo" ahí usa --sage-solid (verde, acento de Alimentación)
+   hardcodeado; acá se usa --svc-deworm (violeta) para que combine con
+   el resto de la paleta de Desparasitarios. */
+.deworm-manual-row { display: none; }
+.deworm-manual-row.show { display: block; }
+.deworm-manual-row-back {
+  font-size: 12px; color: var(--svc-deworm); font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 7px;
+}
+.deworm-manual-row-back:hover { text-decoration: underline; }
+
 /* Fila de "Alimento" ingresado a mano (fallback texto libre), oculta
    por default; se muestra cuando el usuario elige "Agregar alimento
    nuevo" y no encuentra su producto en el catálogo. */
@@ -5808,7 +5957,27 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
     </div>
     <div class="modal-body">
       <div class="form-row"><label>Mascota *</label><select class="form-control" id="deworm-dog"></select></div>
-      <div class="form-row"><label>Producto *</label><input class="form-control" id="deworm-product" placeholder="Ej: Bravecto, NexGard, Milbemax…" /></div>
+      <div class="form-row">
+        <label>Producto *</label>
+        <!-- Trigger visible: abre el selector (dropdown en desktop, bottom
+             sheet en mobile). Nunca se lee directo en saveDeworm/editDeworm:
+             el valor real vive en el input oculto #deworm-product de abajo,
+             que es el mismo id que ya usaban esas funciones, así que no
+             hace falta tocarlas. Mismo patrón exacto que #food-brand en el
+             modal de Registro de Alimentación. -->
+        <button type="button" class="deworm-picker-trigger" id="deworm-picker-trigger" onclick="openDewormPicker()">
+          <span class="deworm-picker-trigger-label deworm-picker-trigger-placeholder" id="deworm-picker-trigger-label">Seleccionar producto</span>
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <input type="hidden" id="deworm-product" />
+        <!-- Fallback de texto libre: se muestra solo si el producto no
+             está en el catálogo ("Agregar producto nuevo" dentro del
+             picker) o si el catálogo vino vacío de la planilla. -->
+        <div class="deworm-manual-row" id="deworm-manual-row">
+          <span class="deworm-manual-row-back" onclick="closeDewormManualEntry()"><i class="fa-solid fa-arrow-left"></i> Volver al catálogo</span>
+          <input class="form-control" id="deworm-product-manual" placeholder="Ej: Bravecto, NexGard, Milbemax…" oninput="syncDewormManualToHidden()" />
+        </div>
+      </div>
       <div class="form-row"><label>Descripción / Dosis</label><input class="form-control" id="deworm-desc" placeholder="Ej: Comprimido 4,5–10 kg — 3 meses" /></div>
       <div class="form-row-2">
         <div class="form-row"><label>Última aplicación</label><input class="form-control" id="deworm-last" type="date" /></div>
@@ -5818,6 +5987,28 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-deworm')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveDeworm()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SELECTOR VISUAL DE PRODUCTO DESPARASITARIO (dropdown desktop / bottom sheet mobile) ──
+     Vive fuera de #modal-add-deworm a propósito: en mobile es un bottom
+     sheet que se apila ARRIBA del modal padre (z-index superior), y en
+     desktop se posiciona con position:fixed calculado desde el trigger,
+     lo cual es más simple si no está anidado dentro del overflow:auto
+     del modal. Mismo patrón exacto que #food-picker-overlay. -->
+<div class="deworm-picker-overlay" id="deworm-picker-overlay" onclick="if(event.target===this) closeDewormPicker()">
+  <div class="deworm-picker-panel" id="deworm-picker-panel" role="dialog" aria-label="Seleccionar producto">
+    <div class="deworm-picker-sheet-handle"></div>
+    <div class="deworm-picker-sheet-title">Seleccionar producto</div>
+    <div class="deworm-picker-search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" id="deworm-picker-search-input" placeholder="Buscar producto..." oninput="renderDewormPickerList()" />
+    </div>
+    <div class="deworm-picker-list" id="deworm-picker-list"></div>
+    <div class="deworm-picker-sheet-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeDewormPicker()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="confirmDewormPickerSelection()">Seleccionar</button>
     </div>
   </div>
 </div>
@@ -6531,7 +6722,7 @@ window.addEventListener('resize', updateNavOverflowIndicator);
 /* ══════════════════════════════════
    ESTADO & DATOS
 ══════════════════════════════════ */
-let state = { dogs: [], walks: [], health: [], food: [], homeCare: [], recommendations: [], foodCatalog: [] };
+let state = { dogs: [], walks: [], health: [], food: [], homeCare: [], recommendations: [], foodCatalog: [], dewormCatalog: [] };
 const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
 /* PHOTO_POSITION — ajusta el encuadre (object-position) de la foto circular/redondeada
@@ -8012,6 +8203,7 @@ function openDewormModal() {
   document.getElementById('deworm-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
   // Reset fields
   ['deworm-product','deworm-desc','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
+  setDewormPickerValue(''); // limpia también el trigger visual y la fila manual, no solo el hidden #deworm-product
   // openDewormModal() es el punto de entrada para ALTA nueva (botón
   // "+ Agregar"). editDeworm() (ver más abajo) es quien abre este mismo
   // modal para EDITAR, y ahí sí se setea editingDewormId junto con el
@@ -8096,7 +8288,7 @@ async function saveDeworm() {
   }
 }
 
-function editDeworm(id) {
+async function editDeworm(id) {
   const h = state.health.find(x => x.id === id);
   if (!h) return;
   editingDewormId = id;
@@ -8108,7 +8300,16 @@ function editDeworm(id) {
   // hay que separarlo de vuelta. Mismo split que ya usaba deleteDeworm
   // para recuperar el product puro.
   const parts = String(h.desc || '').split(' — ');
-  document.getElementById('deworm-product').value = parts[0] || '';
+  // Se precarga el catálogo ANTES de fijar el valor (a diferencia de
+  // openDewormPicker, que lo hace perezoso) para que, si el usuario
+  // entra directo a "Editar" sin haber abierto el picker antes en esta
+  // sesión, la miniatura del producto ya elegido aparezca de entrada en
+  // el trigger, en vez de quedar sin foto hasta la primera apertura.
+  await ensureDewormCatalogLoaded();
+  // setDewormPickerValue (no solo .value=) para que el trigger muestre el
+  // nombre y la miniatura correctos de entrada, en vez de quedar en
+  // "Seleccionar producto" hasta que el usuario reabra el picker.
+  setDewormPickerValue(parts[0] || '');
   document.getElementById('deworm-desc').value    = parts.slice(1).join(' — ') || '';
   document.getElementById('deworm-last').value    = h.last || '';
   document.getElementById('deworm-next').value    = h.next || '';
@@ -10461,6 +10662,287 @@ function escapeHtml(str) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+/* ══════════════════════════════════
+   SELECTOR VISUAL DE PRODUCTO DESPARASITARIO
+   Mismo patrón EXACTO que el selector visual de Alimento de arriba
+   (ensureFoodCatalogLoaded / openFoodPicker / renderFoodPickerList /
+   etc.), pero leyendo el catálogo de la hoja "Desparasitarios"
+   (columnas "Nombre_desparasitarios_segun_kink" / "Fotos_Desparasitarios",
+   ver handleGetCatalogoDesparasitarios en el Apps Script) en vez del
+   catálogo de "Alimentacion". El VALOR real sigue viviendo en el mismo
+   <input type="hidden" id="deworm-product"> de siempre: saveDeworm()/
+   editDeworm()/duplicateDeworm() no se tocan, siguen leyendo/
+   escribiendo ese id exactamente igual que cuando era un <input> de
+   texto visible (mismo id, ver el modal #modal-add-deworm).
+══════════════════════════════════ */
+let dewormPickerHoveredId = null;   // selección tentativa dentro del picker (aplicada recién al confirmar)
+let dewormPickerLoadPromise = null; // evita pedir el catálogo 2 veces si el usuario abre/cierra rápido
+
+// Carga el catálogo UNA sola vez (caché en state.dewormCatalog) y de
+// forma perezosa: recién la primera vez que se abre el picker, no en
+// cada carga de página, mismo criterio que ensureFoodCatalogLoaded()
+// para no sumar otra llamada más a Apps Script en el arranque.
+async function ensureDewormCatalogLoaded() {
+  if (state.dewormCatalog && state.dewormCatalog.length) return state.dewormCatalog;
+  if (dewormPickerLoadPromise) return dewormPickerLoadPromise;
+  dewormPickerLoadPromise = (async () => {
+    try {
+      const rows = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCatalogoDesparasitarios');
+      if (Array.isArray(rows)) {
+        state.dewormCatalog = rows
+          .filter(r => r && r.nombre)
+          .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim() }));
+      } else {
+        state.dewormCatalog = [];
+      }
+    } catch (e) {
+      addLiveLog('[WARN] No se pudo cargar el catálogo de desparasitarios: ' + e.message, 'err');
+      state.dewormCatalog = [];
+    }
+    return state.dewormCatalog;
+  })();
+  return dewormPickerLoadPromise;
+}
+
+// Pone el valor "oficial" (el que va a guardarse): actualiza el hidden
+// #deworm-product (lo que ya leen saveDeworm/editDeworm) Y la etiqueta
+// visible del trigger, para que ambos queden siempre consistentes
+// entre sí. Mismo rol que setFoodPickerValue().
+function setDewormPickerValue(productName) {
+  const hidden = document.getElementById('deworm-product');
+  if (hidden) hidden.value = productName || '';
+
+  const label = document.getElementById('deworm-picker-trigger-label');
+  if (!label) return;
+  if (productName) {
+    label.textContent = productName;
+    label.classList.remove('deworm-picker-trigger-placeholder');
+  } else {
+    label.textContent = 'Seleccionar producto';
+    label.classList.add('deworm-picker-trigger-placeholder');
+  }
+
+  // Miniatura del producto elegido, si está en el catálogo (si vino de
+  // "Agregar producto nuevo" no va a estar, y no pasa nada: el trigger
+  // simplemente no muestra miniatura).
+  const existingThumb = document.getElementById('deworm-picker-trigger-thumb');
+  if (existingThumb) existingThumb.remove();
+  const match = productName && state.dewormCatalog ? state.dewormCatalog.find(p => p.nombre === productName) : null;
+  if (match && match.foto) {
+    const img = document.createElement('img');
+    img.className = 'deworm-picker-trigger-thumb';
+    img.id = 'deworm-picker-trigger-thumb';
+    img.src = match.foto;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = function () { this.remove(); };
+    label.insertAdjacentElement('beforebegin', img);
+  }
+
+  // Ocultar la fila manual si se acaba de fijar un valor del catálogo
+  // (por ejemplo al editar un registro cuyo producto SÍ está en el
+  // catálogo): la fila manual solo debe quedar visible cuando el
+  // usuario explícitamente eligió "Agregar producto nuevo".
+  closeDewormManualEntry(/*silent=*/true);
+}
+
+async function openDewormPicker() {
+  const trigger = document.getElementById('deworm-picker-trigger');
+  const overlay = document.getElementById('deworm-picker-overlay');
+  const panel   = document.getElementById('deworm-picker-panel');
+  if (!trigger || !overlay || !panel) return;
+
+  trigger.classList.add('open');
+  overlay.classList.add('open');
+
+  // Selección tentativa arranca en el valor actual del hidden, para que
+  // si el usuario abre el picker con un producto ya elegido, esa tarjeta
+  // aparezca resaltada de entrada.
+  dewormPickerHoveredId = document.getElementById('deworm-product').value || null;
+
+  const searchInput = document.getElementById('deworm-picker-search-input');
+  if (searchInput) searchInput.value = '';
+
+  await ensureDewormCatalogLoaded();
+  renderDewormPickerList();
+  positionDewormPickerPanel();
+
+  const liveSearch = document.getElementById('deworm-picker-search-input');
+  if (liveSearch) setTimeout(() => liveSearch.focus({ preventScroll: true }), 50);
+}
+
+function closeDewormPicker() {
+  const trigger = document.getElementById('deworm-picker-trigger');
+  const overlay = document.getElementById('deworm-picker-overlay');
+  if (trigger) trigger.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+}
+
+// Posiciona el panel como dropdown ANCLADO al trigger (solo en
+// desktop: en mobile el CSS ya lo fija abajo de la pantalla con
+// left/right/bottom:0, así que ahí este cálculo no se aplica). Se
+// recalcula cada vez que se abre, por si el layout cambió (resize,
+// scroll) desde la última apertura. Mismo cálculo exacto que
+// positionFoodPickerPanel().
+function positionDewormPickerPanel() {
+  const panel = document.getElementById('deworm-picker-panel');
+  const trigger = document.getElementById('deworm-picker-trigger');
+  if (!panel || !trigger) return;
+  if (window.innerWidth < 640) {
+    // Mobile: el bottom sheet se posiciona 100% por CSS.
+    panel.style.top = ''; panel.style.left = ''; panel.style.width = '';
+    return;
+  }
+  const rect = trigger.getBoundingClientRect();
+  const gap = 6;
+  const width = Math.max(rect.width, 340);
+  let left = rect.left;
+  // Si el dropdown se saldría de la ventana por la derecha, se alinea
+  // por el borde derecho del trigger en vez del izquierdo.
+  if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
+  let top = rect.bottom + gap;
+  const maxHeight = Math.min(520, window.innerHeight * 0.7);
+  // Si no entra debajo del trigger, se abre hacia arriba.
+  if (top + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + gap) {
+    top = Math.max(12, rect.top - maxHeight - gap);
+  }
+  panel.style.top = top + 'px';
+  panel.style.left = left + 'px';
+  panel.style.width = width + 'px';
+}
+window.addEventListener('resize', () => {
+  const overlay = document.getElementById('deworm-picker-overlay');
+  if (overlay && overlay.classList.contains('open')) positionDewormPickerPanel();
+});
+
+// Reemplaza una <img> de thumb rota por el fallback de cápsula (usado
+// tanto en las tarjetas del picker como en el trigger, ver
+// setDewormPickerValue). Función aparte en vez de armar el SVG del
+// capsuleIcon() anidado dentro de un atributo onerror="..." inline: ese
+// SVG tiene comillas dobles y saltos de línea internos (ver capsuleIcon
+// más arriba) que, aunque técnicamente se pueden escapar a &quot;, es
+// más simple y menos frágil resolverlo acá con una función normal que
+// recibe el <img> y arma el reemplazo con el DOM directamente.
+function dewormThumbFallback(imgEl) {
+  const fallback = document.createElement('div');
+  fallback.className = 'deworm-picker-option-thumb-fallback';
+  fallback.innerHTML = capsuleIcon(18);
+  imgEl.replaceWith(fallback);
+}
+
+function renderDewormPickerList() {
+  const listEl = document.getElementById('deworm-picker-list');
+  if (!listEl) return;
+  const query = (document.getElementById('deworm-picker-search-input')?.value || '').toLowerCase().trim();
+  const catalog = state.dewormCatalog || [];
+  const filtered = query ? catalog.filter(p => p.nombre.toLowerCase().includes(query)) : catalog;
+
+  let html = '';
+  if (!filtered.length) {
+    html += `<div class="deworm-picker-empty">${catalog.length ? 'Sin resultados para “' + escapeHtml(query) + '”' : 'Catálogo no disponible por el momento'}</div>`;
+  } else {
+    html += filtered.map(p => {
+      const isSelected = dewormPickerHoveredId === p.nombre;
+      const thumb = p.foto
+        ? `<img class="deworm-picker-option-thumb" src="${escapeHtml(p.foto)}" alt="" loading="lazy" onerror="dewormThumbFallback(this)" />`
+        : `<div class="deworm-picker-option-thumb-fallback">${capsuleIcon(18)}</div>`;
+      return `
+        <button type="button" class="deworm-picker-option${isSelected ? ' selected' : ''}" onclick="selectDewormPickerOption('${escapeHtml(p.nombre).replace(/'/g, "\\'")}')">
+          ${thumb}
+          <div class="deworm-picker-option-body">
+            <div class="deworm-picker-option-name">${escapeHtml(p.nombre)}</div>
+          </div>
+          <div class="deworm-picker-option-check">${isSelected ? '<i class="fa-solid fa-check"></i>' : ''}</div>
+        </button>`;
+    }).join('');
+  }
+  listEl.innerHTML = html;
+
+  // "Agregar producto nuevo" siempre disponible al pie de la lista, para
+  // productos que no están en el catálogo cargado en la planilla.
+  const addNew = document.createElement('div');
+  addNew.className = 'deworm-picker-add-new';
+  addNew.innerHTML = '<i class="fa-solid fa-plus"></i> Agregar producto nuevo';
+  addNew.onclick = openDewormManualEntry;
+  listEl.appendChild(addNew);
+}
+
+// Marca una tarjeta como elegida (selección tentativa). En desktop
+// confirma inmediatamente (mismo gesto que un <select> nativo: un solo
+// click alcanza); en mobile queda como preselección hasta que el
+// usuario toca "Seleccionar" abajo, que es el patrón esperado en un
+// bottom sheet con footer de confirmación (ver Imagen 1: el botón dice
+// "Seleccionar", no "Guardar"). Mismo criterio que selectFoodPickerOption().
+function selectDewormPickerOption(nombre) {
+  dewormPickerHoveredId = nombre;
+  renderDewormPickerList();
+  if (window.innerWidth >= 640) confirmDewormPickerSelection();
+}
+
+function confirmDewormPickerSelection() {
+  if (dewormPickerHoveredId) setDewormPickerValue(dewormPickerHoveredId);
+  closeDewormPicker();
+}
+
+// "Agregar producto nuevo": cierra el picker y muestra la fila de texto
+// libre original, para productos que no están (todavía) en el catálogo
+// de la planilla. El valor tipeado ahí se sincroniza al hidden
+// #deworm-product en cada tecla (ver syncDewormManualToHidden), así que
+// saveDeworm() lo recibe exactamente igual que cuando el <input> era
+// visible directamente.
+function openDewormManualEntry() {
+  closeDewormPicker();
+  const row = document.getElementById('deworm-manual-row');
+  if (row) row.classList.add('show');
+  const manualInput = document.getElementById('deworm-product-manual');
+  if (manualInput) {
+    // Si ya había algo tipeado a mano previamente (por ejemplo el
+    // usuario volvió del catálogo sin elegir nada), lo conserva; si no,
+    // arranca vacío.
+    manualInput.value = document.getElementById('deworm-product').value || '';
+    setTimeout(() => manualInput.focus(), 50);
+  }
+}
+
+function closeDewormManualEntry(silent) {
+  const row = document.getElementById('deworm-manual-row');
+  if (row) row.classList.remove('show');
+  if (!silent) {
+    const manualInput = document.getElementById('deworm-product-manual');
+    if (manualInput) manualInput.value = '';
+  }
+}
+
+function syncDewormManualToHidden() {
+  const manualInput = document.getElementById('deworm-product-manual');
+  const hidden = document.getElementById('deworm-product');
+  if (!manualInput || !hidden) return;
+  hidden.value = manualInput.value.trim();
+  // El trigger de arriba refleja el texto libre también, para que quede
+  // claro qué se va a guardar aunque el usuario no vuelva a abrir el
+  // picker antes de tocar "Guardar".
+  const label = document.getElementById('deworm-picker-trigger-label');
+  if (label) {
+    const val = manualInput.value.trim();
+    label.textContent = val || 'Seleccionar producto';
+    label.classList.toggle('deworm-picker-trigger-placeholder', !val);
+  }
+  const existingThumb = document.getElementById('deworm-picker-trigger-thumb');
+  if (existingThumb) existingThumb.remove();
+}
+
+// Cierre por click afuera (el overlay ya llama a esto vía el onclick
+// inline en el HTML) y por tecla Escape. Se agrega al MISMO listener
+// de keydown ya registrado para el food-picker (ver más arriba): un
+// solo listener de Escape que chequea ambos overlays, en vez de
+// registrar dos listeners globales redundantes.
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  const overlay = document.getElementById('deworm-picker-overlay');
+  if (overlay && overlay.classList.contains('open')) closeDewormPicker();
+});
+
 function populateDogSelect(selectId) {
   let dogsToShow = state.dogs;
   if (!isAdmin()) {
