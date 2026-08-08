@@ -2437,7 +2437,7 @@ html[data-font-size="large"] .toast-container {
 .deworm-picker-trigger i.fa-chevron-down { font-size: 12px; color: var(--stone); transition: transform .18s; flex-shrink: 0; }
 .deworm-picker-trigger.open i.fa-chevron-down { transform: rotate(180deg); }
 .deworm-picker-trigger-thumb {
-  width: 22px; height: 22px; border-radius: 5px; object-fit: cover; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 5px; object-fit: contain; flex-shrink: 0;
   border: 1px solid var(--border-sm); background: var(--cream);
 }
 
@@ -2509,7 +2509,7 @@ html[data-font-size="large"] .toast-container {
 .deworm-picker-option:hover { background: var(--surface-hover); }
 .deworm-picker-option.selected { background: var(--svc-deworm-bg); border-color: var(--svc-deworm); }
 .deworm-picker-option-thumb {
-  width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+  width: 48px; height: 48px; border-radius: 8px; object-fit: contain; flex-shrink: 0;
   background: var(--cream); border: 1px solid var(--border-sm);
 }
 .deworm-picker-option-thumb-fallback {
@@ -10520,7 +10520,7 @@ function positionFoodPickerPanel() {
   if (!panel || !trigger) return;
   if (window.innerWidth < 640) {
     // Mobile: el bottom sheet se posiciona 100% por CSS.
-    panel.style.top = ''; panel.style.left = ''; panel.style.width = ''; panel.style.maxHeight = '';
+    panel.style.top = ''; panel.style.left = ''; panel.style.width = '';
     return;
   }
   const rect = trigger.getBoundingClientRect();
@@ -10531,29 +10531,14 @@ function positionFoodPickerPanel() {
   // por el borde derecho del trigger en vez del izquierdo.
   if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
   let top = rect.bottom + gap;
-  const preferredMaxHeight = Math.min(520, window.innerHeight * 0.7);
-  // Si no entra debajo del trigger con la altura preferida, se abre
-  // hacia arriba en vez de hacia abajo.
-  if (top + preferredMaxHeight > window.innerHeight - 12 && rect.top > preferredMaxHeight + gap) {
-    top = Math.max(12, rect.top - preferredMaxHeight - gap);
+  const maxHeight = Math.min(520, window.innerHeight * 0.7);
+  // Si no entra debajo del trigger, se abre hacia arriba.
+  if (top + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + gap) {
+    top = Math.max(12, rect.top - maxHeight - gap);
   }
-  // CRÍTICO: la altura preferida (hasta 520px/70vh) puede no entrar en
-  // el espacio que quedó realmente disponible desde `top` hasta el
-  // borde inferior de la ventana (por ejemplo si el trigger está a
-  // mitad de un modal alto). Sin este clamp, el CSS max-height estático
-  // (min(520px,70vh)) hace que el panel se dibuje más grande que el
-  // hueco real y se corte contra el borde de la ventana sin activar el
-  // scroll interno de .food-picker-list, dejando parte de la lista
-  // invisible e inaccesible. Al fijar acá un panel.style.maxHeight
-  // explícito, ligado al espacio real, el navegador SIEMPRE respeta ese
-  // límite y .food-picker-list (que tiene overflow-y:auto y flex:1)
-  // absorbe el sobrante con scroll.
-  const availableBelow = window.innerHeight - top - 12;
-  const maxHeight = Math.max(200, Math.min(preferredMaxHeight, availableBelow));
   panel.style.top = top + 'px';
   panel.style.left = left + 'px';
   panel.style.width = width + 'px';
-  panel.style.maxHeight = maxHeight + 'px';
 }
 window.addEventListener('resize', () => {
   const overlay = document.getElementById('food-picker-overlay');
@@ -10806,7 +10791,7 @@ function positionDewormPickerPanel() {
   if (!panel || !trigger) return;
   if (window.innerWidth < 640) {
     // Mobile: el bottom sheet se posiciona 100% por CSS.
-    panel.style.top = ''; panel.style.left = ''; panel.style.width = ''; panel.style.maxHeight = '';
+    panel.style.top = ''; panel.style.left = ''; panel.style.width = '';
     return;
   }
   const rect = trigger.getBoundingClientRect();
@@ -10817,30 +10802,14 @@ function positionDewormPickerPanel() {
   // por el borde derecho del trigger en vez del izquierdo.
   if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
   let top = rect.bottom + gap;
-  const preferredMaxHeight = Math.min(520, window.innerHeight * 0.7);
-  // Si no entra debajo del trigger con la altura preferida, se abre
-  // hacia arriba en vez de hacia abajo.
-  if (top + preferredMaxHeight > window.innerHeight - 12 && rect.top > preferredMaxHeight + gap) {
-    top = Math.max(12, rect.top - preferredMaxHeight - gap);
+  const maxHeight = Math.min(520, window.innerHeight * 0.7);
+  // Si no entra debajo del trigger, se abre hacia arriba.
+  if (top + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + gap) {
+    top = Math.max(12, rect.top - maxHeight - gap);
   }
-  // CRÍTICO: la altura preferida (hasta 520px/70vh) puede no entrar en
-  // el espacio que quedó realmente disponible desde `top` hasta el
-  // borde inferior de la ventana (por ejemplo cuando el trigger está a
-  // mitad de un modal alto, como en "Agregar Desparasitación" — este
-  // era exactamente el caso reportado). Sin este clamp, el CSS
-  // max-height estático (min(520px,70vh)) hace que el panel se dibuje
-  // más grande que el hueco real y se corte contra el borde de la
-  // ventana sin activar el scroll interno de .deworm-picker-list,
-  // dejando parte de la lista invisible e inaccesible. Al fijar acá un
-  // panel.style.maxHeight explícito, ligado al espacio real, el
-  // navegador SIEMPRE respeta ese límite y .deworm-picker-list (que
-  // tiene overflow-y:auto y flex:1) absorbe el sobrante con scroll.
-  const availableBelow = window.innerHeight - top - 12;
-  const maxHeight = Math.max(200, Math.min(preferredMaxHeight, availableBelow));
   panel.style.top = top + 'px';
   panel.style.left = left + 'px';
   panel.style.width = width + 'px';
-  panel.style.maxHeight = maxHeight + 'px';
 }
 window.addEventListener('resize', () => {
   const overlay = document.getElementById('deworm-picker-overlay');
