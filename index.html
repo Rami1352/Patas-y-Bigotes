@@ -2281,6 +2281,145 @@ html[data-font-size="large"] .toast-container {
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* ══════════════════════════════════
+   SELECTOR VISUAL DE ALIMENTO
+   (Registro de Alimentación → campo "Alimento")
+   Desktop (≥640px): dropdown ancho con tarjetas grandes, anclado
+   debajo del botón que lo abre.
+   Mobile (<640px): bottom sheet propio, independiente del modal
+   padre (#modal-add-food), reutilizando el mismo z-index base que
+   ya usa .modal-overlay (1000) más uno, para apilarse arriba.
+══════════════════════════════════ */
+.food-picker-trigger {
+  width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-sm);
+  font-size: 14px; font-family: 'Inter', sans-serif; color: var(--charcoal); background: var(--white);
+  outline: none; cursor: pointer; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  transition: border .15s;
+}
+.food-picker-trigger:hover { border-color: var(--fog); }
+.food-picker-trigger.open { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(45,80,22,.08); }
+.food-picker-trigger-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.food-picker-trigger-placeholder { color: var(--mist); }
+.food-picker-trigger i.fa-chevron-down { font-size: 12px; color: var(--stone); transition: transform .18s; flex-shrink: 0; }
+.food-picker-trigger.open i.fa-chevron-down { transform: rotate(180deg); }
+.food-picker-trigger-thumb {
+  width: 22px; height: 22px; border-radius: 5px; object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--border-sm); background: var(--cream);
+}
+
+/* Overlay propio del picker: en mobile actúa de fondo oscuro detrás
+   del bottom sheet; en desktop queda transparente (el dropdown se
+   ancla al trigger, no necesita tapar la pantalla) pero sigue
+   ocupando toda la ventana para poder cerrar clickeando afuera. */
+.food-picker-overlay {
+  position: fixed; inset: 0; z-index: 1001; display: none;
+}
+.food-picker-overlay.open { display: block; }
+@media (max-width: 639.98px) {
+  .food-picker-overlay.open { background: var(--surface-overlay); animation: overlayFadeIn .2s ease both; }
+}
+
+/* Panel: dropdown en desktop (posicionado por JS con top/left/width
+   fijos, calculados desde el rect del trigger), bottom sheet en
+   mobile (anclado abajo por CSS, como .modal). */
+.food-picker-panel {
+  position: fixed; background: var(--white); box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+@media (min-width: 640px) {
+  .food-picker-panel {
+    border-radius: var(--r-lg); max-height: min(520px, 70vh);
+    animation: foodPickerScaleIn .16s cubic-bezier(.22,1,.36,1) both;
+  }
+}
+@media (max-width: 639.98px) {
+  .food-picker-panel {
+    left: 0; right: 0; bottom: 0; top: auto; width: 100%;
+    border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 86vh;
+    animation: slideUp .24s cubic-bezier(.22,1,.36,1) both;
+  }
+}
+@keyframes foodPickerScaleIn { from { transform: translateY(-6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .food-picker-panel, .food-picker-overlay.open { animation: none !important; }
+}
+
+.food-picker-sheet-title {
+  display: none; padding: 18px 20px 4px; font-family: 'Inter', sans-serif;
+  font-size: 17px; font-weight: 700; color: var(--charcoal);
+}
+@media (max-width: 639.98px) { .food-picker-sheet-title { display: block; } }
+.food-picker-sheet-handle {
+  display: none; width: 36px; height: 4px; border-radius: 2px; background: var(--border);
+  margin: 10px auto 0;
+}
+@media (max-width: 639.98px) { .food-picker-sheet-handle { display: block; } }
+
+.food-picker-search {
+  display: flex; align-items: center; gap: 8px; margin: 12px 16px; padding: 9px 12px;
+  border: 1.5px solid var(--border); border-radius: var(--r-sm); background: var(--surface-input);
+  flex-shrink: 0;
+}
+.food-picker-search i { color: var(--mist); font-size: 13px; flex-shrink: 0; }
+.food-picker-search input {
+  border: none; outline: none; background: transparent; font-size: 13.5px; font-family: 'Inter', sans-serif;
+  color: var(--charcoal); width: 100%;
+}
+.food-picker-search input::placeholder { color: var(--mist); }
+
+.food-picker-list { overflow-y: auto; padding: 2px 10px 8px; flex: 1; min-height: 0; }
+.food-picker-option {
+  display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--r-md);
+  cursor: pointer; border: 1.5px solid transparent; margin-bottom: 6px; transition: background .12s, border-color .12s;
+  text-align: left; width: 100%; background: none;
+}
+.food-picker-option:hover { background: var(--surface-hover); }
+.food-picker-option.selected { background: var(--sage-tint); border-color: var(--sage); }
+.food-picker-option-thumb {
+  width: 48px; height: 48px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+  background: var(--cream); border: 1px solid var(--border-sm);
+}
+.food-picker-option-thumb-fallback {
+  width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; background: var(--svc-food-bg);
+  color: var(--svc-food); display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.food-picker-option-body { flex: 1; min-width: 0; }
+.food-picker-option-name { font-size: 14px; font-weight: 700; color: var(--charcoal); line-height: 1.3; }
+.food-picker-option-check {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 11px;
+  background: var(--white); transition: background .12s, border-color .12s;
+}
+.food-picker-option.selected .food-picker-option-check { background: var(--sage-solid); border-color: var(--sage-solid); }
+.food-picker-empty { padding: 30px 16px; text-align: center; color: var(--mist); font-size: 13px; }
+
+.food-picker-add-new {
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px; margin: 4px 10px 8px;
+  border-radius: var(--r-md); cursor: pointer; color: var(--sage-solid); font-weight: 600; font-size: 13.5px;
+  border-top: 1px solid var(--border-sm); flex-shrink: 0;
+}
+.food-picker-add-new:hover { background: var(--sage-tint); }
+.food-picker-add-new i { font-size: 13px; }
+
+.food-picker-sheet-footer {
+  display: none; padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border-sm); gap: 10px; flex-shrink: 0;
+}
+@media (max-width: 639.98px) { .food-picker-sheet-footer { display: flex; } }
+.food-picker-sheet-footer .btn { flex: 1; }
+
+/* Fila de "Alimento" ingresado a mano (fallback texto libre), oculta
+   por default; se muestra cuando el usuario elige "Agregar alimento
+   nuevo" y no encuentra su producto en el catálogo. */
+.food-manual-row { display: none; }
+.food-manual-row.show { display: block; }
+.food-manual-row-back {
+  font-size: 12px; color: var(--sage-solid); font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 7px;
+}
+.food-manual-row-back:hover { text-decoration: underline; }
+
+/* ══════════════════════════════════
    PORTAL DE SERVICIOS (CLIENTE)
 ══════════════════════════════════ */
 .portal-welcome {
@@ -5595,7 +5734,26 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
     <div class="modal-header"><div class="modal-title modal-title--inter">Registro de Alimentación</div><button class="modal-close" onclick="closeModal('modal-add-food')"><i class="fa-solid fa-xmark"></i></button></div>
     <div class="modal-body">
       <div class="form-row"><label>Mascota *</label><select class="form-control" id="food-dog"></select></div>
-      <div class="form-row"><label>Alimento</label><input class="form-control" id="food-brand" placeholder="Ej: Royal Canin Medium Adult" /></div>
+      <div class="form-row">
+        <label>Alimento</label>
+        <!-- Trigger visible: abre el selector (dropdown en desktop, bottom
+             sheet en mobile). Nunca se lee directo en saveFood/editFood:
+             el valor real vive en el input oculto #food-brand de abajo,
+             que es el mismo id que ya usaban esas funciones, así que no
+             hace falta tocarlas. -->
+        <button type="button" class="food-picker-trigger" id="food-picker-trigger" onclick="openFoodPicker()">
+          <span class="food-picker-trigger-label food-picker-trigger-placeholder" id="food-picker-trigger-label">Seleccionar alimento</span>
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <input type="hidden" id="food-brand" />
+        <!-- Fallback de texto libre: se muestra solo si el producto no
+             está en el catálogo ("Agregar alimento nuevo" dentro del
+             picker) o si el catálogo vino vacío de la planilla. -->
+        <div class="food-manual-row" id="food-manual-row">
+          <span class="food-manual-row-back" onclick="closeFoodManualEntry()"><i class="fa-solid fa-arrow-left"></i> Volver al catálogo</span>
+          <input class="form-control" id="food-brand-manual" placeholder="Ej: Royal Canin Medium Adult" oninput="syncFoodManualToHidden()" />
+        </div>
+      </div>
       <div class="form-row-2">
         <div class="form-row"><label>Porción diaria (gr)</label><input class="form-control" id="food-portion" type="number" placeholder="300" /></div>
         <div class="form-row"><label>Frecuencia</label>
@@ -5613,6 +5771,28 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modal-add-food')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveFood()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SELECTOR VISUAL DE ALIMENTO (dropdown desktop / bottom sheet mobile) ──
+     Vive fuera de #modal-add-food a propósito: en mobile es un bottom
+     sheet que se apila ARRIBA del modal padre (z-index superior), y en
+     desktop se posiciona con position:fixed calculado desde el trigger,
+     lo cual es más simple si no está anidado dentro del overflow:auto
+     del modal. -->
+<div class="food-picker-overlay" id="food-picker-overlay" onclick="if(event.target===this) closeFoodPicker()">
+  <div class="food-picker-panel" id="food-picker-panel" role="dialog" aria-label="Seleccionar alimento">
+    <div class="food-picker-sheet-handle"></div>
+    <div class="food-picker-sheet-title">Seleccionar alimento</div>
+    <div class="food-picker-search">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" id="food-picker-search-input" placeholder="Buscar alimento..." oninput="renderFoodPickerList()" />
+    </div>
+    <div class="food-picker-list" id="food-picker-list"></div>
+    <div class="food-picker-sheet-footer">
+      <button type="button" class="btn btn-secondary" onclick="closeFoodPicker()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="confirmFoodPickerSelection()">Seleccionar</button>
     </div>
   </div>
 </div>
@@ -6351,7 +6531,7 @@ window.addEventListener('resize', updateNavOverflowIndicator);
 /* ══════════════════════════════════
    ESTADO & DATOS
 ══════════════════════════════════ */
-let state = { dogs: [], walks: [], health: [], food: [], homeCare: [], recommendations: [] };
+let state = { dogs: [], walks: [], health: [], food: [], homeCare: [], recommendations: [], foodCatalog: [] };
 const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
 /* PHOTO_POSITION — ajusta el encuadre (object-position) de la foto circular/redondeada
@@ -10006,9 +10186,280 @@ function openFoodModal() {
   document.getElementById('food-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
   ['food-brand','food-portion','food-last','food-next','food-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('food-freq').value = '1 vez al día';
+  setFoodPickerValue(''); // limpia también el trigger visual y la fila manual, no solo el hidden #food-brand
   document.querySelector('#modal-add-food .modal-title').textContent = 'Registro de Alimentación';
   document.querySelector('#modal-add-food .btn-primary').textContent = 'Guardar';
   openModal('modal-add-food');
+}
+
+/* ══════════════════════════════════
+   SELECTOR VISUAL DE ALIMENTO
+   Reemplaza el <input> de texto libre que tenía "Alimento" por un
+   dropdown (desktop) / bottom sheet (mobile) con tarjetas de producto
+   (foto + nombre), leídas del catálogo de la hoja "Alimentacion"
+   (columnas "Nombre_alimentos_segun_link" / "Fotos_Alimentos", ver
+   handleGetCatalogoAlimentos en el Apps Script). El VALOR real sigue
+   viviendo en el mismo <input type="hidden" id="food-brand"> de
+   siempre: saveFood()/editFood()/duplicateFood() no se tocan, siguen
+   leyendo/escribiendo ese id exactamente igual que cuando era un
+   <input> de texto visible.
+══════════════════════════════════ */
+let foodPickerHoveredId = null;   // selección tentativa dentro del picker (aplicada recién al confirmar)
+let foodPickerLoadPromise = null; // evita pedir el catálogo 2 veces si el usuario abre/cierra rápido
+
+// Carga el catálogo UNA sola vez (caché en state.foodCatalog) y de forma
+// perezosa: recién la primera vez que se abre el picker, no en cada
+// carga de página, para no sumar una 4ta llamada a Apps Script en el
+// arranque (ver el escalonamiento de 250ms entre las 3 llamadas de
+// loadHealthFoodHomeCareFromSheet: agregar una más ahí reintroduciría el
+// mismo riesgo de timeout que ese escalonamiento existe para evitar).
+async function ensureFoodCatalogLoaded() {
+  if (state.foodCatalog && state.foodCatalog.length) return state.foodCatalog;
+  if (foodPickerLoadPromise) return foodPickerLoadPromise;
+  foodPickerLoadPromise = (async () => {
+    try {
+      const rows = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCatalogoAlimentos');
+      if (Array.isArray(rows)) {
+        state.foodCatalog = rows
+          .filter(r => r && r.nombre)
+          .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim() }));
+      } else {
+        state.foodCatalog = [];
+      }
+    } catch (e) {
+      addLiveLog('[WARN] No se pudo cargar el catálogo de alimentos: ' + e.message, 'err');
+      state.foodCatalog = [];
+    }
+    return state.foodCatalog;
+  })();
+  return foodPickerLoadPromise;
+}
+
+// Pone el valor "oficial" (el que va a guardarse): actualiza el hidden
+// #food-brand (lo que ya leen saveFood/editFood) Y la etiqueta visible
+// del trigger, para que ambos queden siempre consistentes entre sí.
+function setFoodPickerValue(brandName) {
+  const hidden = document.getElementById('food-brand');
+  if (hidden) hidden.value = brandName || '';
+
+  const label = document.getElementById('food-picker-trigger-label');
+  if (!label) return;
+  if (brandName) {
+    label.textContent = brandName;
+    label.classList.remove('food-picker-trigger-placeholder');
+  } else {
+    label.textContent = 'Seleccionar alimento';
+    label.classList.add('food-picker-trigger-placeholder');
+  }
+
+  // Miniatura del alimento elegido, si está en el catálogo (si vino de
+  // "Agregar alimento nuevo" no va a estar, y no pasa nada: el trigger
+  // simplemente no muestra miniatura).
+  const existingThumb = document.getElementById('food-picker-trigger-thumb');
+  if (existingThumb) existingThumb.remove();
+  const match = brandName && state.foodCatalog ? state.foodCatalog.find(p => p.nombre === brandName) : null;
+  if (match && match.foto) {
+    const img = document.createElement('img');
+    img.className = 'food-picker-trigger-thumb';
+    img.id = 'food-picker-trigger-thumb';
+    img.src = match.foto;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = function () { this.remove(); };
+    label.insertAdjacentElement('beforebegin', img);
+  }
+
+  // Ocultar la fila manual si se acaba de fijar un valor del catálogo
+  // (por ejemplo al editar un registro cuyo alimento SÍ está en el
+  // catálogo): la fila manual solo debe quedar visible cuando el
+  // usuario explícitamente eligió "Agregar alimento nuevo".
+  closeFoodManualEntry(/*silent=*/true);
+}
+
+async function openFoodPicker() {
+  const trigger = document.getElementById('food-picker-trigger');
+  const overlay = document.getElementById('food-picker-overlay');
+  const panel   = document.getElementById('food-picker-panel');
+  if (!trigger || !overlay || !panel) return;
+
+  trigger.classList.add('open');
+  overlay.classList.add('open');
+
+  // Selección tentativa arranca en el valor actual del hidden, para que
+  // si el usuario abre el picker con un alimento ya elegido, esa tarjeta
+  // aparezca resaltada de entrada.
+  foodPickerHoveredId = document.getElementById('food-brand').value || null;
+
+  const searchInput = document.getElementById('food-picker-search-input');
+  if (searchInput) searchInput.value = '';
+
+  await ensureFoodCatalogLoaded();
+  renderFoodPickerList();
+  positionFoodPickerPanel();
+
+  const liveSearch = document.getElementById('food-picker-search-input');
+  if (liveSearch) setTimeout(() => liveSearch.focus({ preventScroll: true }), 50);
+}
+
+function closeFoodPicker() {
+  const trigger = document.getElementById('food-picker-trigger');
+  const overlay = document.getElementById('food-picker-overlay');
+  if (trigger) trigger.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+}
+
+// Posiciona el panel como dropdown ANCLADO al trigger (solo en
+// desktop: en mobile el CSS ya lo fija abajo de la pantalla con
+// left/right/bottom:0, así que ahí este cálculo no se aplica). Se
+// recalcula cada vez que se abre, por si el layout cambió (resize,
+// scroll) desde la última apertura.
+function positionFoodPickerPanel() {
+  const panel = document.getElementById('food-picker-panel');
+  const trigger = document.getElementById('food-picker-trigger');
+  if (!panel || !trigger) return;
+  if (window.innerWidth < 640) {
+    // Mobile: el bottom sheet se posiciona 100% por CSS.
+    panel.style.top = ''; panel.style.left = ''; panel.style.width = '';
+    return;
+  }
+  const rect = trigger.getBoundingClientRect();
+  const gap = 6;
+  const width = Math.max(rect.width, 340);
+  let left = rect.left;
+  // Si el dropdown se saldría de la ventana por la derecha, se alinea
+  // por el borde derecho del trigger en vez del izquierdo.
+  if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
+  let top = rect.bottom + gap;
+  const maxHeight = Math.min(520, window.innerHeight * 0.7);
+  // Si no entra debajo del trigger, se abre hacia arriba.
+  if (top + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + gap) {
+    top = Math.max(12, rect.top - maxHeight - gap);
+  }
+  panel.style.top = top + 'px';
+  panel.style.left = left + 'px';
+  panel.style.width = width + 'px';
+}
+window.addEventListener('resize', () => {
+  const overlay = document.getElementById('food-picker-overlay');
+  if (overlay && overlay.classList.contains('open')) positionFoodPickerPanel();
+});
+
+function renderFoodPickerList() {
+  const listEl = document.getElementById('food-picker-list');
+  if (!listEl) return;
+  const query = (document.getElementById('food-picker-search-input')?.value || '').toLowerCase().trim();
+  const catalog = state.foodCatalog || [];
+  const filtered = query ? catalog.filter(p => p.nombre.toLowerCase().includes(query)) : catalog;
+
+  let html = '';
+  if (!filtered.length) {
+    html += `<div class="food-picker-empty">${catalog.length ? 'Sin resultados para “' + escapeHtml(query) + '”' : 'Catálogo no disponible por el momento'}</div>`;
+  } else {
+    html += filtered.map(p => {
+      const isSelected = foodPickerHoveredId === p.nombre;
+      const thumb = p.foto
+        ? `<img class="food-picker-option-thumb" src="${escapeHtml(p.foto)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;food-picker-option-thumb-fallback&quot;><i class=&quot;fa-solid fa-bowl-food&quot;></i></div>'" />`
+        : `<div class="food-picker-option-thumb-fallback"><i class="fa-solid fa-bowl-food"></i></div>`;
+      return `
+        <button type="button" class="food-picker-option${isSelected ? ' selected' : ''}" onclick="selectFoodPickerOption('${escapeHtml(p.nombre).replace(/'/g, "\\'")}')">
+          ${thumb}
+          <div class="food-picker-option-body">
+            <div class="food-picker-option-name">${escapeHtml(p.nombre)}</div>
+          </div>
+          <div class="food-picker-option-check">${isSelected ? '<i class="fa-solid fa-check"></i>' : ''}</div>
+        </button>`;
+    }).join('');
+  }
+  listEl.innerHTML = html;
+
+  // "Agregar alimento nuevo" siempre disponible al pie de la lista, para
+  // productos que no están en el catálogo cargado en la planilla.
+  const addNew = document.createElement('div');
+  addNew.className = 'food-picker-add-new';
+  addNew.innerHTML = '<i class="fa-solid fa-plus"></i> Agregar alimento nuevo';
+  addNew.onclick = openFoodManualEntry;
+  listEl.appendChild(addNew);
+}
+
+// Marca una tarjeta como elegida (selección tentativa). En desktop
+// confirma inmediatamente (mismo gesto que un <select> nativo: un solo
+// click alcanza); en mobile queda como preselección hasta que el
+// usuario toca "Seleccionar" abajo, que es el patrón esperado en un
+// bottom sheet con footer de confirmación (ver Imagen 1: el botón dice
+// "Seleccionar", no "Guardar").
+function selectFoodPickerOption(nombre) {
+  foodPickerHoveredId = nombre;
+  renderFoodPickerList();
+  if (window.innerWidth >= 640) confirmFoodPickerSelection();
+}
+
+function confirmFoodPickerSelection() {
+  if (foodPickerHoveredId) setFoodPickerValue(foodPickerHoveredId);
+  closeFoodPicker();
+}
+
+// "Agregar alimento nuevo": cierra el picker y muestra la fila de texto
+// libre original, para productos que no están (todavía) en el catálogo
+// de la planilla. El valor tipeado ahí se sincroniza al hidden
+// #food-brand en cada tecla (ver syncFoodManualToHidden), así que
+// saveFood() lo recibe exactamente igual que cuando el <input> era
+// visible directamente.
+function openFoodManualEntry() {
+  closeFoodPicker();
+  const row = document.getElementById('food-manual-row');
+  if (row) row.classList.add('show');
+  const manualInput = document.getElementById('food-brand-manual');
+  if (manualInput) {
+    // Si ya había algo tipeado a mano previamente (por ejemplo el
+    // usuario volvió del catálogo sin elegir nada), lo conserva; si no,
+    // arranca vacío.
+    manualInput.value = document.getElementById('food-brand').value || '';
+    setTimeout(() => manualInput.focus(), 50);
+  }
+}
+
+function closeFoodManualEntry(silent) {
+  const row = document.getElementById('food-manual-row');
+  if (row) row.classList.remove('show');
+  if (!silent) {
+    const manualInput = document.getElementById('food-brand-manual');
+    if (manualInput) manualInput.value = '';
+  }
+}
+
+function syncFoodManualToHidden() {
+  const manualInput = document.getElementById('food-brand-manual');
+  const hidden = document.getElementById('food-brand');
+  if (!manualInput || !hidden) return;
+  hidden.value = manualInput.value.trim();
+  // El trigger de arriba refleja el texto libre también, para que quede
+  // claro qué se va a guardar aunque el usuario no vuelva a abrir el
+  // picker antes de tocar "Guardar".
+  const label = document.getElementById('food-picker-trigger-label');
+  if (label) {
+    const val = manualInput.value.trim();
+    label.textContent = val || 'Seleccionar alimento';
+    label.classList.toggle('food-picker-trigger-placeholder', !val);
+  }
+  const existingThumb = document.getElementById('food-picker-trigger-thumb');
+  if (existingThumb) existingThumb.remove();
+}
+
+// Cierre por click afuera (el overlay ya llama a esto vía el
+// onclick inline en el HTML) y por tecla Escape.
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Escape') return;
+  const overlay = document.getElementById('food-picker-overlay');
+  if (overlay && overlay.classList.contains('open')) closeFoodPicker();
+});
+
+// Pequeño helper de escape de HTML, usado al inyectar nombres de
+// producto (vienen de la planilla, texto libre del administrador) para
+// no romper el markup ni abrir una vía de HTML injection.
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 function populateDogSelect(selectId) {
   let dogsToShow = state.dogs;
