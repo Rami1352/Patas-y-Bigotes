@@ -10532,13 +10532,32 @@ function positionFoodPickerPanel() {
   if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
   let top = rect.bottom + gap;
   const maxHeight = Math.min(520, window.innerHeight * 0.7);
-  // Si no entra debajo del trigger, se abre hacia arriba.
-  if (top + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + gap) {
-    top = Math.max(12, rect.top - maxHeight - gap);
+  // Espacio real disponible abajo y arriba del trigger, sin salirse
+  // de la ventana (12px de margen en cada extremo).
+  const spaceBelow = window.innerHeight - 12 - top;
+  const spaceAbove = rect.top - gap - 12;
+  // Si no entra debajo del trigger, se abre hacia arriba -- pero solo
+  // si arriba hay más lugar que abajo. Antes esto exigía que el hueco
+  // de arriba alcanzara para el maxHeight COMPLETO (520px/70vh); si el
+  // trigger estaba a media pantalla (como en el modal de Alimentación/
+  // Desparasitación) ni arriba ni abajo cumplían esa condición, el panel
+  // se quedaba con top=rect.bottom+gap sin ajustar altura, y quedaba
+  // cortado por el borde inferior de la ventana. Ahora, si ninguno de
+  // los dos lados alcanza el maxHeight completo, se usa el lado con más
+  // espacio y se recorta panel.style.maxHeight a lo que realmente entra.
+  let usedMaxHeight = maxHeight;
+  if (spaceBelow < maxHeight) {
+    if (spaceAbove > spaceBelow) {
+      top = Math.max(12, rect.top - gap - Math.min(maxHeight, spaceAbove));
+      usedMaxHeight = Math.min(maxHeight, spaceAbove);
+    } else {
+      usedMaxHeight = Math.max(160, spaceBelow);
+    }
   }
   panel.style.top = top + 'px';
   panel.style.left = left + 'px';
   panel.style.width = width + 'px';
+  panel.style.maxHeight = usedMaxHeight + 'px';
 }
 window.addEventListener('resize', () => {
   const overlay = document.getElementById('food-picker-overlay');
@@ -10803,13 +10822,27 @@ function positionDewormPickerPanel() {
   if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
   let top = rect.bottom + gap;
   const maxHeight = Math.min(520, window.innerHeight * 0.7);
-  // Si no entra debajo del trigger, se abre hacia arriba.
-  if (top + maxHeight > window.innerHeight - 12 && rect.top > maxHeight + gap) {
-    top = Math.max(12, rect.top - maxHeight - gap);
+  // Espacio real disponible abajo y arriba del trigger, sin salirse
+  // de la ventana (12px de margen en cada extremo).
+  const spaceBelow = window.innerHeight - 12 - top;
+  const spaceAbove = rect.top - gap - 12;
+  // Mismo fix que positionFoodPickerPanel(): si ninguno de los dos
+  // lados alcanza el maxHeight completo, se usa el lado con más
+  // espacio y se recorta panel.style.maxHeight a lo que realmente
+  // entra, en vez de dejar el panel cortado por el borde de la ventana.
+  let usedMaxHeight = maxHeight;
+  if (spaceBelow < maxHeight) {
+    if (spaceAbove > spaceBelow) {
+      top = Math.max(12, rect.top - gap - Math.min(maxHeight, spaceAbove));
+      usedMaxHeight = Math.min(maxHeight, spaceAbove);
+    } else {
+      usedMaxHeight = Math.max(160, spaceBelow);
+    }
   }
   panel.style.top = top + 'px';
   panel.style.left = left + 'px';
   panel.style.width = width + 'px';
+  panel.style.maxHeight = usedMaxHeight + 'px';
 }
 window.addEventListener('resize', () => {
   const overlay = document.getElementById('deworm-picker-overlay');
