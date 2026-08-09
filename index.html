@@ -10494,8 +10494,29 @@ async function openFoodPicker() {
   const searchInput = document.getElementById('food-picker-search-input');
   if (searchInput) searchInput.value = '';
 
+  // Posicionar el panel YA, antes de esperar el catálogo. ensureFoodCatalogLoaded()
+  // hace un fetch remoto (Apps Script) que puede tardar varios segundos la primera
+  // vez que se abre el picker en la sesión (después queda cacheado en
+  // state.foodCatalog y esto resuelve al instante). Antes, positionFoodPickerPanel()
+  // se llamaba recién DESPUÉS del await: mientras tanto el panel ya estaba visible
+  // (overlay/trigger con .open puesto arriba) pero sin top/left/width inline, así
+  // que el navegador lo dejaba con el fixed-position por defecto (pegado a
+  // top:0;left:0) en vez de anclado al trigger -- se veía como un buscador suelto
+  // en la esquina superior izquierda hasta que el fetch terminaba.
+  if (state.foodCatalog && state.foodCatalog.length) {
+    renderFoodPickerList();
+  } else {
+    // Estado de carga: mismo estilo que food-picker-empty (catálogo vacío),
+    // para no mostrar la lista anterior ni un panel en blanco mientras se espera.
+    const listEl = document.getElementById('food-picker-list');
+    if (listEl) listEl.innerHTML = '<div class="food-picker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Cargando catálogo…</div>';
+  }
+  positionFoodPickerPanel();
+
   await ensureFoodCatalogLoaded();
   renderFoodPickerList();
+  // Se reposiciona de nuevo por si la altura real de la lista (loading vs.
+  // catálogo cargado) cambió cuánto espacio ocupa el panel.
   positionFoodPickerPanel();
 
   const liveSearch = document.getElementById('food-picker-search-input');
@@ -10782,6 +10803,18 @@ async function openDewormPicker() {
 
   const searchInput = document.getElementById('deworm-picker-search-input');
   if (searchInput) searchInput.value = '';
+
+  // Mismo fix que openFoodPicker(): posicionar el panel YA, antes de esperar
+  // el catálogo, para que no quede pegado a top:0;left:0 (fixed sin inline
+  // styles todavía) mientras ensureDewormCatalogLoaded() resuelve el fetch
+  // remoto la primera vez que se abre en la sesión.
+  if (state.dewormCatalog && state.dewormCatalog.length) {
+    renderDewormPickerList();
+  } else {
+    const listEl = document.getElementById('deworm-picker-list');
+    if (listEl) listEl.innerHTML = '<div class="deworm-picker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Cargando catálogo…</div>';
+  }
+  positionDewormPickerPanel();
 
   await ensureDewormCatalogLoaded();
   renderDewormPickerList();
