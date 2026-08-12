@@ -2306,6 +2306,13 @@ html[data-font-size="large"] .toast-container {
   width: 22px; height: 22px; border-radius: 5px; object-fit: cover; flex-shrink: 0;
   border: 1px solid var(--border-sm); background: var(--cream);
 }
+/* Precio dentro del trigger cerrado (ver Imagen 1): chip chico a la
+   derecha del nombre, antes de la flecha. Solo aparece si el producto
+   elegido tiene precio > 0 en el catálogo (setFoodPickerValue lo arma). */
+.food-picker-trigger-price {
+  font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
+  color: var(--sage-solid); flex-shrink: 0; white-space: nowrap;
+}
 
 /* Overlay propio del picker: en mobile actúa de fondo oscuro detrás
    del bottom sheet; en desktop queda transparente (el dropdown se
@@ -2385,6 +2392,14 @@ html[data-font-size="large"] .toast-container {
 }
 .food-picker-option-body { flex: 1; min-width: 0; }
 .food-picker-option-name { font-size: 14px; font-weight: 700; color: var(--charcoal); line-height: 1.3; }
+/* Precio debajo del nombre en cada tarjeta de la lista (ver Imagen 1,
+   panel "1. Selector de alimento con precio"). Solo se agrega cuando
+   p.precio > 0; si el producto no tiene precio cargado en la planilla
+   todavía, la tarjeta se ve igual que antes (sin esta línea). */
+.food-picker-option-price {
+  font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
+  color: var(--sage-solid); margin-top: 2px;
+}
 .food-picker-option-check {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 11px;
@@ -5903,6 +5918,22 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
           <input class="form-control" id="food-brand-manual" placeholder="Ej: Royal Canin Medium Adult" oninput="syncFoodManualToHidden()" />
         </div>
       </div>
+      <!-- Precio del producto: SOLO LECTURA para el cliente. Se completa
+           solo al elegir un producto del catálogo (ver setFoodPickerValue),
+           leyendo el precio que ya viene resuelto en state.foodCatalog
+           (Apps Script: columna "precios_alimentos"). El input visible
+           está siempre disabled -- nadie puede tipear ahí, ni admin ni
+           cliente -- así que la única forma de cambiar el precio sigue
+           siendo editar la planilla, tal como pidió el usuario. El valor
+           numérico real vive en el hidden #food-price, que es lo que se
+           guarda junto con el registro (ver saveFood). Se oculta toda la
+           fila cuando el alimento no tiene precio cargado en el catálogo
+           (precio 0 o "Agregar alimento nuevo"), para no mostrar "$ 0". -->
+      <div class="form-row" id="food-price-row" style="display:none">
+        <label>Precio del producto</label>
+        <input class="form-control" id="food-price-display" disabled placeholder="—" />
+        <input type="hidden" id="food-price" value="0" />
+      </div>
       <div class="form-row-2">
         <div class="form-row"><label>Porción diaria (gr)</label><input class="form-control" id="food-portion" type="number" placeholder="300" /></div>
         <div class="form-row"><label>Frecuencia</label>
@@ -8012,6 +8043,22 @@ function renderModulePaseos() {
 }
 function renderModuleAlimentos() {
   const container = document.getElementById('service-module-content');
+  // La columna "Precio" de la tabla de abajo (foodPriceFor) necesita
+  // state.foodCatalog cargado. El catálogo se carga perezosamente (ver
+  // ensureFoodCatalogLoaded), normalmente recién cuando se abre el
+  // selector de "Alimento" del modal -- pero un cliente puede entrar
+  // directo a esta sección y nunca tocar "+ Agregar registro" en toda
+  // la visita, así que acá se dispara la misma carga en segundo plano
+  // (sin bloquear este render) y, si trae resultados, se vuelve a
+  // renderizar el módulo una sola vez para que los precios aparezcan
+  // sin que el cliente tenga que hacer nada. ensureFoodCatalogLoaded ya
+  // deduplica llamadas concurrentes (foodPickerLoadPromise), así que
+  // esto es seguro de llamar aunque el picker también la esté pidiendo.
+  if (!state.foodCatalog || !state.foodCatalog.length) {
+    ensureFoodCatalogLoaded().then(() => {
+      if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
+    });
+  }
   let myDogs = state.dogs;
   if (!isAdmin()) {
     myDogs = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
@@ -8113,13 +8160,20 @@ function renderModuleAlimentos() {
       <div class="card-header"><div class="card-title card-title--inter">Registro de Alimentación</div></div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Mascota</th><th>Alimento</th><th>Porción/día</th><th>Frecuencia</th><th>Última compra</th><th>Próxima compra</th><th>Estado</th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
+          <thead><tr><th>Mascota</th><th>Alimento</th><th>Precio</th><th>Porción/día</th><th>Frecuencia</th><th>Última compra</th><th>Próxima compra</th><th>Estado</th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
           <tbody>
             ${myFood.map(f => {
               const dog = getDog(f.dogId);
+              // Precio SIEMPRE de solo lectura acá: se resuelve en vivo
+              // contra el catálogo (ver foodPriceFor), nunca editable
+              // desde esta tabla ni desde ningún otro lugar de la
+              // página -- el cliente no tiene forma de tocarlo, tal
+              // como pidió el usuario.
+              const priceVal = foodPriceFor(f.brand);
               return `<tr>
                 <td><div style="display:flex;align-items:center;gap:10px">${dogAvatar(dog)}<strong>${dog.name}</strong></div></td>
                 <td style="font-weight:500">${f.brand}</td>
+                <td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--sage)">${priceVal > 0 ? formatCLP(priceVal) : '—'}</td>
                 <td style="font-family:'Fira Code',monospace">${f.portion}g</td>
                 <td><span class="badge badge-green">${f.freq}</span></td>
                 <td>${formatDate(f.last)}</td>
@@ -9102,6 +9156,15 @@ function renderHealth() {
 /* ── RENDER: ALIMENTACIÓN (ADMIN) ── */
 function renderFood() {
   const container = document.getElementById('food-content');
+  // Mismo fix que renderModuleAlimentos: dispara la carga del catálogo
+  // en segundo plano si todavía no está en state.foodCatalog, para que
+  // la columna "Precio" de abajo (foodPriceFor) no quede en "—" hasta
+  // que alguien abra el selector de "Alimento" del modal.
+  if (!state.foodCatalog || !state.foodCatalog.length) {
+    ensureFoodCatalogLoaded().then(() => {
+      if (currentView !== 'service-module') renderFood();
+    });
+  }
   let myDogs = state.dogs;
   if (!isAdmin()) { myDogs = state.dogs.filter(d=>d.mail&&d.mail.toLowerCase()===currentUser.email); }
   const dogIds = myDogs.map(d=>d.id);
@@ -9117,9 +9180,9 @@ function renderFood() {
       <div class="card-header"><div class="card-title">Registro de Alimentación</div></div>
       <div class="table-wrap">
         <table class="data-table">
-          <thead><tr><th>Mascota</th><th>Alimento</th><th>Porción/día</th><th>Frecuencia</th><th>Última compra</th><th>Próxima compra</th><th>Estado</th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
+          <thead><tr><th>Mascota</th><th>Alimento</th><th>Precio</th><th>Porción/día</th><th>Frecuencia</th><th>Última compra</th><th>Próxima compra</th><th>Estado</th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
           <tbody>
-            ${myFood.map(f=>{const dog=getDog(f.dogId);return `<tr><td><strong>${dogIcon(dog)} ${dog.name}</strong></td><td>${f.brand}</td><td style="font-family:'Fira Code',monospace">${f.portion}g</td><td><span class="badge badge-green">${f.freq}</span></td><td>${formatDate(f.last)}</td><td>${formatDate(f.next)}</td><td>${urgencyBadge(f.next)}</td>${isAdmin() ? `<td><button style="background:none;border:none;cursor:pointer;color:var(--mist)" onclick="deleteFood('${f.id}')"><i class="fa-solid fa-xmark"></i></button></td>` : ''}</tr>`;}).join('')}
+            ${myFood.map(f=>{const dog=getDog(f.dogId);const priceVal=foodPriceFor(f.brand);return `<tr><td><strong>${dogIcon(dog)} ${dog.name}</strong></td><td>${f.brand}</td><td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--sage)">${priceVal>0?formatCLP(priceVal):'—'}</td><td style="font-family:'Fira Code',monospace">${f.portion}g</td><td><span class="badge badge-green">${f.freq}</span></td><td>${formatDate(f.last)}</td><td>${formatDate(f.next)}</td><td>${urgencyBadge(f.next)}</td>${isAdmin() ? `<td><button style="background:none;border:none;cursor:pointer;color:var(--mist)" onclick="deleteFood('${f.id}')"><i class="fa-solid fa-xmark"></i></button></td>` : ''}</tr>`;}).join('')}
           </tbody>
         </table>
       </div>
@@ -9961,6 +10024,28 @@ function urgencyBadge(s) {
   return '<span class="badge badge-green">' + d + ' días</span>';
 }
 function formatCLP(n) { return '$' + Number(n).toLocaleString('es-AR'); }
+// Resuelve el precio ACTUAL de un producto de Alimentación por nombre,
+// buscando en state.foodCatalog (que ya trae "precio" desde la
+// planilla, columna "precios_alimentos" — ver ensureFoodCatalogLoaded y
+// handleGetCatalogoAlimentos v15 del Apps Script). A propósito el precio
+// NUNCA se guarda dentro de state.food/f.price: cada registro de
+// Alimentación (state.food) solo guarda qué alimento es (f.brand), y el
+// precio se resuelve en vivo contra el catálogo cada vez que se
+// necesita mostrar. Así, si el administrador cambia el precio de un
+// producto en el Google Sheet, TODOS los registros que usan ese
+// producto (pasados y futuros) muestran el precio nuevo la próxima vez
+// que se carga/renderiza la tabla, sin tener que editar cada fila de
+// Alimentacion una por una -- que es exactamente lo que pidió el
+// usuario ("al modificar el precio en el google sheet también se
+// actualice en la página"). Devuelve 0 si el producto no está en el
+// catálogo cargado (por ejemplo, fue cargado a texto libre con
+// "Agregar alimento nuevo", o el catálogo todavía no terminó de
+// cargar en esta sesión).
+function foodPriceFor(brand) {
+  if (!brand || !state.foodCatalog) return 0;
+  const match = state.foodCatalog.find(p => p.nombre === brand);
+  return match ? (match.precio || 0) : 0;
+}
 function isReadOnly() { return currentUser && currentUser.role === 'viewer'; }
 
 /* ══════════════════════════════════
@@ -10387,7 +10472,7 @@ function openFoodModal() {
   document.getElementById('food-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
   ['food-brand','food-portion','food-last','food-next','food-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('food-freq').value = '1 vez al día';
-  setFoodPickerValue(''); // limpia también el trigger visual y la fila manual, no solo el hidden #food-brand
+  setFoodPickerValue(''); // limpia también el trigger visual, la fila manual y la fila de precio, no solo el hidden #food-brand
   document.querySelector('#modal-add-food .modal-title').textContent = 'Registro de Alimentación';
   document.querySelector('#modal-add-food .btn-primary').textContent = 'Guardar';
   openModal('modal-add-food');
@@ -10421,9 +10506,13 @@ async function ensureFoodCatalogLoaded() {
     try {
       const rows = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCatalogoAlimentos');
       if (Array.isArray(rows)) {
+        // precio viene del Apps Script (handleGetCatalogoAlimentos v15)
+        // como número ya limpio (columna "precios_alimentos" sin "$" ni
+        // puntos de miles). Number(...) por las dudas de que llegue como
+        // string desde JSONP; || 0 cubre vacío/NaN igual que brand/foto.
         state.foodCatalog = rows
           .filter(r => r && r.nombre)
-          .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim() }));
+          .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim(), precio: Number(r.precio) || 0 }));
       } else {
         state.foodCatalog = [];
       }
@@ -10468,6 +10557,41 @@ function setFoodPickerValue(brandName) {
     img.loading = 'lazy';
     img.onerror = function () { this.remove(); };
     label.insertAdjacentElement('beforebegin', img);
+  }
+
+  // Chip de precio dentro del trigger cerrado (ver Imagen 1: "$ 110.000"
+  // a la derecha del nombre elegido, antes de la flecha). Se remueve y
+  // se vuelve a crear cada vez, igual que la miniatura de arriba.
+  const existingTriggerPrice = document.getElementById('food-picker-trigger-price');
+  if (existingTriggerPrice) existingTriggerPrice.remove();
+  if (match && match.precio > 0) {
+    const priceSpan = document.createElement('span');
+    priceSpan.className = 'food-picker-trigger-price';
+    priceSpan.id = 'food-picker-trigger-price';
+    priceSpan.textContent = formatCLP(match.precio);
+    const chevron = document.querySelector('#food-picker-trigger i.fa-chevron-down');
+    if (chevron) chevron.insertAdjacentElement('beforebegin', priceSpan);
+  }
+
+  // Campo "Precio del producto": SOLO LECTURA, se completa automáticamente
+  // con el precio resuelto desde el catálogo (ver comentario junto al
+  // <div id="food-price-row"> en el modal). Si el alimento no está en el
+  // catálogo o no tiene precio cargado todavía (match.precio === 0 o
+  // "Agregar alimento nuevo"), la fila entera queda oculta en vez de
+  // mostrar "$ 0", que confundiría más de lo que ayuda.
+  const priceRow = document.getElementById('food-price-row');
+  const priceDisplay = document.getElementById('food-price-display');
+  const priceHidden = document.getElementById('food-price');
+  if (priceRow && priceDisplay && priceHidden) {
+    if (match && match.precio > 0) {
+      priceDisplay.value = formatCLP(match.precio);
+      priceHidden.value = match.precio;
+      priceRow.style.display = '';
+    } else {
+      priceDisplay.value = '';
+      priceHidden.value = 0;
+      priceRow.style.display = 'none';
+    }
   }
 
   // Ocultar la fila manual si se acaba de fijar un valor del catálogo
@@ -10601,11 +10725,19 @@ function renderFoodPickerList() {
       const thumb = p.foto
         ? `<img class="food-picker-option-thumb" src="${escapeHtml(p.foto)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;food-picker-option-thumb-fallback&quot;><i class=&quot;fa-solid fa-bowl-food&quot;></i></div>'" />`
         : `<div class="food-picker-option-thumb-fallback"><i class="fa-solid fa-bowl-food"></i></div>`;
+      // Línea de precio (ver Imagen 1): solo se muestra si el producto
+      // tiene precio > 0 cargado en la columna "precios_alimentos" de la
+      // planilla. Productos sin precio todavía se ven igual que antes,
+      // sin esta línea, para no mostrar "$ 0".
+      const priceHtml = p.precio > 0
+        ? `<div class="food-picker-option-price">${formatCLP(p.precio)}</div>`
+        : '';
       return `
         <button type="button" class="food-picker-option${isSelected ? ' selected' : ''}" onclick="selectFoodPickerOption('${escapeHtml(p.nombre).replace(/'/g, "\\'")}')">
           ${thumb}
           <div class="food-picker-option-body">
             <div class="food-picker-option-name">${escapeHtml(p.nombre)}</div>
+            ${priceHtml}
           </div>
           <div class="food-picker-option-check">${isSelected ? '<i class="fa-solid fa-check"></i>' : ''}</div>
         </button>`;
@@ -10657,6 +10789,16 @@ function openFoodManualEntry() {
     manualInput.value = document.getElementById('food-brand').value || '';
     setTimeout(() => manualInput.focus(), 50);
   }
+  // Un producto tipeado a mano no tiene precio de catálogo: se oculta
+  // la fila de precio (mismo criterio que setFoodPickerValue cuando
+  // match.precio es 0), en vez de dejar mostrado el precio del producto
+  // seleccionado anteriormente en el catálogo, si había uno.
+  const priceRow = document.getElementById('food-price-row');
+  const priceDisplay = document.getElementById('food-price-display');
+  const priceHidden = document.getElementById('food-price');
+  if (priceRow) priceRow.style.display = 'none';
+  if (priceDisplay) priceDisplay.value = '';
+  if (priceHidden) priceHidden.value = 0;
 }
 
 function closeFoodManualEntry(silent) {
@@ -10684,6 +10826,12 @@ function syncFoodManualToHidden() {
   }
   const existingThumb = document.getElementById('food-picker-trigger-thumb');
   if (existingThumb) existingThumb.remove();
+  // Mismo criterio que la miniatura: un texto libre no tiene precio de
+  // catálogo, así que se saca el chip de precio si había quedado uno de
+  // una selección anterior (ver también openFoodManualEntry, que oculta
+  // la fila del formulario al entrar a este modo).
+  const existingTriggerPrice = document.getElementById('food-picker-trigger-price');
+  if (existingTriggerPrice) existingTriggerPrice.remove();
 }
 
 // Cierre por click afuera (el overlay ya llama a esto vía el
@@ -11372,7 +11520,15 @@ function editFood(id) {
   let dogsToShow = state.dogs;
   if (!isAdmin()) dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
   document.getElementById('food-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}"${d.id===f.dogId?' selected':''}>${d.name} (${d.owner})</option>`).join('');
-  document.getElementById('food-brand').value   = f.brand || '';
+  // setFoodPickerValue (en vez de asignar el hidden #food-brand directo)
+  // para que, al editar un registro cuyo alimento SÍ está en
+  // state.foodCatalog, también se repinten el trigger, la miniatura y
+  // -nuevo- la fila de precio con lo que diga el catálogo hoy. Si el
+  // alimento no está en el catálogo (fue cargado a texto libre o ya no
+  // existe esa fila en la planilla), el trigger simplemente muestra el
+  // nombre guardado sin miniatura ni precio, igual que antes de este
+  // cambio para la miniatura.
+  setFoodPickerValue(f.brand || '');
   document.getElementById('food-portion').value  = f.portion || '';
   document.getElementById('food-freq').value     = f.freq || '1 vez al día';
   document.getElementById('food-last').value     = f.last || '';
@@ -11381,6 +11537,17 @@ function editFood(id) {
   document.querySelector('#modal-add-food .modal-title').textContent = 'Editar Registro de Alimentación';
   document.querySelector('#modal-add-food .btn-primary').textContent = 'Guardar cambios';
   openModal('modal-add-food');
+  // Si el catálogo todavía no se cargó en esta sesión (el usuario nunca
+  // abrió el selector de "Alimento" antes de tocar "Editar" en la
+  // tabla), setFoodPickerValue de arriba no pudo encontrar match en
+  // state.foodCatalog (todavía vacío) y el trigger quedó sin miniatura
+  // ni precio. Se dispara la carga acá y, si aparece el match, se vuelve
+  // a llamar setFoodPickerValue para completar ambos.
+  if (!state.foodCatalog || !state.foodCatalog.length) {
+    ensureFoodCatalogLoaded().then(() => {
+      if (editingFoodId === id) setFoodPickerValue(f.brand || '');
+    });
+  }
 }
 
 async function duplicateFood(id) {
