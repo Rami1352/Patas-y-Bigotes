@@ -8254,8 +8254,29 @@ function renderModuleAlimentos() {
               // página -- el cliente no tiene forma de tocarlo, tal
               // como pidió el usuario.
               const priceVal = foodPriceFor(f.brand);
+              // FIX: antes esta celda solo mostraba avatar + nombre, sin
+              // nada debajo (ver Imagen 5 del usuario). Se agrega dueño y
+              // raza, mismo patrón exacto que ya usa la tabla de
+              // Desparasitación (renderModuleDesparasitarios, dueño y
+              // raza separados por " · "). dog.owner/dog.breed ya vienen
+              // resueltos en el objeto de state.dogs (getDog(f.dogId) más
+              // arriba), que se carga desde la hoja "Mascota Paseo" --
+              // columnas Dueño y Raza, ver idx.dueno/idx.raza en el Apps
+              // Script -- así que no hace falta ningún fetch nuevo, el
+              // dato ya estaba disponible y solo faltaba pintarlo acá. Se
+              // reutiliza la clase .deworm-row-pet-owner (11.5px, color
+              // charcoal) en vez de crear una clase nueva idéntica: es un
+              // estilo genérico de "subtítulo bajo el nombre de la
+              // mascota en una fila de tabla", no algo específico de
+              // desparasitarios.
               return `<tr>
-                <td><div style="display:flex;align-items:center;gap:10px">${dogAvatar(dog)}<strong>${dog.name}</strong></div></td>
+                <td><div style="display:flex;align-items:center;gap:10px">
+                  ${dogAvatar(dog)}
+                  <div>
+                    <strong>${dog.name}</strong>
+                    <div class="deworm-row-pet-owner">${dog.owner} · ${dog.breed}</div>
+                  </div>
+                </div></td>
                 <td style="font-weight:500">${f.brand}</td>
                 <td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--sage)">${priceVal > 0 ? formatCLP(priceVal) : '—'}</td>
                 <td style="font-family:'Fira Code',monospace">${f.portion}g</td>
@@ -11177,30 +11198,46 @@ async function openDewormPicker() {
     const listEl = document.getElementById('deworm-picker-list');
     if (listEl) listEl.innerHTML = '<div class="deworm-picker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Cargando catálogo…</div>';
   }
-  // FIX: a diferencia de openFoodPicker() (donde el trigger #food-picker-trigger
-  // ya tiene layout estable apenas se abre modal-add-food, porque es el primer
-  // campo justo debajo de "Mascota"), acá el modal-add-deworm puede todavía estar
-  // a mitad de su animación de apertura (modalScaleIn/slideUp, ver .modal en el
-  // CSS) en el mismo frame en que se hace click en "Seleccionar producto". Si
-  // positionDewormPickerPanel() lee getBoundingClientRect() del trigger en ESE
-  // instante, el rect puede venir con top/left todavía en su posición de arranque
-  // de la animación (cerca de 0), y el panel queda anclado ahí en vez de debajo
-  // del trigger real -- se ve "pegado arriba de todo" en vez de como dropdown.
-  // trigger.offsetHeight fuerza un reflow síncrono (layout ya resuelto con los
-  // estilos actuales) antes de medir, y el requestAnimationFrame además empuja el
-  // primer positionDewormPickerPanel() a después de que el navegador termine de
-  // pintar el frame donde se agregó la clase .open. positionFoodPickerPanel() no
-  // necesita este resguardo porque en la práctica su trigger nunca coincide con
-  // la ventana de animación del modal (login corre después de que la apertura de
-  // modal-add-food ya asentó), pero acá sí puede darse.
+  // FIX v2: a diferencia de openFoodPicker() (donde el trigger #food-picker-trigger
+  // ya tiene layout estable apenas se abre modal-add-food, porque el usuario tarda
+  // más en localizar/clickear "Seleccionar alimento" de lo que dura la animación
+  // del modal), acá el modal-add-deworm puede todavía estar a mitad de su animación
+  // de apertura (.modal { animation: modalScaleIn .32s } en desktop, ver el CSS) en
+  // el momento en que se hace click en "Seleccionar producto". modalScaleIn anima
+  // transform: scale(.9→1), así que el propio getBoundingClientRect() del trigger
+  // CAMBIA en cada frame mientras la animación corre -- no es un problema de "un
+  // frame de layout todavía no resuelto" (eso ya lo cubre trigger.offsetHeight),
+  // es que la posición real del trigger se sigue moviendo durante ~320ms.
+  //
+  // El intento anterior (un solo requestAnimationFrame) solo esperaba ~16ms, una
+  // fracción de esos 320ms, así que en la práctica seguía midiendo a mitad de
+  // animación y el panel quedaba anclado a esa posición intermedia (pegado arriba,
+  // como en la Imagen 1 del usuario). Ahora se espera al evento 'animationend' del
+  // propio <div class="modal"> (padre de trigger) antes de la medición real: recién
+  // ahí el navegador garantiza que transform ya vale scale(1) de forma estable.
+  // Como fallback (por si el evento no llega -- ej. prefers-reduced-motion:reduce
+  // desactiva la animación con animation:none!important, ver @media cerca de
+  // .modal-overlay, y ahí 'animationend' nunca dispara) se corre igual un
+  // setTimeout de 340ms (320ms de la animación + 20ms de margen), y se descarta lo
+  // que llegue después vía un flag, para no reposicionar dos veces de más.
   void trigger.offsetHeight;
-  requestAnimationFrame(() => positionDewormPickerPanel());
-  positionDewormPickerPanel();
+  positionDewormPickerPanel(); // primer intento inmediato: cubre el caso común donde el modal ya estaba asentado (mismo comportamiento de antes)
+
+  const modalEl = trigger.closest('.modal');
+  if (modalEl) {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      positionDewormPickerPanel();
+    };
+    modalEl.addEventListener('animationend', settle, { once: true });
+    setTimeout(settle, 340);
+  }
 
   await ensureDewormCatalogLoaded();
   renderDewormPickerList();
   void trigger.offsetHeight;
-  requestAnimationFrame(() => positionDewormPickerPanel());
   positionDewormPickerPanel();
 
   const liveSearch = document.getElementById('deworm-picker-search-input');
