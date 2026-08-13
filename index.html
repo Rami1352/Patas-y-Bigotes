@@ -2455,6 +2455,16 @@ html[data-font-size="large"] .toast-container {
   width: 22px; height: 22px; border-radius: 5px; object-fit: contain; flex-shrink: 0;
   border: 1px solid var(--border-sm); background: var(--cream);
 }
+/* Precio dentro del trigger cerrado (mismo rol que
+   .food-picker-trigger-price, ver Imagen 1 del usuario): chip chico a
+   la derecha del nombre, antes de la flecha. Solo aparece si el
+   producto elegido tiene precio > 0 en el catálogo (setDewormPickerValue
+   lo arma). Color violeta (--svc-deworm) en vez de sage para
+   diferenciarse del bloque de comida. */
+.deworm-picker-trigger-price {
+  font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
+  color: var(--svc-deworm); flex-shrink: 0; white-space: nowrap;
+}
 
 /* Overlay propio del picker: en mobile actúa de fondo oscuro detrás
    del bottom sheet; en desktop queda transparente (el dropdown se
@@ -2533,6 +2543,14 @@ html[data-font-size="large"] .toast-container {
 }
 .deworm-picker-option-body { flex: 1; min-width: 0; }
 .deworm-picker-option-name { font-size: 14px; font-weight: 700; color: var(--charcoal); line-height: 1.3; }
+/* Precio debajo del nombre en cada tarjeta de la lista (mismo rol que
+   .food-picker-option-price). Solo se agrega cuando p.precio > 0; si
+   el producto no tiene precio cargado en la planilla todavía, la
+   tarjeta se ve igual que antes (sin esta línea). */
+.deworm-picker-option-price {
+  font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
+  color: var(--svc-deworm); margin-top: 2px;
+}
 .deworm-picker-option-check {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 11px;
@@ -6009,6 +6027,27 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
           <input class="form-control" id="deworm-product-manual" placeholder="Ej: Bravecto, NexGard, Milbemax…" oninput="syncDewormManualToHidden()" />
         </div>
       </div>
+      <!-- Precio del producto: SOLO LECTURA para el cliente. Mismo patrón
+           exacto que #food-price-row en el modal de Registro de
+           Alimentación. Se completa solo al elegir un producto del
+           catálogo (ver setDewormPickerValue), leyendo el precio que ya
+           viene resuelto en state.dewormCatalog (Apps Script: columna
+           "precios_desparasitarios"). El input visible está siempre
+           disabled -- nadie puede tipear ahí, ni admin ni cliente. El
+           valor numérico real vive en el hidden #deworm-price; no hace
+           falta que saveDeworm lo lea ni lo mande al backend, porque el
+           Apps Script (handleAddDesparasitario/handleUpdateDesparasitario)
+           ya resuelve su propio precio_registro_de_desparasitacion vía
+           resolveCatalogPrecioDesparasitario(product) de forma
+           independiente -- mismo patrón que #food-price, que tampoco se
+           envía en saveFood. Se oculta toda la fila cuando el producto no
+           tiene precio cargado en el catálogo (precio 0 o "Agregar
+           producto nuevo"), para no mostrar "$ 0". -->
+      <div class="form-row" id="deworm-price-row" style="display:none">
+        <label>Precio del producto</label>
+        <input class="form-control" id="deworm-price-display" disabled placeholder="—" />
+        <input type="hidden" id="deworm-price" value="0" />
+      </div>
       <div class="form-row"><label>Descripción / Dosis</label><input class="form-control" id="deworm-desc" placeholder="Ej: Comprimido 4,5–10 kg — 3 meses" /></div>
       <div class="form-row-2">
         <div class="form-row"><label>Última aplicación</label><input class="form-control" id="deworm-last" type="date" /></div>
@@ -8720,6 +8759,23 @@ function dewormStatusPill(nextDate) {
 
 function renderModuleDesparasitarios() {
   const container = document.getElementById('service-module-content');
+  // La columna "Precio" de la tabla de abajo (dewormPriceFor) necesita
+  // state.dewormCatalog cargado. El catálogo se carga perezosamente (ver
+  // ensureDewormCatalogLoaded), normalmente recién cuando se abre el
+  // selector de "Producto" del modal -- pero un cliente puede entrar
+  // directo a esta sección y nunca tocar "Agregar registro" en toda la
+  // visita, así que acá se dispara la misma carga en segundo plano (sin
+  // bloquear este render) y, si trae resultados, se vuelve a renderizar
+  // el módulo una sola vez para que los precios aparezcan sin que el
+  // cliente tenga que hacer nada. ensureDewormCatalogLoaded ya deduplica
+  // llamadas concurrentes (dewormPickerLoadPromise), así que esto es
+  // seguro de llamar aunque el picker también la esté pidiendo. Mismo
+  // patrón exacto que renderModuleAlimentos con ensureFoodCatalogLoaded.
+  if (!state.dewormCatalog || !state.dewormCatalog.length) {
+    ensureDewormCatalogLoaded().then(() => {
+      if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
+    });
+  }
   let myDogs = state.dogs;
   if (!isAdmin()) {
     myDogs = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
@@ -8781,7 +8837,7 @@ function renderModuleDesparasitarios() {
       <div class="card-header"><div class="card-title card-title--inter">Registro de Desparasitación</div></div>
       <div class="table-wrap">
         <table class="data-table deworm-table">
-          <thead><tr><th>Mascota</th><th>Producto / Descripción</th><th style="text-align:center">Última aplicación</th><th style="text-align:center">Próxima aplicación</th><th></th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
+          <thead><tr><th>Mascota</th><th>Producto / Descripción</th><th>Precio</th><th style="text-align:center">Última aplicación</th><th style="text-align:center">Próxima aplicación</th><th></th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
           <tbody>`;
     dogsConEventos.forEach(({ dog: d, events }, dogIdx) => {
       // Más urgente primero; esa es la que se muestra en la fila principal.
@@ -8792,7 +8848,17 @@ function renderModuleDesparasitarios() {
         ? `<div class="deworm-card-photo"><img src="${d.photo}" alt="${d.name}" style="object-position:${photoPosition(d)}" loading="lazy" onerror="petPhotoFallback(this)" /></div>`
         : `<div class="deworm-card-photo">${DOG_ICON}</div>`;
 
-      const rowHtml = (h, isExtra) => `<tr>
+      const rowHtml = (h, isExtra) => {
+        // Precio SIEMPRE de solo lectura acá: se resuelve en vivo contra
+        // el catálogo (ver dewormPriceFor), nunca editable desde esta
+        // tabla ni desde ningún otro lugar de la página. h.type es el
+        // nombre puro del producto tal como lo guarda saveDeworm
+        // (Object.assign(h, { dogId, type: product, ... })), mismo campo
+        // que ya usa la lógica de arriba para armar el texto de la
+        // columna "Producto / Descripción". Mismo patrón exacto que
+        // foodPriceFor(f.brand) en renderModuleAlimentos.
+        const priceVal = dewormPriceFor(h.type);
+        return `<tr>
         <td>${isExtra ? '' : `<div style="display:flex;align-items:center;gap:10px">
           ${dewormPhotoHtml}
           <div>
@@ -8801,6 +8867,7 @@ function renderModuleDesparasitarios() {
           </div>
         </div>`}</td>
         <td style="font-weight:500">${capsuleIcon(14)} <strong>${(() => { const t = h.type || '', desc = h.desc || ''; if (!t || t === 'Desparasitación' || desc.startsWith(t)) return desc || t; return t + (desc ? ' — ' + desc : ''); })()}</strong></td>
+        <td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--svc-deworm)">${priceVal > 0 ? formatCLP(priceVal) : '—'}</td>
         <td style="text-align:center">${formatDate(h.last)}</td>
         <td style="text-align:center">${formatDate(h.next)}</td>
         <td>${dewormStatusPill(h.next)}</td>
@@ -8819,10 +8886,13 @@ function renderModuleDesparasitarios() {
           </div>
         </td>` : ''}
       </tr>`;
+      };
 
       html += rowHtml(main, false);
       if (extra.length) {
-        html += `<tr class="deworm-row-extra-tr"><td colspan="${isAdmin() ? 6 : 5}" class="deworm-row-extra">+${extra.length} registro${extra.length!==1?'s':''} más de ${d.name}</td></tr>`;
+        // colspan +1 respecto de antes (5→6 sin admin, 6→7 con admin) por
+        // la nueva columna "Precio" agregada al thead.
+        html += `<tr class="deworm-row-extra-tr"><td colspan="${isAdmin() ? 7 : 6}" class="deworm-row-extra">+${extra.length} registro${extra.length!==1?'s':''} más de ${d.name}</td></tr>`;
         extra.forEach(h => { html += rowHtml(h, true); });
       }
     });
@@ -10046,6 +10116,24 @@ function foodPriceFor(brand) {
   const match = state.foodCatalog.find(p => p.nombre === brand);
   return match ? (match.precio || 0) : 0;
 }
+// dewormPriceFor — equivalente exacto de foodPriceFor, pero resuelve
+// contra state.dewormCatalog (poblado por ensureDewormCatalogLoaded,
+// que a su vez lee de handleGetCatalogoDesparasitarios v18) en vez de
+// state.foodCatalog. Mismo diseño deliberado que foodPriceFor: el
+// precio NUNCA se guarda dentro de state.health/h.price, se resuelve en
+// vivo contra el catálogo cada vez que se necesita mostrar (ver la
+// columna "Precio" de renderModuleDesparasitarios más abajo), así que
+// si el administrador cambia el precio de un producto en el Google
+// Sheet, todos los registros que usan ese producto muestran el precio
+// nuevo la próxima vez que se carga/renderiza la tabla. Devuelve 0 si
+// el producto no está en el catálogo cargado (por ejemplo, fue cargado
+// a texto libre con "Agregar producto nuevo", o el catálogo todavía no
+// terminó de cargar en esta sesión).
+function dewormPriceFor(product) {
+  if (!product || !state.dewormCatalog) return 0;
+  const match = state.dewormCatalog.find(p => p.nombre === product);
+  return match ? (match.precio || 0) : 0;
+}
 function isReadOnly() { return currentUser && currentUser.role === 'viewer'; }
 
 /* ══════════════════════════════════
@@ -10878,9 +10966,14 @@ async function ensureDewormCatalogLoaded() {
     try {
       const rows = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCatalogoDesparasitarios');
       if (Array.isArray(rows)) {
+        // precio viene del Apps Script (handleGetCatalogoDesparasitarios
+        // v18) como número ya limpio (columna "precios_desparasitarios"
+        // sin "$" ni puntos de miles). Number(...) por las dudas de que
+        // llegue como string desde JSONP; || 0 cubre vacío/NaN igual que
+        // nombre/foto. Mismo patrón exacto que ensureFoodCatalogLoaded.
         state.dewormCatalog = rows
           .filter(r => r && r.nombre)
-          .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim() }));
+          .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim(), precio: Number(r.precio) || 0 }));
       } else {
         state.dewormCatalog = [];
       }
@@ -10926,6 +11019,42 @@ function setDewormPickerValue(productName) {
     img.loading = 'lazy';
     img.onerror = function () { this.remove(); };
     label.insertAdjacentElement('beforebegin', img);
+  }
+
+  // Chip de precio dentro del trigger cerrado (mismo rol que
+  // food-picker-trigger-price, ver Imagen 1: "$ 44.835" a la derecha
+  // del nombre elegido, antes de la flecha). Se remueve y se vuelve a
+  // crear cada vez, igual que la miniatura de arriba.
+  const existingTriggerPrice = document.getElementById('deworm-picker-trigger-price');
+  if (existingTriggerPrice) existingTriggerPrice.remove();
+  if (match && match.precio > 0) {
+    const priceSpan = document.createElement('span');
+    priceSpan.className = 'deworm-picker-trigger-price';
+    priceSpan.id = 'deworm-picker-trigger-price';
+    priceSpan.textContent = formatCLP(match.precio);
+    const chevron = document.querySelector('#deworm-picker-trigger i.fa-chevron-down');
+    if (chevron) chevron.insertAdjacentElement('beforebegin', priceSpan);
+  }
+
+  // Campo "Precio del producto": SOLO LECTURA, se completa automáticamente
+  // con el precio resuelto desde el catálogo (ver comentario junto al
+  // <div id="deworm-price-row"> en el modal). Si el producto no está en
+  // el catálogo o no tiene precio cargado todavía (match.precio === 0 o
+  // "Agregar producto nuevo"), la fila entera queda oculta en vez de
+  // mostrar "$ 0". Mismo patrón exacto que setFoodPickerValue.
+  const priceRow = document.getElementById('deworm-price-row');
+  const priceDisplay = document.getElementById('deworm-price-display');
+  const priceHidden = document.getElementById('deworm-price');
+  if (priceRow && priceDisplay && priceHidden) {
+    if (match && match.precio > 0) {
+      priceDisplay.value = formatCLP(match.precio);
+      priceHidden.value = match.precio;
+      priceRow.style.display = '';
+    } else {
+      priceDisplay.value = '';
+      priceHidden.value = 0;
+      priceRow.style.display = 'none';
+    }
   }
 
   // Ocultar la fila manual si se acaba de fijar un valor del catálogo
@@ -11061,11 +11190,20 @@ function renderDewormPickerList() {
       const thumb = p.foto
         ? `<img class="deworm-picker-option-thumb" src="${escapeHtml(p.foto)}" alt="" loading="lazy" onerror="dewormThumbFallback(this)" />`
         : `<div class="deworm-picker-option-thumb-fallback">${capsuleIcon(18)}</div>`;
+      // Línea de precio (mismo rol que en renderFoodPickerList): solo se
+      // muestra si el producto tiene precio > 0 cargado en la columna
+      // "precios_desparasitarios" de la planilla. Productos sin precio
+      // todavía se ven igual que antes, sin esta línea, para no mostrar
+      // "$ 0".
+      const priceHtml = p.precio > 0
+        ? `<div class="deworm-picker-option-price">${formatCLP(p.precio)}</div>`
+        : '';
       return `
         <button type="button" class="deworm-picker-option${isSelected ? ' selected' : ''}" onclick="selectDewormPickerOption('${escapeHtml(p.nombre).replace(/'/g, "\\'")}')">
           ${thumb}
           <div class="deworm-picker-option-body">
             <div class="deworm-picker-option-name">${escapeHtml(p.nombre)}</div>
+            ${priceHtml}
           </div>
           <div class="deworm-picker-option-check">${isSelected ? '<i class="fa-solid fa-check"></i>' : ''}</div>
         </button>`;
