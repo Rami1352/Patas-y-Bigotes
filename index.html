@@ -11278,20 +11278,23 @@ function positionDewormPickerPanel() {
   // Espacio real disponible abajo y arriba del trigger, sin salirse
   // de la ventana (12px de margen en cada extremo).
   const spaceBelow = window.innerHeight - 12 - top;
-  const spaceAbove = rect.top - gap - 12;
-  // Mismo fix que positionFoodPickerPanel(): si ninguno de los dos
-  // lados alcanza el maxHeight completo, se usa el lado con más
-  // espacio y se recorta panel.style.maxHeight a lo que realmente
-  // entra, en vez de dejar el panel cortado por el borde de la ventana.
-  let usedMaxHeight = maxHeight;
-  if (spaceBelow < maxHeight) {
-    if (spaceAbove > spaceBelow) {
-      top = Math.max(12, rect.top - gap - Math.min(maxHeight, spaceAbove));
-      usedMaxHeight = Math.min(maxHeight, spaceAbove);
-    } else {
-      usedMaxHeight = Math.max(160, spaceBelow);
-    }
-  }
+  // FIX: antes, si arriba había más espacio que abajo (spaceAbove >
+  // spaceBelow), el panel se abría hacia ARRIBA del trigger. En el modal
+  // de Desparasitación el campo "Producto" queda a mitad de un modal
+  // centrado verticalmente, así que casi siempre hay más lugar arriba
+  // que abajo -- el panel terminaba abriéndose hacia arriba, "flotando"
+  // por encima del propio modal y tapando el título de la sección de
+  // fondo. Matemáticamente estaba bien anclado al trigger, pero
+  // visualmente se veía como si estuviera mal pegado arriba de todo (ver
+  // Imagen del usuario). El modal de Desparasitación es corto (solo
+  // quedan las fechas y el footer debajo del picker), así que acá
+  // siempre conviene abrir hacia abajo y, si no entra completo, recortar
+  // la altura del panel en vez de cambiar de lado -- a diferencia de
+  // positionFoodPickerPanel(), que sí conserva la lógica de abrir hacia
+  // arriba porque ese trigger puede estar más abajo en un modal más
+  // largo. No se toca spaceAbove/el bloque de arriba-o-recorte de
+  // positionFoodPickerPanel(): este cambio es exclusivo de Desparasitación.
+  const usedMaxHeight = spaceBelow < maxHeight ? Math.max(160, spaceBelow) : maxHeight;
   panel.style.top = top + 'px';
   panel.style.left = left + 'px';
   panel.style.width = width + 'px';
