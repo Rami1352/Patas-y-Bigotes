@@ -8859,36 +8859,40 @@ function renderModuleDesparasitarios() {
       <div class="card-header"><div class="card-title card-title--inter">Registro de Desparasitación</div></div>
       <div class="table-wrap">
         <table class="data-table deworm-table">
-          <thead><tr><th>Mascota</th><th>Producto / Descripción</th><th>Precio</th><th style="text-align:center">Última aplicación</th><th style="text-align:center">Próxima aplicación</th><th></th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
+          <thead><tr><th>Mascota</th><th>Producto</th><th>Precio</th><th style="text-align:center">Última aplicación</th><th style="text-align:center">Próxima aplicación</th><th>Estado</th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
           <tbody>`;
     dogsConEventos.forEach(({ dog: d, events }, dogIdx) => {
-      // Más urgente primero; esa es la que se muestra en la fila principal.
+      // Más urgente primero, mismo orden que antes.
       const dogEvents = [...events].sort((a, b) => daysUntil(a.next) - daysUntil(b.next));
-      const main = dogEvents[0];
-      const extra = dogEvents.slice(1);
       const dewormPhotoHtml = d.photo
         ? `<div class="deworm-card-photo"><img src="${d.photo}" alt="${d.name}" style="object-position:${photoPosition(d)}" loading="lazy" onerror="petPhotoFallback(this)" /></div>`
         : `<div class="deworm-card-photo">${DOG_ICON}</div>`;
 
-      const rowHtml = (h, isExtra) => {
+      // Mismo patrón que renderModuleAlimentos/renderFood: una fila
+      // completa e independiente por registro, siempre con foto y
+      // nombre de la mascota, sin colapsar registros repetidos en un
+      // "+N registros más". Si una mascota tiene varios registros de
+      // desparasitación, aparecen como filas consecutivas idénticas en
+      // estructura, cada una con su propia foto/nombre.
+      const rowHtml = (h) => {
         // Precio SIEMPRE de solo lectura acá: se resuelve en vivo contra
         // el catálogo (ver dewormPriceFor), nunca editable desde esta
         // tabla ni desde ningún otro lugar de la página. h.type es el
         // nombre puro del producto tal como lo guarda saveDeworm
         // (Object.assign(h, { dogId, type: product, ... })), mismo campo
         // que ya usa la lógica de arriba para armar el texto de la
-        // columna "Producto / Descripción". Mismo patrón exacto que
+        // columna "Producto". Mismo patrón exacto que
         // foodPriceFor(f.brand) en renderModuleAlimentos.
         const priceVal = dewormPriceFor(h.type);
         return `<tr>
-        <td>${isExtra ? '' : `<div style="display:flex;align-items:center;gap:10px">
+        <td><div style="display:flex;align-items:center;gap:10px">
           ${dewormPhotoHtml}
           <div>
             <strong>${d.name}</strong>
             <div class="deworm-row-pet-owner">${d.owner} · ${d.breed}</div>
           </div>
-        </div>`}</td>
-        <td style="font-weight:500">${capsuleIcon(14)} <strong>${(() => { const t = h.type || '', desc = h.desc || ''; if (!t || t === 'Desparasitación' || desc.startsWith(t)) return desc || t; return t + (desc ? ' — ' + desc : ''); })()}</strong></td>
+        </div></td>
+        <td style="font-weight:500;white-space:nowrap">${capsuleIcon(14)} <strong>${(() => { const t = h.type || '', desc = h.desc || ''; if (!t || t === 'Desparasitación' || desc.startsWith(t)) return desc || t; return t + (desc ? ' — ' + desc : ''); })()}</strong></td>
         <td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--svc-deworm)">${priceVal > 0 ? formatCLP(priceVal) : '—'}</td>
         <td style="text-align:center">${formatDate(h.last)}</td>
         <td style="text-align:center">${formatDate(h.next)}</td>
@@ -8910,13 +8914,7 @@ function renderModuleDesparasitarios() {
       </tr>`;
       };
 
-      html += rowHtml(main, false);
-      if (extra.length) {
-        // colspan +1 respecto de antes (5→6 sin admin, 6→7 con admin) por
-        // la nueva columna "Precio" agregada al thead.
-        html += `<tr class="deworm-row-extra-tr"><td colspan="${isAdmin() ? 7 : 6}" class="deworm-row-extra">+${extra.length} registro${extra.length!==1?'s':''} más de ${d.name}</td></tr>`;
-        extra.forEach(h => { html += rowHtml(h, true); });
-      }
+      dogEvents.forEach(h => { html += rowHtml(h); });
     });
     html += `</tbody>
         </table>
