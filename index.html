@@ -1875,7 +1875,24 @@ body[data-bg-scene="settings"]::after {
   border-radius: var(--r-lg); box-shadow: var(--shadow-xs);
   padding: 22px 24px 20px; margin-bottom: 20px;
   overflow: hidden;
+  position: relative;
 }
+/* Flechas de navegación del timeline de compras: mismo componente visual
+   que .mascota-carousel-nav (Mis Mascotas), pero con su propio selector
+   porque el track vive dentro de food-timeline-card con otro padding/alto
+   de fila, así que el "top" fijo de 84px de mascotas no aplica acá. */
+.food-timeline-nav {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--white); border: 1px solid var(--border-sm);
+  box-shadow: var(--shadow-md); color: var(--charcoal);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 5; transition: all .2s; font-size: 13px;
+}
+.food-timeline-nav:hover { background: var(--sage-solid); color: #fff; border-color: var(--sage-solid); }
+.food-timeline-nav.food-timeline-nav--prev { right: auto; left: 4px; }
+.food-timeline-nav[disabled] { opacity: 0; pointer-events: none; }
+@media (max-width: 640px) { .food-timeline-nav { display: none; } }
 .food-timeline-head {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 18px; gap: 10px; flex-wrap: wrap;
@@ -2459,11 +2476,12 @@ html[data-font-size="large"] .toast-container {
    .food-picker-trigger-price, ver Imagen 1 del usuario): chip chico a
    la derecha del nombre, antes de la flecha. Solo aparece si el
    producto elegido tiene precio > 0 en el catálogo (setDewormPickerValue
-   lo arma). Color violeta (--svc-deworm) en vez de sage para
-   diferenciarse del bloque de comida. */
+   lo arma). Color verde (--sage-solid), igual que
+   .food-picker-trigger-price: el pedido del usuario es que el precio
+   se vea igual en ambos módulos. */
 .deworm-picker-trigger-price {
   font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
-  color: var(--svc-deworm); flex-shrink: 0; white-space: nowrap;
+  color: var(--sage-solid); flex-shrink: 0; white-space: nowrap;
 }
 
 /* Overlay propio del picker: en mobile actúa de fondo oscuro detrás
@@ -2546,10 +2564,13 @@ html[data-font-size="large"] .toast-container {
 /* Precio debajo del nombre en cada tarjeta de la lista (mismo rol que
    .food-picker-option-price). Solo se agrega cuando p.precio > 0; si
    el producto no tiene precio cargado en la planilla todavía, la
-   tarjeta se ve igual que antes (sin esta línea). */
+   tarjeta se ve igual que antes (sin esta línea). Color verde
+   (--sage-solid), igual que .food-picker-option-price: el pedido del
+   usuario es que el precio se vea igual en ambos módulos, en vez de
+   diferenciarse con el violeta de Desparasitarios. */
 .deworm-picker-option-price {
   font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
-  color: var(--svc-deworm); margin-top: 2px;
+  color: var(--sage-solid); margin-top: 2px;
 }
 .deworm-picker-option-check {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0;
@@ -8175,14 +8196,23 @@ function renderModuleAlimentos() {
        Paseos), conectados por una línea de progreso. El primer vencido
        o más urgente (<=14 días) se marca en rojo, igual que la fila
        correspondiente de la tabla de abajo (urgencyBadge usa el mismo
-       corte de 14 días). */
-    const timelineItems = myFood.slice(0, 10);
+       corte de 14 días).
+       FIX: antes se cortaba a los primeros 10 con slice(0, 10), por eso
+       con 16 registros el timeline llegaba solo hasta el 10º (Rodolfo)
+       y nunca mostraba el resto (hasta Simba). Ahora se muestran todos
+       los registros y la navegación se resuelve con scroll horizontal +
+       flechas prev/next, igual que el carrusel de Mis Mascotas
+       (scrollFoodTimeline / updateFoodTimelineNav más abajo). */
+    const timelineItems = myFood;
     html += `<div class="food-timeline-card">
       <div class="food-timeline-head">
         <div class="food-timeline-title"><i class="fa-solid fa-timeline"></i> Próximas compras</div>
         <div class="food-timeline-count">${myFood.length} registro${myFood.length !== 1 ? 's' : ''}</div>
       </div>
-      <div class="food-timeline-track">
+      <button class="food-timeline-nav food-timeline-nav--prev" id="food-timeline-prev" onclick="scrollFoodTimeline(-1)" aria-label="Anterior" disabled>
+        <i class="fa-solid fa-chevron-left"></i>
+      </button>
+      <div class="food-timeline-track" id="food-timeline-track">
         ${timelineItems.map(f => {
           const dog = getDog(f.dogId);
           const d = daysUntil(f.next);
@@ -8205,6 +8235,9 @@ function renderModuleAlimentos() {
           </div>`;
         }).join('')}
       </div>
+      <button class="food-timeline-nav" id="food-timeline-next" onclick="scrollFoodTimeline(1)" aria-label="Siguiente">
+        <i class="fa-solid fa-chevron-right"></i>
+      </button>
     </div>`;
 
     html += `<div class="card">
@@ -8253,6 +8286,9 @@ function renderModuleAlimentos() {
   }
   container.innerHTML = html;
   animateCountUps(container);
+  // El track de "Próximas compras" solo se renderiza cuando hay registros
+  // (rama else de arriba); en el estado vacío no existe #food-timeline-track.
+  if (document.getElementById('food-timeline-track')) updateFoodTimelineNav();
 }
 
 /* ══════════════════════════════════
@@ -8893,7 +8929,7 @@ function renderModuleDesparasitarios() {
           </div>
         </div></td>
         <td style="font-weight:500;white-space:nowrap">${capsuleIcon(14)} <strong>${(() => { const t = h.type || '', desc = h.desc || ''; if (!t || t === 'Desparasitación' || desc.startsWith(t)) return desc || t; return t + (desc ? ' — ' + desc : ''); })()}</strong></td>
-        <td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--svc-deworm)">${priceVal > 0 ? formatCLP(priceVal) : '—'}</td>
+        <td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--sage-solid)">${priceVal > 0 ? formatCLP(priceVal) : '—'}</td>
         <td style="text-align:center">${formatDate(h.last)}</td>
         <td style="text-align:center">${formatDate(h.next)}</td>
         <td>${dewormStatusPill(h.next)}</td>
@@ -9571,6 +9607,36 @@ function updateMascotaCarouselNav() {
   }, true);
   window.addEventListener('resize', function() {
     if (currentView === 'mis-mascotas') updateMascotaCarouselNav();
+  });
+})();
+
+/* ── Carrusel horizontal de "Próximas compras" (Alimentación): mismo
+   mecanismo de flechas que Mis Mascotas (scrollBy + disabled en los
+   extremos), pero calculado sobre el ancho real de .food-timeline-node
+   (108px, sin gap -- el espaciado lo da la línea conectora ::before)
+   en vez de los 258px de las tarjetas de mascota. ── */
+function scrollFoodTimeline(dir) {
+  const track = document.getElementById('food-timeline-track');
+  if (!track) return;
+  const nodeWidth = window.innerWidth <= 640 ? 84 : 108;
+  const perView = Math.max(1, Math.floor(track.clientWidth / nodeWidth));
+  track.scrollBy({ left: dir * perView * nodeWidth, behavior: 'smooth' });
+}
+function updateFoodTimelineNav() {
+  const track = document.getElementById('food-timeline-track');
+  const prevBtn = document.getElementById('food-timeline-prev');
+  const nextBtn = document.getElementById('food-timeline-next');
+  if (!track || !prevBtn || !nextBtn) return;
+  const maxScroll = track.scrollWidth - track.clientWidth;
+  prevBtn.disabled = track.scrollLeft <= 4;
+  nextBtn.disabled = maxScroll <= 4 || track.scrollLeft >= maxScroll - 4;
+}
+(function initFoodTimelineListener() {
+  document.addEventListener('scroll', function(e) {
+    if (e.target && e.target.id === 'food-timeline-track') updateFoodTimelineNav();
+  }, true);
+  window.addEventListener('resize', function() {
+    if (document.getElementById('food-timeline-track')) updateFoodTimelineNav();
   });
 })();
 
@@ -11111,10 +11177,30 @@ async function openDewormPicker() {
     const listEl = document.getElementById('deworm-picker-list');
     if (listEl) listEl.innerHTML = '<div class="deworm-picker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Cargando catálogo…</div>';
   }
+  // FIX: a diferencia de openFoodPicker() (donde el trigger #food-picker-trigger
+  // ya tiene layout estable apenas se abre modal-add-food, porque es el primer
+  // campo justo debajo de "Mascota"), acá el modal-add-deworm puede todavía estar
+  // a mitad de su animación de apertura (modalScaleIn/slideUp, ver .modal en el
+  // CSS) en el mismo frame en que se hace click en "Seleccionar producto". Si
+  // positionDewormPickerPanel() lee getBoundingClientRect() del trigger en ESE
+  // instante, el rect puede venir con top/left todavía en su posición de arranque
+  // de la animación (cerca de 0), y el panel queda anclado ahí en vez de debajo
+  // del trigger real -- se ve "pegado arriba de todo" en vez de como dropdown.
+  // trigger.offsetHeight fuerza un reflow síncrono (layout ya resuelto con los
+  // estilos actuales) antes de medir, y el requestAnimationFrame además empuja el
+  // primer positionDewormPickerPanel() a después de que el navegador termine de
+  // pintar el frame donde se agregó la clase .open. positionFoodPickerPanel() no
+  // necesita este resguardo porque en la práctica su trigger nunca coincide con
+  // la ventana de animación del modal (login corre después de que la apertura de
+  // modal-add-food ya asentó), pero acá sí puede darse.
+  void trigger.offsetHeight;
+  requestAnimationFrame(() => positionDewormPickerPanel());
   positionDewormPickerPanel();
 
   await ensureDewormCatalogLoaded();
   renderDewormPickerList();
+  void trigger.offsetHeight;
+  requestAnimationFrame(() => positionDewormPickerPanel());
   positionDewormPickerPanel();
 
   const liveSearch = document.getElementById('deworm-picker-search-input');
