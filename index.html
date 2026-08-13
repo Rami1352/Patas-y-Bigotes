@@ -6048,7 +6048,19 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
         <input class="form-control" id="deworm-price-display" disabled placeholder="—" />
         <input type="hidden" id="deworm-price" value="0" />
       </div>
-      <div class="form-row"><label>Descripción / Dosis</label><input class="form-control" id="deworm-desc" placeholder="Ej: Comprimido 4,5–10 kg — 3 meses" /></div>
+      <!-- Campo "Descripción / Dosis" ELIMINADO a propósito: era un campo de
+           texto libre aparte del producto elegido en el picker, y al
+           tipear ahí la misma dosis que ya venía en el nombre del producto
+           (ej. producto "Bravecto de 4,5 a 10 kg (3 meses)" + descripción
+           "Bravecto 4,5 a 10kg (3 meses)") el resultado quedaba duplicado
+           en la tabla ("Bravecto de 4,5 a 10 kg (3 meses) — Bravecto 4,5 a
+           10kg (3 meses)"), porque saveDeworm concatenaba
+           product + ' — ' + desc sin más. El producto elegido en el picker
+           ya trae su propia dosis/descripción en el nombre (ver catálogo
+           de Desparasitarios), así que este campo era redundante. Se
+           quita el input y, más abajo en el JS, saveDeworm/editDeworm/
+           duplicateDeworm dejan de leer/enviar/repartir "desc" — ver
+           comentarios ahí. -->
       <div class="form-row-2">
         <div class="form-row"><label>Última aplicación</label><input class="form-control" id="deworm-last" type="date" /></div>
         <div class="form-row"><label>Próxima aplicación</label><input class="form-control" id="deworm-next" type="date" /></div>
@@ -8294,8 +8306,9 @@ function openDewormModal() {
     dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
   }
   document.getElementById('deworm-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
-  // Reset fields
-  ['deworm-product','deworm-desc','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
+  // Reset fields ('deworm-desc' ya no existe, ver comentario junto al
+  // campo eliminado en el HTML del modal)
+  ['deworm-product','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
   setDewormPickerValue(''); // limpia también el trigger visual y la fila manual, no solo el hidden #deworm-product
   // openDewormModal() es el punto de entrada para ALTA nueva (botón
   // "+ Agregar"). editDeworm() (ver más abajo) es quien abre este mismo
@@ -8313,17 +8326,22 @@ function openDewormModal() {
 async function saveDeworm() {
   const dogId   = parseInt(document.getElementById('deworm-dog').value);
   const product = document.getElementById('deworm-product').value.trim();
-  const desc    = document.getElementById('deworm-desc').value.trim();
   const last    = document.getElementById('deworm-last').value;
   const next    = document.getElementById('deworm-next').value;
   if (!dogId || !product) { showToast('Completá la mascota y el producto', 'error'); return; }
-  const fullDesc = product + (desc ? ' — ' + desc : '');
+  // "desc" eliminado: antes se armaba fullDesc = product + ' — ' + desc a
+  // partir de un campo de texto libre aparte, lo que producía duplicados
+  // cuando alguien tipeaba ahí la misma dosis que ya traía el nombre del
+  // producto (ver comentario junto al campo eliminado en el HTML). Ahora
+  // h.desc guarda directamente el nombre del producto, sin concatenar
+  // nada extra — la tabla y el resto del código ya toleran esto (si
+  // desc === type, no lo duplica; ver render de la columna "Producto").
   const wasEditing = !!editingDewormId;
   let newId = null;
   let recordId = null;
   if (editingDewormId) {
     const h = state.health.find(x => x.id === editingDewormId);
-    if (h) Object.assign(h, { dogId, type: product, category: 'Desparasitación', desc: fullDesc, last, next });
+    if (h) Object.assign(h, { dogId, type: product, category: 'Desparasitación', desc: product, last, next });
     recordId = editingDewormId;
   } else {
     // El id se genera ACÁ, antes de guardar nada, y es el mismo valor que
@@ -8333,11 +8351,11 @@ async function saveDeworm() {
     // (mismo patrón que saveFood/genFoodId más arriba).
     newId = genDewormId();
     recordId = newId;
-    state.health.push({ id: newId, dogId, type: product, category: 'Desparasitación', desc: fullDesc, last, next });
+    state.health.push({ id: newId, dogId, type: product, category: 'Desparasitación', desc: product, last, next });
   }
   editingDewormId = null;
   saveHealthToLS();
-  ['deworm-product','deworm-desc','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
+  ['deworm-product','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('deworm-modal-title-text').textContent = 'Agregar Desparasitación';
   document.querySelector('#modal-add-deworm .btn-primary').textContent = 'Guardar';
   closeModal('modal-add-deworm');
@@ -8360,13 +8378,18 @@ async function saveDeworm() {
     // mail del admin contra el mail real del dueño) y la fila se
     // descartaba en silencio de state.health.
     const action = wasEditing ? 'updateDesparasitario' : 'addDesparasitario';
+    // "&desc=" eliminado del request: ya no existe un campo de descripción
+    // separado (ver comentarios más arriba). El Apps Script v19 ya no
+    // necesita p.desc para nada relevante -- ver handleAddDesparasitario/
+    // handleUpdateDesparasitario, que ahora resuelven el precio contra
+    // p.product directamente y guardan "descripcion" = mismo valor que
+    // "producto" solo para no romper esa columna vieja de la hoja.
     const url = APPS_SCRIPT_URL
       + '?action=' + action
       + '&id=' + encodeURIComponent(recordId)
       + '&name=' + encodeURIComponent(dog.name || '')
       + '&mail=' + encodeURIComponent(dog.mail || '')
       + '&product=' + encodeURIComponent(product)
-      + '&desc=' + encodeURIComponent(desc)
       + '&last=' + encodeURIComponent(last)
       + '&next=' + encodeURIComponent(next);
     const res = await fetchJSONP(url);
@@ -8388,11 +8411,13 @@ async function editDeworm(id) {
   let dogsToShow = state.dogs;
   if (!isAdmin()) dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
   document.getElementById('deworm-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}"${d.id===h.dogId?' selected':''}>${d.name} (${d.owner})</option>`).join('');
-  // h.desc se guardó como `product + ' — ' + desc` (ver saveDeworm), así
-  // que para repoblar los DOS campos del form (Producto / Descripción)
-  // hay que separarlo de vuelta. Mismo split que ya usaba deleteDeworm
-  // para recuperar el product puro.
-  const parts = String(h.desc || '').split(' — ');
+  // Ya no hace falta separar h.desc en dos partes (product/desc): desde
+  // que se eliminó el campo "Descripción / Dosis", saveDeworm guarda
+  // h.desc = h.type = el nombre del producto directamente, sin " — "
+  // concatenado. Para registros VIEJOS que sí tengan el separador " — "
+  // (guardados antes de este cambio), se toma solo lo que hay antes del
+  // primer " — " para no reintroducir la descripción vieja en el picker.
+  const productoPuro = String(h.desc || h.type || '').split(' — ')[0];
   // Se precarga el catálogo ANTES de fijar el valor (a diferencia de
   // openDewormPicker, que lo hace perezoso) para que, si el usuario
   // entra directo a "Editar" sin haber abierto el picker antes en esta
@@ -8402,8 +8427,7 @@ async function editDeworm(id) {
   // setDewormPickerValue (no solo .value=) para que el trigger muestre el
   // nombre y la miniatura correctos de entrada, en vez de quedar en
   // "Seleccionar producto" hasta que el usuario reabra el picker.
-  setDewormPickerValue(parts[0] || '');
-  document.getElementById('deworm-desc').value    = parts.slice(1).join(' — ') || '';
+  setDewormPickerValue(productoPuro);
   document.getElementById('deworm-last').value    = h.last || '';
   document.getElementById('deworm-next').value    = h.next || '';
   document.getElementById('deworm-modal-title-text').textContent = 'Editar Desparasitación';
@@ -8426,19 +8450,17 @@ async function duplicateDeworm(id) {
   showToast('Registro duplicado', 'success');
   try {
     const dog = getDog(copy.dogId);
-    // h.desc se guarda como `product + ' — ' + desc` (ver saveDeworm), así
-    // que hay que separarlo de vuelta para mandar product/desc por
-    // separado al Apps Script — mismo split que ya usa editDeworm().
-    const parts = String(copy.desc || '').split(' — ');
-    const product = parts[0] || copy.type || '';
-    const descOnly = parts.slice(1).join(' — ');
+    // Igual que en editDeworm: ya no hace falta separar copy.desc en
+    // product/desc, salvo para registros viejos que todavía tengan el
+    // separador " — " de antes de este cambio (ver comentario en
+    // editDeworm).
+    const product = String(copy.desc || copy.type || '').split(' — ')[0];
     const url = APPS_SCRIPT_URL
       + '?action=addDesparasitario'
       + '&id=' + encodeURIComponent(newId)
       + '&name=' + encodeURIComponent(dog.name || '')
       + '&mail=' + encodeURIComponent(dog.mail || '')
       + '&product=' + encodeURIComponent(product)
-      + '&desc=' + encodeURIComponent(descOnly)
       + '&last=' + encodeURIComponent(copy.last || '')
       + '&next=' + encodeURIComponent(copy.next || '');
     const res = await fetchJSONP(url);
