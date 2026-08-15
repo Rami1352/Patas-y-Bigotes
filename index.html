@@ -5193,6 +5193,124 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
   .notif-center-bulk-row { padding: 0 16px; }
 }
 </style>
+
+<!-- ══════════════════════════════════════════════════════════════
+     FIREBASE AUTH — SDK (build "compat", no requiere módulos ES)
+     Se carga antes que el script principal para que PYB_AUTH exista
+     cuando fetchJSONP lo necesite.
+══════════════════════════════════════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════
+   PYB_AUTH — capa de autenticación con Firebase
+   ──────────────────────────────────────────────────────────────
+   ⚠️ PARA ACTIVARLO: completá FIREBASE_CONFIG con los datos de tu
+   proyecto (Firebase → Configuración del proyecto → Tus apps → Web).
+
+   DISEÑO INTENCIONAL — es aditivo y no rompe nada:
+   mientras FIREBASE_CONFIG esté vacío, o mientras no haya un usuario
+   con sesión iniciada, getIdToken() devuelve null, fetchJSONP no
+   agrega ningún token y el backend responde en modo `legacy`, es
+   decir EXACTAMENTE como hoy. Recién cuando hay sesión empieza a
+   viajar el idToken y el backend filtra por identidad real.
+
+   El apiKey de Firebase es público por diseño (viaja siempre en el
+   frontend); la seguridad la dan las reglas de Firebase y la
+   verificación del token en el backend, no el secreto de esta clave.
+══════════════════════════════════════════════════════════════ */
+var FIREBASE_CONFIG = {
+  apiKey:            '',   // ej: 'AIzaSy...'
+  authDomain:        '',   // ej: 'patas-y-bigotes.firebaseapp.com'
+  projectId:         '',   // ej: 'patas-y-bigotes'
+  appId:             ''    // ej: '1:123456789:web:abc123'
+};
+
+var PYB_AUTH = (function () {
+  var _ready = false;
+  var _auth  = null;
+
+  function isConfigured() {
+    return !!(FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
+  }
+
+  function init() {
+    if (_ready || !isConfigured()) return _ready;
+    if (typeof firebase === 'undefined' || !firebase.initializeApp) return false;
+    try {
+      firebase.initializeApp(FIREBASE_CONFIG);
+      _auth = firebase.auth();
+      // La sesión sobrevive al cierre de pestaña (igual que hoy).
+      _auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      _ready = true;
+    } catch (err) {
+      console.warn('[PYB_AUTH] No se pudo inicializar Firebase:', err);
+      _ready = false;
+    }
+    return _ready;
+  }
+
+  // Devuelve el idToken vigente, o null si no hay sesión / no está configurado.
+  // Firebase renueva el token solo cuando está por vencer.
+  async function getIdToken() {
+    if (!init() || !_auth || !_auth.currentUser) return null;
+    try { return await _auth.currentUser.getIdToken(); }
+    catch (err) { console.warn('[PYB_AUTH] getIdToken falló:', err); return null; }
+  }
+
+  function currentUser() { return (init() && _auth) ? _auth.currentUser : null; }
+
+  async function login(email, password) {
+    if (!init()) throw new Error('Firebase no está configurado.');
+    var cred = await _auth.signInWithEmailAndPassword(String(email).trim(), password);
+    return cred.user;
+  }
+
+  // Registro: crea el usuario en Firebase y avisa al backend para que
+  // resuelva (o deje PENDIENTE) la vinculación con el cliente existente.
+  async function register(email, password, nombre, telefono) {
+    if (!init()) throw new Error('Firebase no está configurado.');
+    await _auth.createUserWithEmailAndPassword(String(email).trim(), password);
+    var token = await getIdToken();
+    var url = APPS_SCRIPT_URL
+      + '?action=registerCliente'
+      + '&idToken='  + encodeURIComponent(token || '')
+      + '&nombre='   + encodeURIComponent(nombre || '')
+      + '&telefono=' + encodeURIComponent(telefono || '');
+    var res = await fetchJSONP(url);
+    return (res && res[0]) ? res[0] : { ok: false, error: 'Sin respuesta del servidor.' };
+  }
+
+  async function recover(email) {
+    if (!init()) throw new Error('Firebase no está configurado.');
+    return _auth.sendPasswordResetEmail(String(email).trim());
+  }
+
+  async function logout() {
+    if (!init() || !_auth) return;
+    return _auth.signOut();
+  }
+
+  // Estado de la cuenta según el backend (vinculada o PENDIENTE).
+  async function miCuenta() {
+    var token = await getIdToken();
+    if (!token) return null;
+    var res = await fetchJSONP(APPS_SCRIPT_URL + '?action=getMiCuenta&idToken=' + encodeURIComponent(token));
+    return (res && res[0]) ? res[0] : null;
+  }
+
+  function onChange(cb) {
+    if (!init() || !_auth) return function () {};
+    return _auth.onAuthStateChanged(cb);
+  }
+
+  return {
+    isConfigured: isConfigured, init: init, getIdToken: getIdToken,
+    currentUser: currentUser, login: login, register: register,
+    recover: recover, logout: logout, miCuenta: miCuenta, onChange: onChange
+  };
+})();
+</script>
 </head>
 <body>
 
@@ -6923,7 +7041,24 @@ function fetchWithTimeout(url, ms) {
   ]);
 }
 
-function fetchJSONP(url, cbName) {
+async function fetchJSONP(url, cbName) {
+  /* ── Autenticación: se adjunta el idToken de Firebase si hay sesión ──
+     Este es el único punto por el que pasan las 19 llamadas al backend
+     (lecturas Y escrituras), así que alcanza con hacerlo acá.
+
+     Si no hay sesión (o Firebase no está configurado todavía) la URL
+     queda EXACTAMENTE igual que antes y el backend responde en modo
+     `legacy`: por eso este cambio no rompe el portal actual.
+
+     El try/catch es deliberado: un fallo al obtener el token nunca debe
+     impedir la llamada, solo hace que se envíe sin credencial. */
+  try {
+    if (typeof PYB_AUTH !== 'undefined' && url.indexOf('idToken=') === -1) {
+      const _tok = await PYB_AUTH.getIdToken();
+      if (_tok) url += (url.includes('?') ? '&' : '?') + 'idToken=' + encodeURIComponent(_tok);
+    }
+  } catch (_e) { /* se continúa sin token */ }
+
   return new Promise((resolve, reject) => {
     const name = cbName || ('_pyb_cb_' + Date.now());
     // Timeout subido de 9s a 14s: margen extra de seguridad para picos de
