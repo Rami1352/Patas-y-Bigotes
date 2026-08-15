@@ -5220,17 +5220,12 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
    verificación del token en el backend, no el secreto de esta clave.
 ══════════════════════════════════════════════════════════════ */
 var FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDeooQyuAGdscyzuLoJ9CzFL70ThYKTHxA",
-  authDomain: "patasybigotes-61304.firebaseapp.com",
-  projectId: "patasybigotes-61304",
-  storageBucket: "patasybigotes-61304.firebasestorage.app",
-  messagingSenderId: "405682848831",
-  appId: "1:405682848831:web:1722525645bd0a4943e48a"
+  apiKey:            'AIzaSyDeooQyuAGdscyzuLoJ9CzFL70ThYKTHxA',
+  authDomain:        'patasybigotes-61304.firebaseapp.com',
+  projectId:         'patasybigotes-61304',
+  appId:             '1:405682848831:web:1722525645bd0a4943e48a'
 };
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(FIREBASE_CONFIG);
-}
 var PYB_AUTH = (function () {
   var _ready = false;
   var _auth  = null;
@@ -5318,23 +5313,7 @@ var PYB_AUTH = (function () {
 </script>
 </head>
 <body>
-<!-- 1. Librerías de Firebase CDN -->
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 
-<!-- 2. Inicialización -->
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyDeooQyuAGdscyzuLoJ9CzFL70ThYKTHxA",
-    authDomain: "patasybigotes-61304.firebaseapp.com",
-    projectId: "patasybigotes-61304",
-    storageBucket: "patasybigotes-61304.firebasestorage.app",
-    messagingSenderId: "405682848831",
-    appId: "1:405682848831:web:1722525645bd0a4943e48a"
-  };
-
-  firebase.initializeApp(firebaseConfig);
-</script>
 <!-- ════════════════════════════════
      LOGIN
 ════════════════════════════════ -->
@@ -5387,14 +5366,14 @@ var PYB_AUTH = (function () {
         <label for="login-user">Correo electrónico</label>
         <div class="input-wrap">
           <svg class="field-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          <input type="text" id="login-user" placeholder="tucorreo@ejemplo.com" autocomplete="username" onkeydown="if(event.key==='Enter'){document.getElementById('login-pass').focus();}" />
+          <input type="text" id="login-user" placeholder="tucorreo@ejemplo.com" autocomplete="username" />
         </div>
       </div>
       <div class="login-field" id="login-pass-field">
         <label for="login-pass">Contraseña</label>
         <div class="input-wrap">
           <svg class="field-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <input type="password" id="login-pass" placeholder="Tu contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter'){handleLoginAction();}" />
+          <input type="password" id="login-pass" placeholder="Tu contraseña" autocomplete="current-password" />
           <button class="toggle-pass" type="button" onclick="togglePasswordVisibility()" tabindex="-1" aria-label="Mostrar u ocultar contraseña">
             <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -5405,7 +5384,7 @@ var PYB_AUTH = (function () {
         <label for="register-pass-confirm">Confirmar contraseña</label>
         <div class="input-wrap">
           <svg class="field-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <input type="password" id="register-pass-confirm" placeholder="Repetí tu contraseña" autocomplete="new-password" onkeydown="if(event.key==='Enter'){handleLoginAction();}" />
+          <input type="password" id="register-pass-confirm" placeholder="Repetí tu contraseña" autocomplete="new-password" />
         </div>
       </div>
       <button class="btn-login" id="login-btn" onclick="handleLoginAction()">Ingresar</button>
@@ -5490,6 +5469,40 @@ var PYB_AUTH = (function () {
     wake();
   }, { passive: true });
 })();
+
+// Exposición explícita en window: los onclick inline del HTML
+// (switchLoginTab, togglePasswordVisibility, handleLoginAction)
+// necesitan encontrarlas en el objeto global.
+window.switchLoginTab = switchLoginTab;
+window.togglePasswordVisibility = togglePasswordVisibility;
+window.handleLoginAction = handleLoginAction;
+
+// Listeners que reemplazan los onkeydown inline quitados de
+// #login-user, #login-pass y #register-pass-confirm.
+document.addEventListener('DOMContentLoaded', function () {
+  var loginUser = document.getElementById('login-user');
+  var loginPass = document.getElementById('login-pass');
+  var registerPassConfirm = document.getElementById('register-pass-confirm');
+
+  if (loginUser) {
+    loginUser.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        var p = document.getElementById('login-pass');
+        if (p) p.focus();
+      }
+    });
+  }
+  if (loginPass) {
+    loginPass.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') handleLoginAction();
+    });
+  }
+  if (registerPassConfirm) {
+    registerPassConfirm.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') handleLoginAction();
+    });
+  }
+});
 </script>
 
 <!-- ════════════════════════════════
