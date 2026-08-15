@@ -5220,12 +5220,17 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
    verificación del token en el backend, no el secreto de esta clave.
 ══════════════════════════════════════════════════════════════ */
 var FIREBASE_CONFIG = {
-  apiKey:            '',   // ej: 'AIzaSy...'
-  authDomain:        '',   // ej: 'patas-y-bigotes.firebaseapp.com'
-  projectId:         '',   // ej: 'patas-y-bigotes'
-  appId:             ''    // ej: '1:123456789:web:abc123'
+  apiKey: "AIzaSyDeooQyuAGdscyzuLoJ9CzFL70ThYKTHxA",
+  authDomain: "patasybigotes-61304.firebaseapp.com",
+  projectId: "patasybigotes-61304",
+  storageBucket: "patasybigotes-61304.firebasestorage.app",
+  messagingSenderId: "405682848831",
+  appId: "1:405682848831:web:1722525645bd0a4943e48a"
 };
 
+if (!firebase.apps.length) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+}
 var PYB_AUTH = (function () {
   var _ready = false;
   var _auth  = null;
