@@ -7295,7 +7295,7 @@ async function notifyAdmin(seccion, accion, petName, detalle) {
 async function loadFromGoogleSheets(showToastAfter) {
   addLiveLog('[INFO] Conectando con la planilla…');
   try {
-    const json = await fetchJSONP(APPS_SCRIPT_URL);
+    const json = await fetchJSONP(APPS_SCRIPT_URL + '?action=getDatos');
     if (!Array.isArray(json) || json.length === 0) throw new Error('Respuesta vacía');
     if (json[0] && json[0].error) throw new Error(json[0].error);
     addLiveLog('[OK] Planilla cargada: ' + json.length + ' filas.', 'ok');
