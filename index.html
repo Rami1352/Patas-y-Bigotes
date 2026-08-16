@@ -6789,9 +6789,22 @@ function switchLoginTab(tab) {
   ['login','register','recover'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
   });
-  const passField = document.getElementById('login-pass-field');
-  const btn       = document.getElementById('login-btn');
+  const passField        = document.getElementById('login-pass-field');
+  const nombreField       = document.getElementById('register-nombre-field');
+  const telefonoField     = document.getElementById('register-telefono-field');
+  const passConfirmField  = document.getElementById('register-pass-confirm-field');
+  const btn               = document.getElementById('login-btn');
   document.getElementById('login-error').classList.remove('show');
+
+  // Campos exclusivos de "Registrarse" (nombre, teléfono, confirmar
+  // contraseña): visibles solo en esa pestaña. FIX: antes esta función
+  // no los tocaba, así que quedaban con el display:none del HTML para
+  // siempre y doRegister() los leía vacíos.
+  const showRegisterFields = tab === 'register';
+  nombreField.style.display      = showRegisterFields ? 'block' : 'none';
+  telefonoField.style.display    = showRegisterFields ? 'block' : 'none';
+  passConfirmField.style.display = showRegisterFields ? 'block' : 'none';
+
   if (tab === 'login')    { passField.style.display = 'block'; btn.textContent = 'Ingresar'; }
   else if (tab === 'register') { passField.style.display = 'block'; btn.textContent = 'Registrarse'; }
   else                    { passField.style.display = 'none';  btn.textContent = 'Recuperar Acceso'; }
