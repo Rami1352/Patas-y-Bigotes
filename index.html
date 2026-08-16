@@ -7229,7 +7229,7 @@ async function fetchJSONP(url, cbName) {
     // carga en Apps Script (varios usuarios a la vez), complementando el
     // escalonamiento de las 3 llamadas en loadHealthFoodHomeCareFromSheet
     // (ver comentario ahí), que es el fix principal del "JSONP timeout".
-    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 30000);
+    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 14000);
     window[name] = data => { clearTimeout(timer); delete window[name]; resolve(data); };
     const s = document.createElement('script');
     s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + name;
