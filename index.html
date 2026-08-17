@@ -2438,6 +2438,118 @@ html[data-font-size="large"] .toast-container {
   border-top: 1px solid var(--border-sm); gap: 10px; flex-shrink: 0;
 }
 @media (max-width: 639.98px) { .food-picker-sheet-footer { display: flex; } }
+
+/* ══════════════════════════════════
+   WIZARD "REGISTRO DE ALIMENTACIÓN" — pasos 1 a 6
+   Reutiliza .wizard-steps / .wizard-panel / .wizard-nav (mismas clases
+   que el wizard "Agregar Mascota") para no duplicar el look de los
+   círculos de paso. Lo que sigue es SOLO lo nuevo: tarjeta de resumen
+   del producto elegido (paso 1), banner "En X días" (paso 3), lista de
+   métodos de pago con radio (paso 5) y resumen de confirmación (paso 6).
+══════════════════════════════════ */
+.food-wizard-product-card {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-top: 10px;
+  border: 1.5px solid var(--border-sm); border-radius: var(--r-md); background: var(--surface-card-alt);
+}
+.food-wizard-product-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: var(--sage-light); }
+.food-wizard-product-thumb-fallback { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; background: var(--svc-food-bg); color: var(--svc-food); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.food-wizard-product-name { font-weight: 700; font-size: 13.5px; color: var(--charcoal); line-height: 1.3; }
+.food-wizard-product-link { font-size: 11.5px; color: var(--sage-solid); font-weight: 600; cursor: pointer; margin-top: 2px; display: inline-block; }
+.food-wizard-product-link:hover { text-decoration: underline; }
+.food-wizard-price-box {
+  margin-top: 14px; padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--sage-xlight); border: 1px solid var(--sage-light);
+}
+.food-wizard-price-box-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; }
+.food-wizard-price-box-value { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 800; color: var(--sage-solid); margin-top: 2px; }
+
+.food-wizard-next-banner {
+  display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 14px 16px;
+  border-radius: var(--r-md); background: var(--sage-xlight); border: 1px solid var(--sage-light);
+}
+.food-wizard-next-banner-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--sage-light); color: var(--sage-solid); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.food-wizard-next-banner-title { font-weight: 700; font-size: 13.5px; color: var(--charcoal); }
+.food-wizard-next-banner-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; line-height: 1.35; }
+
+.food-wizard-total-box {
+  padding: 16px; border-radius: var(--r-md); background: var(--sage-xlight); border: 1px solid var(--sage-light);
+  text-align: center; margin-bottom: 16px;
+}
+.food-wizard-total-box-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; }
+.food-wizard-total-box-value { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 800; color: var(--sage-solid); margin-top: 3px; }
+
+.food-wizard-pay-section-title { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 10px; }
+.food-wizard-pay-option {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+  border: 1.5px solid var(--border-sm); border-radius: var(--r-md); cursor: pointer;
+  transition: all .18s; margin-bottom: 9px; background: var(--surface-card-alt);
+}
+.food-wizard-pay-option:hover { border-color: var(--sage); }
+.food-wizard-pay-option.checked { border-color: var(--sage-solid); background: var(--sage-xlight); }
+.food-wizard-pay-option input[type="radio"] { accent-color: var(--sage-solid); width: 16px; height: 16px; flex-shrink: 0; }
+.food-wizard-pay-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--sage-light); color: var(--sage-solid); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.food-wizard-pay-body { flex: 1; min-width: 0; }
+.food-wizard-pay-title { font-weight: 700; font-size: 13.5px; color: var(--charcoal); line-height: 1.3; }
+.food-wizard-pay-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; line-height: 1.35; }
+.food-wizard-pay-option > i.fa-chevron-right { color: var(--stone); font-size: 12px; flex-shrink: 0; }
+
+/* Alias de Mercado Pago / MODO: se despliegan DEBAJO de cada opción,
+   solo cuando esa opción está seleccionada (mismo lugar donde la
+   referencia visual los muestra: pegados a la tarjeta de pago
+   correspondiente, no en un bloque aparte). */
+.food-wizard-pay-alias {
+  display: none; margin: -3px 0 9px 46px; padding: 9px 12px;
+  border-radius: var(--r-sm); background: var(--sage-tint); border: 1px dashed var(--sage-light);
+}
+.food-wizard-pay-alias.show { display: flex; align-items: center; gap: 8px; }
+.food-wizard-pay-alias i { color: var(--sage-solid); font-size: 12px; flex-shrink: 0; }
+.food-wizard-pay-alias-label { font-size: 11px; color: var(--stone); font-weight: 600; flex-shrink: 0; }
+.food-wizard-pay-alias-value { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--charcoal); word-break: break-all; }
+.food-wizard-pay-alias-copy { margin-left: auto; background: none; border: none; color: var(--sage-solid); cursor: pointer; font-size: 12px; flex-shrink: 0; padding: 2px 4px; }
+.food-wizard-pay-alias-copy:hover { color: var(--sage-solid-hover); }
+
+/* Paso 6 — resumen previo a confirmar */
+.food-wizard-confirm-badge {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px;
+  border-radius: var(--r-md); background: var(--sage-xlight); border: 1px solid var(--sage-light);
+}
+.food-wizard-confirm-badge-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--sage-solid); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.food-wizard-confirm-badge-title { font-weight: 700; font-size: 13px; color: var(--charcoal); }
+.food-wizard-confirm-badge-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; }
+.food-wizard-summary-section-title { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+.food-wizard-summary-section-title:first-child { margin-top: 0; }
+.food-wizard-pay-selected-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border-sm); border-radius: var(--r-md); background: var(--surface-card-alt);
+}
+.food-wizard-pay-selected-row .food-wizard-pay-icon { width: 30px; height: 30px; font-size: 12px; }
+
+/* Pantalla final — "Pedido confirmado" (NO "pago exitoso": todavía no
+   hay pasarela real conectada, ver saveFoodOrder()). Reemplaza todo el
+   contenido del modal cuando el pedido ya se guardó. */
+.food-order-done { padding: 26px 24px 30px; text-align: center; }
+.food-order-done-check {
+  width: 62px; height: 62px; border-radius: 50%; background: var(--sage-light); color: var(--sage-solid);
+  display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto 14px;
+  animation: foodSuccessPop .45s cubic-bezier(.22,1.4,.36,1) both;
+}
+.food-order-done h3 { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--charcoal); margin-bottom: 4px; }
+.food-order-done > p { font-size: 13px; color: var(--mist); margin-bottom: 20px; }
+.food-order-done-card {
+  text-align: left; border: 1px solid var(--border-sm); border-radius: var(--r-md);
+  background: var(--surface-card-alt); padding: 4px 16px; margin-bottom: 20px;
+}
+.food-order-done-row { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-sm); font-size: 13px; }
+.food-order-done-row:last-child { border-bottom: none; }
+.food-order-done-row .fod-label { color: var(--mist); flex-shrink: 0; }
+.food-order-done-row .fod-value { font-weight: 600; color: var(--charcoal); text-align: right; }
+.food-order-done-note {
+  display: flex; align-items: flex-start; gap: 8px; text-align: left; font-size: 11.5px; color: var(--mist);
+  background: var(--cream); border-radius: var(--r-sm); padding: 10px 12px; margin-bottom: 20px; line-height: 1.4;
+}
+.food-order-done-note i { color: var(--stone); margin-top: 1px; flex-shrink: 0; }
+.food-order-done-actions { display: flex; gap: 10px; }
+.food-order-done-actions .btn { flex: 1; }
 .food-picker-sheet-footer .btn { flex: 1; }
 
 /* ══════════════════════════════════
@@ -6195,6 +6307,204 @@ document.addEventListener('DOMContentLoaded', function () {
     <div class="food-picker-sheet-footer">
       <button type="button" class="btn btn-secondary" onclick="closeFoodPicker()">Cancelar</button>
       <button type="button" class="btn btn-primary" onclick="confirmFoodPickerSelection()">Seleccionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     WIZARD "REGISTRO DE ALIMENTACIÓN" — 6 pasos
+     1 Mascota y alimento · 2 Precio y porción · 3 Fechas · 4 Notas
+     (opcional) · 5 Método de pago · 6 Confirmación.
+     Reemplaza a #modal-add-food como punto de entrada de "+ Agregar
+     registro" (ver openFoodModal() en el JS). #modal-add-food NO se
+     borra: sigue siendo el modal que usa editFood()/la tabla de admin
+     para editar un registro ya existente, así que ese flujo no se toca.
+     Reusa el picker de alimento (#food-picker-overlay, arriba) seteando
+     su valor sobre los mismos hidden #fw-brand/#fw-price para no
+     duplicar esa lógica.
+     IMPORTANTE (ver saveFoodOrder() en el JS): el método de pago
+     elegido en el paso 5 es SOLO INFORMATIVO por ahora. No hay pasarela
+     de pago real conectada todavía -- el botón final guarda el registro
+     de alimentación (mismo addAlimentacion de siempre, con paymentMethod
+     agregado como columna nueva) y muestra "Pedido confirmado", nunca
+     "Pago exitoso" ni "Pago procesado", para no dar a entender que ya
+     se cobró algo. Cuando se conecte Mercado Pago u otra pasarela, el
+     lugar natural para insertar esa llamada es adentro de
+     saveFoodOrder(), antes de guardar el registro. -->
+<div class="modal-overlay" id="modal-wizard-food">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title modal-title--inter" id="fw-modal-title-text">Registro de Alimentación</div>
+      <button class="modal-close" onclick="closeFoodWizard()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="wizard-steps" id="fw-steps">
+      <div class="wizard-step" data-fwstep="1">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-paw"></i></div>
+        <div class="wizard-step-label">Mascota</div>
+      </div>
+      <div class="wizard-step" data-fwstep="2">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-tag"></i></div>
+        <div class="wizard-step-label">Precio</div>
+      </div>
+      <div class="wizard-step" data-fwstep="3">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-calendar-days"></i></div>
+        <div class="wizard-step-label">Fechas</div>
+      </div>
+      <div class="wizard-step" data-fwstep="4">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-note-sticky"></i></div>
+        <div class="wizard-step-label">Notas</div>
+      </div>
+      <div class="wizard-step" data-fwstep="5">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-credit-card"></i></div>
+        <div class="wizard-step-label">Pago</div>
+      </div>
+      <div class="wizard-step" data-fwstep="6">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-check"></i></div>
+        <div class="wizard-step-label">Confirmar</div>
+      </div>
+    </div>
+
+    <!-- Contenedor que se reemplaza entero por la pantalla final
+         "Pedido confirmado" (ver saveFoodOrder). Mientras tanto contiene
+         los 6 paneles + la barra de navegación. -->
+    <div id="fw-body-wrap">
+
+    <!-- ── PASO 1 — Mascota y alimento ── -->
+    <div class="wizard-panel" data-fwpanel="1">
+      <div class="form-row"><label>Mascota *</label><select class="form-control" id="fw-dog"></select></div>
+      <div class="form-row">
+        <label>Alimento *</label>
+        <button type="button" class="food-picker-trigger" id="fw-picker-trigger" onclick="openFoodPicker('fw')">
+          <span class="food-picker-trigger-label food-picker-trigger-placeholder" id="fw-picker-trigger-label">Seleccionar alimento</span>
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <input type="hidden" id="fw-brand" />
+        <div class="food-manual-row" id="fw-manual-row">
+          <span class="food-manual-row-back" onclick="closeFoodManualEntry('fw')"><i class="fa-solid fa-arrow-left"></i> Volver al catálogo</span>
+          <input class="form-control" id="fw-brand-manual" placeholder="Ej: Royal Canin Medium Adult" oninput="syncFoodManualToHidden('fw')" />
+        </div>
+      </div>
+      <!-- Tarjeta con el producto ya elegido: se completa sola apenas se
+           confirma una selección en el picker (ver renderFwProductCard). -->
+      <div class="food-wizard-product-card" id="fw-product-card" style="display:none">
+        <img class="food-wizard-product-thumb" id="fw-product-thumb" src="" alt="" style="display:none" />
+        <div class="food-wizard-product-thumb-fallback" id="fw-product-thumb-fallback"><i class="fa-solid fa-bone"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="food-wizard-product-name" id="fw-product-name">—</div>
+          <span class="food-wizard-product-link" onclick="openFoodPicker('fw')">Ver detalles del producto</span>
+        </div>
+      </div>
+      <div class="food-wizard-price-box" id="fw-price-box-1" style="display:none">
+        <div class="food-wizard-price-box-label">Precio del producto</div>
+        <div class="food-wizard-price-box-value" id="fw-price-box-value-1">$ 0</div>
+      </div>
+    </div>
+
+    <!-- ── PASO 2 — Precio y porción ── -->
+    <div class="wizard-panel" data-fwpanel="2">
+      <div class="form-row">
+        <label>Mascota</label>
+        <div class="food-wizard-product-card" style="margin-top:0">
+          <div class="food-wizard-product-thumb-fallback" id="fw-p2-dog-icon"><i class="fa-solid fa-paw"></i></div>
+          <div class="food-wizard-product-name" id="fw-p2-dog-name">—</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Alimento</label>
+        <div class="food-wizard-product-card" style="margin-top:0">
+          <img class="food-wizard-product-thumb" id="fw-p2-thumb" src="" alt="" style="display:none" />
+          <div class="food-wizard-product-thumb-fallback" id="fw-p2-thumb-fallback"><i class="fa-solid fa-bone"></i></div>
+          <div class="food-wizard-product-name" id="fw-p2-name">—</div>
+        </div>
+      </div>
+      <div class="form-row" id="fw-price-row" style="display:none">
+        <label>Precio del producto</label>
+        <input class="form-control" id="fw-price-display" disabled placeholder="—" />
+        <input type="hidden" id="fw-price" value="0" />
+      </div>
+      <div class="form-row-2">
+        <div class="form-row"><label>Porción diaria (gr) *</label><input class="form-control" id="fw-portion" type="number" placeholder="300" /></div>
+        <div class="form-row"><label>Frecuencia *</label>
+          <select class="form-control" id="fw-freq">
+            <option>1 vez al día</option><option>2 veces al día</option><option>3 veces al día</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 3 — Fechas ── -->
+    <div class="wizard-panel" data-fwpanel="3">
+      <div class="form-row"><label>Última compra *</label><input class="form-control" id="fw-last" type="date" onchange="fwRenderNextBanner()" /></div>
+      <div class="form-row"><label>Próxima compra *</label><input class="form-control" id="fw-next" type="date" onchange="fwRenderNextBanner()" /></div>
+      <div class="food-wizard-next-banner" id="fw-next-banner" style="display:none">
+        <div class="food-wizard-next-banner-icon"><i class="fa-solid fa-calendar-check"></i></div>
+        <div>
+          <div class="food-wizard-next-banner-title" id="fw-next-banner-title">—</div>
+          <div class="food-wizard-next-banner-sub">Se recomienda programar la próxima compra según la frecuencia seleccionada.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 4 — Notas (opcional) ── -->
+    <div class="wizard-panel" data-fwpanel="4">
+      <div class="form-row">
+        <label>Notas (opcional)</label>
+        <textarea class="form-control" id="fw-notes" rows="4" placeholder="Restricciones, preferencias, observaciones, etc."></textarea>
+      </div>
+    </div>
+
+    <!-- ── PASO 5 — Método de pago ──
+         Alias de Mercado Pago / MODO: aparecen debajo de cada opción de
+         pago, solo cuando esa opción está tildada (ver fwSelectPayment). -->
+    <div class="wizard-panel" data-fwpanel="5">
+      <div class="food-wizard-total-box">
+        <div class="food-wizard-total-box-label">Total a pagar</div>
+        <div class="food-wizard-total-box-value" id="fw-total-value">$ 0</div>
+      </div>
+      <div class="food-wizard-pay-section-title">Elegí tu método de pago</div>
+      <div id="fw-pay-list"></div>
+    </div>
+
+    <!-- ── PASO 6 — Confirmación (resumen antes de confirmar) ── -->
+    <div class="wizard-panel" data-fwpanel="6">
+      <div class="food-wizard-confirm-badge">
+        <div class="food-wizard-confirm-badge-icon"><i class="fa-solid fa-shield-halved"></i></div>
+        <div>
+          <div class="food-wizard-confirm-badge-title">Revisá tu pedido</div>
+          <div class="food-wizard-confirm-badge-sub">Confirmá los datos antes de registrar la compra</div>
+        </div>
+      </div>
+      <div class="food-wizard-summary-section-title">Resumen de la compra</div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Mascota</span><span class="wizard-summary-value" id="fw-sum-dog">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Producto</span><span class="wizard-summary-value" id="fw-sum-brand">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Precio del producto</span><span class="wizard-summary-value" id="fw-sum-price">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Porción diaria</span><span class="wizard-summary-value" id="fw-sum-portion">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Frecuencia</span><span class="wizard-summary-value" id="fw-sum-freq">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Última compra</span><span class="wizard-summary-value" id="fw-sum-last">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Próxima compra</span><span class="wizard-summary-value" id="fw-sum-next">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Notas</span><span class="wizard-summary-value" id="fw-sum-notes">Sin notas</span></div>
+      <div class="food-wizard-summary-section-title">Método de pago</div>
+      <div class="food-wizard-pay-selected-row">
+        <div class="food-wizard-pay-icon" id="fw-sum-pay-icon"><i class="fa-solid fa-credit-card"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="food-wizard-pay-title" id="fw-sum-pay-name">—</div>
+          <div class="food-wizard-pay-sub" id="fw-sum-pay-alias" style="display:none">—</div>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /#fw-body-wrap -->
+
+    <div class="wizard-nav" id="fw-nav">
+      <button class="btn btn-secondary" id="fw-btn-back" onclick="fwGoStep(-1)">Atrás</button>
+      <button class="btn btn-primary" id="fw-btn-next" onclick="fwGoStep(1)">Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i></button>
     </div>
   </div>
 </div>
@@ -10939,7 +11249,17 @@ function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function openWalkModal()   { populateDogSelect('walk-dog'); openModal('modal-add-walk'); }
 function openHealthModal() { populateDogSelect('health-dog'); openModal('modal-add-health'); }
-function openFoodModal() {
+
+// "+ Agregar registro" (Alimentación) ahora abre el wizard nuevo de 6
+// pasos (openFoodWizard, más abajo) en vez del modal simple de un solo
+// paso. El modal simple SIGUE existiendo en el DOM como
+// #modal-add-food y sigue siendo el que usa editFood() para editar un
+// registro ya guardado -- ese flujo de edición no cambia. Se renombró
+// a openFoodModalLegacy() y queda disponible por si en algún momento
+// hace falta volver a él (por ejemplo desde la tabla de admin).
+function openFoodModal() { openFoodWizard(); }
+
+function openFoodModalLegacy() {
   editingFoodId = null;
   let dogsToShow = state.dogs;
   if (!isAdmin()) {
@@ -10952,6 +11272,443 @@ function openFoodModal() {
   document.querySelector('#modal-add-food .modal-title').textContent = 'Registro de Alimentación';
   document.querySelector('#modal-add-food .btn-primary').textContent = 'Guardar';
   openModal('modal-add-food');
+}
+
+/* ══════════════════════════════════
+   WIZARD "REGISTRO DE ALIMENTACIÓN" — 6 pasos (cliente)
+   Mismo patrón que el wizard "Agregar Mascota" (fwCurrentStep +
+   FW_TOTAL_STEPS + wizardGoStep), aplicado al flujo de compra de
+   alimento. Ver el HTML de #modal-wizard-food para la estructura de
+   los 6 <div class="wizard-panel" data-fwpanel="N">.
+══════════════════════════════════ */
+let fwCurrentStep = 1;
+const FW_TOTAL_STEPS = 6;
+let fwSelectedPaymentKey = null; // 'credit' | 'debit' | 'mp' | 'modo' | 'transfer' | 'cash'
+// fwShowOrderDone() reemplaza el innerHTML de #fw-body-wrap por la
+// pantalla final "Pedido confirmado", destruyendo los 6
+// wizard-panel originales. Se guarda una copia UNA sola vez (primer
+// openFoodWizard de la sesión) para poder restaurarla en cada apertura
+// posterior -- sin esto, "Agregar otro registro" desde la pantalla
+// final rompería el wizard porque #fw-dog/#fw-brand/etc ya no
+// existirían en el DOM.
+let fwBodyWrapOriginalHtml = null;
+
+// Catálogo de métodos de pago del paso 5. alias/aliasLabel solo están
+// presentes en Mercado Pago y MODO -- son los 2 alias pedidos
+// ("Alias Mercado Pago: digo.papa.onza.mp" / "Alias Modo:
+// Fuego.Asado.vino"), mostrados debajo de esa opción puntual cuando
+// está seleccionada (ver fwRenderPaymentList/fwSelectPayment), tal
+// como se ve en la referencia visual. El resto de los métodos no
+// necesitan alias porque no son transferencias a una cuenta propia.
+const FOOD_WIZARD_PAYMENT_METHODS = [
+  { key: 'credit',   icon: 'fa-credit-card',        title: 'Tarjeta de crédito',        sub: 'Visa, Mastercard, American Express, etc.' },
+  { key: 'debit',    icon: 'fa-credit-card',         title: 'Tarjeta de débito',          sub: 'Todas las tarjetas' },
+  { key: 'mp',       icon: 'fa-handshake',           title: 'Mercado Pago',               sub: 'Pagá con tu cuenta',  alias: 'digo.papa.onza.mp',    aliasLabel: 'Alias Mercado Pago' },
+  { key: 'modo',     icon: 'fa-mobile-screen-button', title: 'Modo',                       sub: 'Pagá desde tu banco', alias: 'Fuego.Asado.vino',      aliasLabel: 'Alias Modo' },
+  { key: 'transfer', icon: 'fa-building-columns',    title: 'Transferencia bancaria',     sub: 'Desde tu Homebanking' },
+  { key: 'cash',     icon: 'fa-money-bill-wave',     title: 'Efectivo en puntos de pago', sub: 'Rapipago, Pago Fácil, etc.' },
+];
+
+function openFoodWizard() {
+  editingFoodId = null;
+  fwCurrentStep = 1;
+  fwSelectedPaymentKey = null;
+
+  const wrap = document.getElementById('fw-body-wrap');
+  if (wrap) {
+    if (fwBodyWrapOriginalHtml === null) fwBodyWrapOriginalHtml = wrap.innerHTML; // primera vez: guarda el original
+    else wrap.innerHTML = fwBodyWrapOriginalHtml; // reaperturas siguientes: restaura por si venía de "Pedido confirmado"
+  }
+  const steps = document.getElementById('fw-steps');
+  const nav = document.getElementById('fw-nav');
+  if (steps) steps.style.display = '';
+  if (nav) nav.style.display = '';
+
+  let dogsToShow = state.dogs;
+  if (!isAdmin()) {
+    dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  }
+  document.getElementById('fw-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
+
+  ['fw-portion','fw-last','fw-next','fw-notes'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('fw-freq').value = '1 vez al día';
+  document.getElementById('fw-next-banner').style.display = 'none';
+  setFoodPickerValue('', 'fw'); // limpia trigger + fila manual + fila de precio + tarjetas de resumen del wizard
+  fwSyncDogSummary();
+
+  document.getElementById('fw-modal-title-text').textContent = 'Registro de Alimentación';
+  fwRenderPaymentList();
+  fwRenderStep();
+  openModal('modal-wizard-food');
+}
+
+function closeFoodWizard() { closeModal('modal-wizard-food'); }
+
+// Sincroniza la mascota elegida en el paso 1 hacia la tarjeta de
+// resumen del paso 2 (id/nombre son lo único que cambia entre pasos,
+// así que no hace falta repetir el <select>).
+function fwSyncDogSummary() {
+  const sel = document.getElementById('fw-dog');
+  const opt = sel && sel.options[sel.selectedIndex];
+  const nameEl = document.getElementById('fw-p2-dog-name');
+  if (nameEl) nameEl.textContent = opt ? opt.textContent : '—';
+}
+// Delegado sobre document (no un addEventListener directo sobre
+// #fw-dog): el script principal corre al final del <body>, con el DOM
+// ya completamente parseado, así que 'DOMContentLoaded' ya disparó
+// antes de llegar acá y nunca se ejecutaría. La delegación funciona
+// desde el primer render sin depender de ese timing.
+document.addEventListener('change', (e) => { if (e.target && e.target.id === 'fw-dog') fwSyncDogSummary(); });
+
+// Repinta la tarjeta de producto elegido en los pasos 1 y 2, y la caja
+// de precio (pasos 1/2/5), a partir del match del catálogo (o null si
+// es un alimento tipeado a mano). Se llama desde setFoodPickerValue,
+// openFoodManualEntry y syncFoodManualToHidden cuando prefix==='fw',
+// así que se mantiene sincronizada en cualquier forma en que el
+// usuario termine de elegir el alimento.
+function fwRenderProductCards(match, brandName) {
+  const hasBrand = !!(brandName && brandName.trim());
+  const card1 = document.getElementById('fw-product-card');
+  if (card1) card1.style.display = hasBrand ? 'flex' : 'none';
+  const thumb1 = document.getElementById('fw-product-thumb');
+  const thumbFallback1 = document.getElementById('fw-product-thumb-fallback');
+  const name1 = document.getElementById('fw-product-name');
+  if (name1) name1.textContent = brandName || '—';
+  if (match && match.foto) {
+    if (thumb1) { thumb1.src = match.foto; thumb1.style.display = ''; thumb1.onerror = function () { this.style.display = 'none'; if (thumbFallback1) thumbFallback1.style.display = 'flex'; }; }
+    if (thumbFallback1) thumbFallback1.style.display = 'none';
+  } else {
+    if (thumb1) thumb1.style.display = 'none';
+    if (thumbFallback1) thumbFallback1.style.display = 'flex';
+  }
+
+  const p2Thumb = document.getElementById('fw-p2-thumb');
+  const p2ThumbFallback = document.getElementById('fw-p2-thumb-fallback');
+  const p2Name = document.getElementById('fw-p2-name');
+  if (p2Name) p2Name.textContent = brandName || '—';
+  if (match && match.foto) {
+    if (p2Thumb) { p2Thumb.src = match.foto; p2Thumb.style.display = ''; p2Thumb.onerror = function () { this.style.display = 'none'; if (p2ThumbFallback) p2ThumbFallback.style.display = 'flex'; }; }
+    if (p2ThumbFallback) p2ThumbFallback.style.display = 'none';
+  } else {
+    if (p2Thumb) p2Thumb.style.display = 'none';
+    if (p2ThumbFallback) p2ThumbFallback.style.display = 'flex';
+  }
+
+  const price = (match && match.precio > 0) ? match.precio : 0;
+  const priceBox1 = document.getElementById('fw-price-box-1');
+  if (priceBox1) {
+    priceBox1.style.display = price > 0 ? 'block' : 'none';
+    const val1 = document.getElementById('fw-price-box-value-1');
+    if (val1) val1.textContent = formatCLP(price);
+  }
+  fwRenderPaymentList(); // el total a pagar (paso 5) depende del precio del producto
+}
+
+// "En X días" del paso 3, calculado entre "Última compra" y "Próxima
+// compra" (mismo par de fechas que ya guarda saveFood, no son campos
+// nuevos). Si "Próxima compra" es anterior o igual a "Última compra"
+// no se muestra el banner, para no decir "en -3 días" o "en 0 días".
+function fwRenderNextBanner() {
+  const banner = document.getElementById('fw-next-banner');
+  const titleEl = document.getElementById('fw-next-banner-title');
+  if (!banner || !titleEl) return;
+  const lastVal = document.getElementById('fw-last').value;
+  const nextVal = document.getElementById('fw-next').value;
+  if (!nextVal) { banner.style.display = 'none'; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const nextDate = new Date(nextVal + 'T00:00:00');
+  const diffDays = Math.round((nextDate - today) / 86400000);
+  if (isNaN(diffDays)) { banner.style.display = 'none'; return; }
+  if (diffDays > 0) titleEl.textContent = `En ${diffDays} día${diffDays === 1 ? '' : 's'}`;
+  else if (diffDays === 0) titleEl.textContent = 'Es hoy';
+  else titleEl.textContent = `Hace ${Math.abs(diffDays)} día${Math.abs(diffDays) === 1 ? '' : 's'}`;
+  banner.style.display = 'flex';
+}
+
+// Pinta la lista de métodos de pago del paso 5 + el total a pagar
+// (mismo precio resuelto en fw-price, tomado del catálogo). Se vuelve a
+// llamar cada vez que cambia el producto elegido (fwRenderProductCards)
+// para que el total quede siempre actualizado, y una sola vez al abrir
+// el wizard.
+function fwRenderPaymentList() {
+  const totalEl = document.getElementById('fw-total-value');
+  if (totalEl) {
+    const price = Number(document.getElementById('fw-price') ? document.getElementById('fw-price').value : 0) || 0;
+    totalEl.textContent = formatCLP(price);
+  }
+  const listEl = document.getElementById('fw-pay-list');
+  if (!listEl) return;
+  listEl.innerHTML = FOOD_WIZARD_PAYMENT_METHODS.map(m => {
+    const checked = fwSelectedPaymentKey === m.key;
+    const aliasHtml = m.alias ? `
+      <div class="food-wizard-pay-alias${checked ? ' show' : ''}" id="fw-pay-alias-${m.key}">
+        <i class="fa-solid fa-at"></i>
+        <span class="food-wizard-pay-alias-label">${escapeHtml(m.aliasLabel)}:</span>
+        <span class="food-wizard-pay-alias-value">${escapeHtml(m.alias)}</span>
+        <button type="button" class="food-wizard-pay-alias-copy" title="Copiar alias" onclick="event.stopPropagation(); fwCopyAlias('${m.key}')"><i class="fa-regular fa-copy"></i></button>
+      </div>` : '';
+    return `
+      <label class="food-wizard-pay-option${checked ? ' checked' : ''}" onclick="fwSelectPayment('${m.key}')">
+        <input type="radio" name="fw-pay" value="${m.key}" ${checked ? 'checked' : ''} onclick="event.stopPropagation()" onchange="fwSelectPayment('${m.key}')" />
+        <div class="food-wizard-pay-icon"><i class="fa-solid ${m.icon}"></i></div>
+        <div class="food-wizard-pay-body">
+          <div class="food-wizard-pay-title">${escapeHtml(m.title)}</div>
+          <div class="food-wizard-pay-sub">${escapeHtml(m.sub)}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </label>
+      ${aliasHtml}`;
+  }).join('');
+}
+
+function fwSelectPayment(key) {
+  fwSelectedPaymentKey = key;
+  fwRenderPaymentList();
+}
+
+// Copia el alias al portapapeles (navigator.clipboard con fallback a
+// execCommand para navegadores/contextos sin permiso de clipboard,
+// mismo patrón defensivo que genFoodId usa para crypto.randomUUID).
+function fwCopyAlias(key) {
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === key);
+  if (!method || !method.alias) return;
+  const text = method.alias;
+  const done = () => showToast('Alias copiado', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fwCopyAliasFallback(text, done));
+  } else {
+    fwCopyAliasFallback(text, done);
+  }
+}
+function fwCopyAliasFallback(text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    done();
+  } catch (e) { showToast('No se pudo copiar el alias', 'error'); }
+}
+
+// Validación por paso: mismo criterio que wizardValidateStep (wizard de
+// mascota), un array de checks por número de paso. Los pasos 4 (notas)
+// y 6 (confirmación, ya validada al llegar) no tienen requisitos.
+function fwValidateStep(step) {
+  if (step === 1) {
+    const dogOk = !!document.getElementById('fw-dog').value;
+    const brandOk = !!document.getElementById('fw-brand').value.trim();
+    if (!dogOk) { showToast('Elegí una mascota', 'error'); return false; }
+    if (!brandOk) { showToast('Elegí un alimento', 'error'); return false; }
+    return true;
+  }
+  if (step === 2) {
+    const portion = document.getElementById('fw-portion').value;
+    if (!portion || Number(portion) <= 0) { showToast('Completá la porción diaria', 'error'); document.getElementById('fw-portion').focus(); return false; }
+    return true;
+  }
+  if (step === 3) {
+    if (!document.getElementById('fw-last').value) { showToast('Completá la fecha de última compra', 'error'); return false; }
+    if (!document.getElementById('fw-next').value) { showToast('Completá la fecha de próxima compra', 'error'); return false; }
+    return true;
+  }
+  if (step === 5) {
+    if (!fwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return false; }
+    return true;
+  }
+  return true;
+}
+
+function fwGoStep(dir) {
+  if (dir > 0 && !fwValidateStep(fwCurrentStep)) return;
+  const next = fwCurrentStep + dir;
+  if (next < 1) return;
+  if (next > FW_TOTAL_STEPS) { saveFoodOrder(); return; }
+  fwCurrentStep = next;
+  if (fwCurrentStep === 2) fwSyncDogSummary();
+  if (fwCurrentStep === 6) fwRenderConfirmSummary();
+  fwRenderStep();
+}
+
+function fwRenderStep() {
+  document.querySelectorAll('#fw-steps .wizard-step').forEach(el => {
+    const s = Number(el.dataset.fwstep);
+    el.classList.toggle('active', s === fwCurrentStep);
+    el.classList.toggle('done', s < fwCurrentStep);
+  });
+  document.querySelectorAll('#modal-wizard-food .wizard-panel').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.fwpanel) === fwCurrentStep);
+  });
+  const backBtn = document.getElementById('fw-btn-back');
+  const nextBtn = document.getElementById('fw-btn-next');
+  if (backBtn) backBtn.style.visibility = fwCurrentStep === 1 ? 'hidden' : 'visible';
+  if (nextBtn) {
+    if (fwCurrentStep === FW_TOTAL_STEPS) {
+      nextBtn.innerHTML = '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
+    } else if (fwCurrentStep === 4) {
+      // Paso "Notas (opcional)": el texto del botón deja explícito que
+      // se puede avanzar sin cargar nada, igual que dice el encabezado.
+      nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
+    } else {
+      nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
+    }
+  }
+}
+
+// Arma el resumen de confirmación (paso 6) con todos los datos
+// cargados hasta ahora, incluido el método de pago elegido en el paso
+// 5 (con su alias, si corresponde).
+function fwRenderConfirmSummary() {
+  const dogSel = document.getElementById('fw-dog');
+  const dogOpt = dogSel && dogSel.options[dogSel.selectedIndex];
+  document.getElementById('fw-sum-dog').textContent = dogOpt ? dogOpt.textContent : '—';
+  document.getElementById('fw-sum-brand').textContent = document.getElementById('fw-brand').value || '—';
+  const price = Number(document.getElementById('fw-price').value) || 0;
+  document.getElementById('fw-sum-price').textContent = price > 0 ? formatCLP(price) : '—';
+  const portion = document.getElementById('fw-portion').value;
+  document.getElementById('fw-sum-portion').textContent = portion ? portion + ' gr' : '—';
+  document.getElementById('fw-sum-freq').textContent = document.getElementById('fw-freq').value || '—';
+  document.getElementById('fw-sum-last').textContent = fwFormatDateDisplay(document.getElementById('fw-last').value);
+  document.getElementById('fw-sum-next').textContent = fwFormatDateDisplay(document.getElementById('fw-next').value);
+  document.getElementById('fw-sum-notes').textContent = (document.getElementById('fw-notes').value || '').trim() || 'Sin notas';
+
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === fwSelectedPaymentKey);
+  const iconEl = document.getElementById('fw-sum-pay-icon');
+  const nameEl = document.getElementById('fw-sum-pay-name');
+  const aliasEl = document.getElementById('fw-sum-pay-alias');
+  if (method) {
+    if (iconEl) iconEl.innerHTML = `<i class="fa-solid ${method.icon}"></i>`;
+    if (nameEl) nameEl.textContent = method.title;
+    if (aliasEl) {
+      if (method.alias) { aliasEl.style.display = ''; aliasEl.textContent = `${method.aliasLabel}: ${method.alias}`; }
+      else { aliasEl.style.display = 'none'; }
+    }
+  }
+}
+
+function fwFormatDateDisplay(isoDate) {
+  if (!isoDate) return '—';
+  const d = new Date(isoDate + 'T00:00:00');
+  if (isNaN(d)) return isoDate;
+  return d.toLocaleDateString('es-AR');
+}
+
+// Guarda el pedido: reutiliza el mismo genFoodId()/state.food/
+// addAlimentacion que ya usa saveFood() para el modal viejo, así que el
+// registro queda en la tabla de Alimentación exactamente igual que uno
+// cargado por ese otro camino. Lo único nuevo es que se agrega
+// paymentMethod (y paymentAlias, cuando aplica) como parámetro extra en
+// la URL de addAlimentacion, para que quede la columna disponible en la
+// hoja de Sheets del lado del Apps Script -- ese script no se puede
+// editar desde acá, así que hasta que se agregue esa columna del otro
+// lado, el parámetro simplemente llega y el Apps Script actual lo
+// ignora sin romper nada (handleAddAlimentacion ya ignora hoy cualquier
+// query param que no lea explícitamente).
+//
+// IMPORTANTE: esto NO cobra nada. No hay pasarela de pago conectada.
+// Cuando se integre Mercado Pago (u otra pasarela), el lugar donde
+// insertar esa llamada es ACÁ, antes del push a state.food -- por
+// ejemplo, redirigiendo a la URL de checkout que devuelva la pasarela y
+// recién completando el guardado cuando esa pasarela confirme el pago
+// (webhook/redirect de vuelta), en vez del guardado inmediato de hoy.
+async function saveFoodOrder() {
+  const dogId  = parseInt(document.getElementById('fw-dog').value);
+  const brand  = document.getElementById('fw-brand').value.trim();
+  const portion = parseFloat(document.getElementById('fw-portion').value) || 0;
+  const freq   = document.getElementById('fw-freq').value;
+  const last   = document.getElementById('fw-last').value;
+  const next   = document.getElementById('fw-next').value;
+  const notes  = document.getElementById('fw-notes').value.trim();
+  const price  = Number(document.getElementById('fw-price').value) || 0;
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === fwSelectedPaymentKey);
+  if (!dogId || !brand || !method) { showToast('Faltan datos del pedido', 'error'); return; }
+
+  const newId = genFoodId();
+  const orderNumber = fwGenOrderNumber();
+  state.food.push({ id: newId, dogId, brand, portion, freq, last, next, notes });
+  saveFoodToLS();
+
+  const dog = getDog(dogId);
+  if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
+  else renderFood();
+  refreshNotifBell();
+
+  // Pantalla final del wizard: "Pedido confirmado" (nunca "pago
+  // exitoso"/"pago procesado" -- ver comentario arriba de la función).
+  fwShowOrderDone({ dog, brand, price, method, orderNumber, when: new Date() });
+
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=addAlimentacion'
+      + '&id=' + encodeURIComponent(newId)
+      + '&name=' + encodeURIComponent(dog.name || '')
+      + '&mail=' + encodeURIComponent(dog.mail || '')
+      + '&brand=' + encodeURIComponent(brand)
+      + '&portion=' + encodeURIComponent(portion)
+      + '&freq=' + encodeURIComponent(freq)
+      + '&last=' + encodeURIComponent(last)
+      + '&next=' + encodeURIComponent(next)
+      + '&notes=' + encodeURIComponent(notes)
+      + '&paymentMethod=' + encodeURIComponent(method.title)
+      + '&paymentAlias=' + encodeURIComponent(method.alias || '')
+      + '&orderNumber=' + encodeURIComponent(orderNumber);
+    const res = await fetchJSONP(url);
+    const confirmedOk = Array.isArray(res) && res[0] && res[0].ok === true;
+    if (!confirmedOk) {
+      addLiveLog('[WARN] No se pudo sincronizar el pedido de Alimentación con la planilla', 'err');
+    }
+    notifyAdmin('alimentacion', 'alta', dog.name || '', 'Marca: ' + brand + ' · Pago: ' + method.title);
+  } catch (e) {
+    addLiveLog('[WARN] Pedido guardado solo local (sin conexión a planilla): ' + e.message, 'err');
+  }
+}
+
+// Número de pedido corto y legible (no es el mismo id que la fila de
+// Sheets -- ese sigue siendo el UUID de genFoodId -- este es solo para
+// mostrarle algo prolijo al cliente en la pantalla de confirmación).
+function fwGenOrderNumber() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `PB-${y}-${rand}`;
+}
+
+// Reemplaza el contenido del modal (pasos + nav) por la pantalla final.
+// No usa showFoodSuccess (la de confeti del modal viejo) a propósito:
+// esa tarjeta se inyecta afuera del modal, en la vista de fondo, y este
+// wizard todavía está abierto en pantalla -- tiene más sentido cerrar
+// el flujo adentro del mismo modal con su propia pantalla de cierre.
+function fwShowOrderDone({ dog, brand, price, method, orderNumber, when }) {
+  const wrap = document.getElementById('fw-body-wrap');
+  const nav = document.getElementById('fw-nav');
+  const steps = document.getElementById('fw-steps');
+  if (steps) steps.style.display = 'none';
+  if (nav) nav.style.display = 'none';
+  document.getElementById('fw-modal-title-text').textContent = 'Pedido confirmado';
+  if (!wrap) return;
+  const dateStr = when.toLocaleDateString('es-AR') + ' · ' + when.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  wrap.innerHTML = `
+    <div class="food-order-done">
+      <div class="food-order-done-check"><i class="fa-solid fa-check"></i></div>
+      <h3>Pedido confirmado</h3>
+      <p>Tu solicitud fue registrada correctamente.</p>
+      <div class="food-order-done-card">
+        <div class="food-order-done-row"><span class="fod-label">Producto</span><span class="fod-value">${escapeHtml(brand)}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Mascota</span><span class="fod-value">${escapeHtml(dog.name || '—')}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Precio</span><span class="fod-value">${price > 0 ? formatCLP(price) : '—'}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Método de pago</span><span class="fod-value">${escapeHtml(method.title)}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Fecha</span><span class="fod-value">${escapeHtml(dateStr)}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">N° de pedido</span><span class="fod-value">${escapeHtml(orderNumber)}</span></div>
+      </div>
+      <div class="food-order-done-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>Tu pedido quedó registrado con el método de pago elegido. Todavía no se procesó ningún cobro: en breve nos pondremos en contacto para coordinar el pago.</span>
+      </div>
+      <div class="food-order-done-actions">
+        <button class="btn btn-secondary" onclick="closeFoodWizard()">Cerrar</button>
+        <button class="btn btn-primary" onclick="closeFoodWizard(); openFoodWizard();">Agregar otro registro</button>
+      </div>
+    </div>`;
 }
 
 /* ══════════════════════════════════
@@ -10968,6 +11725,13 @@ function openFoodModal() {
 ══════════════════════════════════ */
 let foodPickerHoveredId = null;   // selección tentativa dentro del picker (aplicada recién al confirmar)
 let foodPickerLoadPromise = null; // evita pedir el catálogo 2 veces si el usuario abre/cierra rápido
+// El picker (#food-picker-overlay) es UN SOLO elemento del DOM compartido
+// entre el modal viejo de editar (prefix 'food') y el wizard nuevo
+// (prefix 'fw'): esta variable recuerda cuál de los dos lo abrió, para
+// que closeFoodPicker/confirmFoodPickerSelection/openFoodManualEntry
+// sepan sobre qué trigger/hidden operar sin tener que pasarse el
+// prefijo por cada función intermedia.
+let activeFoodPickerPrefix = 'food';
 
 // Carga el catálogo UNA sola vez (caché en state.foodCatalog) y de forma
 // perezosa: recién la primera vez que se abre el picker, no en cada
@@ -11004,11 +11768,20 @@ async function ensureFoodCatalogLoaded() {
 // Pone el valor "oficial" (el que va a guardarse): actualiza el hidden
 // #food-brand (lo que ya leen saveFood/editFood) Y la etiqueta visible
 // del trigger, para que ambos queden siempre consistentes entre sí.
-function setFoodPickerValue(brandName) {
-  const hidden = document.getElementById('food-brand');
+//
+// prefix: id del formulario que llama ('food' = modal viejo de editar,
+// default; 'fw' = wizard nuevo de 6 pasos). Con prefix='food' el
+// comportamiento es EXACTAMENTE el de antes (mismos ids), así que
+// editFood()/openFoodModal() (modal viejo) no se tocan ni se enteran de
+// este cambio. Con prefix='fw' apunta a los ids del wizard nuevo y
+// además dispara el refresco de las tarjetas de resumen de los pasos 1/2
+// (fwRenderProductCards), que no existen en el modal viejo.
+function setFoodPickerValue(brandName, prefix) {
+  prefix = prefix || 'food';
+  const hidden = document.getElementById(prefix + '-brand');
   if (hidden) hidden.value = brandName || '';
 
-  const label = document.getElementById('food-picker-trigger-label');
+  const label = document.getElementById(prefix + '-picker-trigger-label');
   if (!label) return;
   if (brandName) {
     label.textContent = brandName;
@@ -11021,13 +11794,13 @@ function setFoodPickerValue(brandName) {
   // Miniatura del alimento elegido, si está en el catálogo (si vino de
   // "Agregar alimento nuevo" no va a estar, y no pasa nada: el trigger
   // simplemente no muestra miniatura).
-  const existingThumb = document.getElementById('food-picker-trigger-thumb');
+  const existingThumb = document.getElementById(prefix + '-picker-trigger-thumb');
   if (existingThumb) existingThumb.remove();
   const match = brandName && state.foodCatalog ? state.foodCatalog.find(p => p.nombre === brandName) : null;
   if (match && match.foto) {
     const img = document.createElement('img');
     img.className = 'food-picker-trigger-thumb';
-    img.id = 'food-picker-trigger-thumb';
+    img.id = prefix + '-picker-trigger-thumb';
     img.src = match.foto;
     img.alt = '';
     img.loading = 'lazy';
@@ -11038,14 +11811,14 @@ function setFoodPickerValue(brandName) {
   // Chip de precio dentro del trigger cerrado (ver Imagen 1: "$ 110.000"
   // a la derecha del nombre elegido, antes de la flecha). Se remueve y
   // se vuelve a crear cada vez, igual que la miniatura de arriba.
-  const existingTriggerPrice = document.getElementById('food-picker-trigger-price');
+  const existingTriggerPrice = document.getElementById(prefix + '-picker-trigger-price');
   if (existingTriggerPrice) existingTriggerPrice.remove();
   if (match && match.precio > 0) {
     const priceSpan = document.createElement('span');
     priceSpan.className = 'food-picker-trigger-price';
-    priceSpan.id = 'food-picker-trigger-price';
+    priceSpan.id = prefix + '-picker-trigger-price';
     priceSpan.textContent = formatCLP(match.precio);
-    const chevron = document.querySelector('#food-picker-trigger i.fa-chevron-down');
+    const chevron = document.querySelector('#' + prefix + '-picker-trigger i.fa-chevron-down');
     if (chevron) chevron.insertAdjacentElement('beforebegin', priceSpan);
   }
 
@@ -11055,9 +11828,9 @@ function setFoodPickerValue(brandName) {
   // catálogo o no tiene precio cargado todavía (match.precio === 0 o
   // "Agregar alimento nuevo"), la fila entera queda oculta en vez de
   // mostrar "$ 0", que confundiría más de lo que ayuda.
-  const priceRow = document.getElementById('food-price-row');
-  const priceDisplay = document.getElementById('food-price-display');
-  const priceHidden = document.getElementById('food-price');
+  const priceRow = document.getElementById(prefix + '-price-row');
+  const priceDisplay = document.getElementById(prefix + '-price-display');
+  const priceHidden = document.getElementById(prefix + '-price');
   if (priceRow && priceDisplay && priceHidden) {
     if (match && match.precio > 0) {
       priceDisplay.value = formatCLP(match.precio);
@@ -11074,11 +11847,18 @@ function setFoodPickerValue(brandName) {
   // (por ejemplo al editar un registro cuyo alimento SÍ está en el
   // catálogo): la fila manual solo debe quedar visible cuando el
   // usuario explícitamente eligió "Agregar alimento nuevo".
-  closeFoodManualEntry(/*silent=*/true);
+  closeFoodManualEntry(/*silent=*/true, prefix);
+
+  // Solo el wizard nuevo tiene tarjetas de resumen de producto en los
+  // pasos 1 y 2 (y, más adelante, el total a pagar del paso 5); el modal
+  // viejo no las tiene, así que esto es un no-op ahí.
+  if (prefix === 'fw' && typeof fwRenderProductCards === 'function') fwRenderProductCards(match, brandName);
 }
 
-async function openFoodPicker() {
-  const trigger = document.getElementById('food-picker-trigger');
+async function openFoodPicker(prefix) {
+  prefix = prefix || 'food';
+  activeFoodPickerPrefix = prefix;
+  const trigger = document.getElementById(prefix + '-picker-trigger');
   const overlay = document.getElementById('food-picker-overlay');
   const panel   = document.getElementById('food-picker-panel');
   if (!trigger || !overlay || !panel) return;
@@ -11089,7 +11869,7 @@ async function openFoodPicker() {
   // Selección tentativa arranca en el valor actual del hidden, para que
   // si el usuario abre el picker con un alimento ya elegido, esa tarjeta
   // aparezca resaltada de entrada.
-  foodPickerHoveredId = document.getElementById('food-brand').value || null;
+  foodPickerHoveredId = document.getElementById(prefix + '-brand').value || null;
 
   const searchInput = document.getElementById('food-picker-search-input');
   if (searchInput) searchInput.value = '';
@@ -11124,7 +11904,7 @@ async function openFoodPicker() {
 }
 
 function closeFoodPicker() {
-  const trigger = document.getElementById('food-picker-trigger');
+  const trigger = document.getElementById(activeFoodPickerPrefix + '-picker-trigger');
   const overlay = document.getElementById('food-picker-overlay');
   if (trigger) trigger.classList.remove('open');
   if (overlay) overlay.classList.remove('open');
@@ -11243,7 +12023,7 @@ function selectFoodPickerOption(nombre) {
 }
 
 function confirmFoodPickerSelection() {
-  if (foodPickerHoveredId) setFoodPickerValue(foodPickerHoveredId);
+  if (foodPickerHoveredId) setFoodPickerValue(foodPickerHoveredId, activeFoodPickerPrefix);
   closeFoodPicker();
 }
 
@@ -11253,61 +12033,73 @@ function confirmFoodPickerSelection() {
 // #food-brand en cada tecla (ver syncFoodManualToHidden), así que
 // saveFood() lo recibe exactamente igual que cuando el <input> era
 // visible directamente.
-function openFoodManualEntry() {
+// prefix: mismo patrón que setFoodPickerValue/openFoodPicker. Cuando se
+// llama desde dentro del picker (botón "Agregar alimento nuevo") no se
+// pasa prefix explícito y se usa activeFoodPickerPrefix (recordado por
+// openFoodPicker); cuando se llama desde un oninput/onclick inline
+// dentro de un formulario específico (fila manual del wizard) sí se
+// pasa 'fw' a mano, porque ahí no hubo un openFoodPicker previo en esta
+// interacción puntual.
+function openFoodManualEntry(prefix) {
+  prefix = prefix || activeFoodPickerPrefix;
   closeFoodPicker();
-  const row = document.getElementById('food-manual-row');
+  const row = document.getElementById(prefix + '-manual-row');
   if (row) row.classList.add('show');
-  const manualInput = document.getElementById('food-brand-manual');
+  const manualInput = document.getElementById(prefix + '-brand-manual');
   if (manualInput) {
     // Si ya había algo tipeado a mano previamente (por ejemplo el
     // usuario volvió del catálogo sin elegir nada), lo conserva; si no,
     // arranca vacío.
-    manualInput.value = document.getElementById('food-brand').value || '';
+    manualInput.value = document.getElementById(prefix + '-brand').value || '';
     setTimeout(() => manualInput.focus(), 50);
   }
   // Un producto tipeado a mano no tiene precio de catálogo: se oculta
   // la fila de precio (mismo criterio que setFoodPickerValue cuando
   // match.precio es 0), en vez de dejar mostrado el precio del producto
   // seleccionado anteriormente en el catálogo, si había uno.
-  const priceRow = document.getElementById('food-price-row');
-  const priceDisplay = document.getElementById('food-price-display');
-  const priceHidden = document.getElementById('food-price');
+  const priceRow = document.getElementById(prefix + '-price-row');
+  const priceDisplay = document.getElementById(prefix + '-price-display');
+  const priceHidden = document.getElementById(prefix + '-price');
   if (priceRow) priceRow.style.display = 'none';
   if (priceDisplay) priceDisplay.value = '';
   if (priceHidden) priceHidden.value = 0;
+  if (prefix === 'fw' && typeof fwRenderProductCards === 'function') fwRenderProductCards(null, '');
 }
 
-function closeFoodManualEntry(silent) {
-  const row = document.getElementById('food-manual-row');
+function closeFoodManualEntry(silent, prefix) {
+  prefix = prefix || activeFoodPickerPrefix;
+  const row = document.getElementById(prefix + '-manual-row');
   if (row) row.classList.remove('show');
   if (!silent) {
-    const manualInput = document.getElementById('food-brand-manual');
+    const manualInput = document.getElementById(prefix + '-brand-manual');
     if (manualInput) manualInput.value = '';
   }
 }
 
-function syncFoodManualToHidden() {
-  const manualInput = document.getElementById('food-brand-manual');
-  const hidden = document.getElementById('food-brand');
+function syncFoodManualToHidden(prefix) {
+  prefix = prefix || activeFoodPickerPrefix;
+  const manualInput = document.getElementById(prefix + '-brand-manual');
+  const hidden = document.getElementById(prefix + '-brand');
   if (!manualInput || !hidden) return;
   hidden.value = manualInput.value.trim();
   // El trigger de arriba refleja el texto libre también, para que quede
   // claro qué se va a guardar aunque el usuario no vuelva a abrir el
   // picker antes de tocar "Guardar".
-  const label = document.getElementById('food-picker-trigger-label');
+  const label = document.getElementById(prefix + '-picker-trigger-label');
   if (label) {
     const val = manualInput.value.trim();
     label.textContent = val || 'Seleccionar alimento';
     label.classList.toggle('food-picker-trigger-placeholder', !val);
   }
-  const existingThumb = document.getElementById('food-picker-trigger-thumb');
+  const existingThumb = document.getElementById(prefix + '-picker-trigger-thumb');
   if (existingThumb) existingThumb.remove();
   // Mismo criterio que la miniatura: un texto libre no tiene precio de
   // catálogo, así que se saca el chip de precio si había quedado uno de
   // una selección anterior (ver también openFoodManualEntry, que oculta
   // la fila del formulario al entrar a este modo).
-  const existingTriggerPrice = document.getElementById('food-picker-trigger-price');
+  const existingTriggerPrice = document.getElementById(prefix + '-picker-trigger-price');
   if (existingTriggerPrice) existingTriggerPrice.remove();
+  if (prefix === 'fw' && typeof fwRenderProductCards === 'function') fwRenderProductCards(null, hidden.value);
 }
 
 // Cierre por click afuera (el overlay ya llama a esto vía el
