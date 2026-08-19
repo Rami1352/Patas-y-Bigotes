@@ -11593,7 +11593,17 @@ function fwSelectPayment(key) {
     // (número de tarjeta, vencimiento, etc.) quedan editables desde que
     // se ven, en vez de mostrarse 4 pasos antes de que el SDK los
     // conecte de verdad.
-    fwMountMercadoPagoCardForm();
+    // FIX: fwRenderPaymentList() (línea de arriba) recién cambió
+    // mpForm.style.display de 'none' a '' -- el navegador todavía no
+    // pintó ese cambio en este mismo tick síncrono. mp.cardForm() con
+    // autoMount:true necesita que los divs #form-checkout__* ya sean
+    // visibles (offsetParent real) para poder inyectar sus iframes
+    // encima; si se llama en el mismo tick, el SDK puede fallar en
+    // silencio (sin togear onFormMounted con error) y los divs quedan
+    // vacíos y no editables, aunque ya se vean en pantalla. Se pasa a
+    // requestAnimationFrame para dar un frame de margen y montar recién
+    // cuando el display:'' ya se aplicó de verdad.
+    requestAnimationFrame(() => fwMountMercadoPagoCardForm());
   } else if (wasMp) {
     // Se cambió de Mercado Pago a otro método: se desmonta para poder
     // volver a montar limpio si el cliente elige Mercado Pago de nuevo
@@ -11611,6 +11621,17 @@ function fwMountMercadoPagoCardForm() {
   if (fwMountedCardForm) return; // ya montado, no hacer nada
   if (typeof mp === 'undefined' || !mp) {
     showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
+    return;
+  }
+  // FIX: si el form todavía no es visible en el DOM (offsetParent null,
+  // p.ej. porque el display:'' recién seteado en fwRenderPaymentList
+  // todavía no se pintó), mp.cardForm() con autoMount:true puede no
+  // encontrar destino real donde inyectar los iframes de tarjeta y
+  // fallar en silencio -- reintenta en el próximo frame en vez de
+  // montar sobre un form todavía no pintado.
+  const mpFormEl = document.getElementById('mp-card-form');
+  if (mpFormEl && mpFormEl.offsetParent === null) {
+    requestAnimationFrame(fwMountMercadoPagoCardForm);
     return;
   }
   try {
@@ -11632,7 +11653,14 @@ function fwMountMercadoPagoCardForm() {
       callbacks: {
         onFormMounted: error => {
           if (error) {
-            console.error('Error montando el form de MP:', error);
+            // FIX: antes solo se veía en la consola sin detalle
+            // adicional -- ahora se deja explícito que este es el
+            // punto exacto donde el SDK de MP falló al montar sobre
+            // #form-checkout__cardNumber / expirationDate /
+            // securityCode, útil si el problema de "campos no
+            // editables" vuelve a aparecer y hay que diagnosticarlo
+            // desde la consola del navegador (F12).
+            console.error('[MercadoPago] fwMountMercadoPagoCardForm: onFormMounted devolvió error. Los campos de tarjeta pueden quedar visibles pero no editables. Detalle:', error);
             showToast('No se pudo cargar el formulario de tarjeta.', 'error');
           }
         },
