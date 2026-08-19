@@ -2297,30 +2297,6 @@ html[data-font-size="large"] .toast-container {
 .form-control:focus { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(45,80,22,.08); }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* #mp-card-form (paso 5 del wizard, checkout de Mercado Pago) — el SDK
-   de MP (mp.cardForm(), ver fwMountMercadoPagoCardForm) toma
-   #form-checkout__cardNumber / expirationDate / securityCode (divs
-   vacíos en el HTML) e inyecta adentro un <iframe> propio para
-   capturar esos datos de forma segura (PCI-compliant: el número de
-   tarjeta nunca pasa por el DOM de este sitio). Sin una altura
-   explícita en el contenedor, ese iframe puede quedar con su tamaño
-   por defecto del navegador en vez de ocupar el .form-control -- se ve
-   el recuadro pero no hay nada clickeable/tipeable adentro, que es
-   justamente el bug reportado ("no me deja poner el numero de la
-   tarjeta"). Mismo problema afecta a #form-checkout__issuer y
-   #form-checkout__installments: son <select> nativos en el HTML, pero
-   el SDK controla su contenido (opciones) una vez que puede leer el
-   BIN de la tarjeta -- si el campo de tarjeta de arriba nunca recibe
-   datos por este mismo bug de altura, esos dos selects se quedan
-   vacíos y se ven como un recuadro roto (bordes sin opciones
-   cargadas), que es la Imagen 2/3 reportada por el usuario. Se fuerza
-   una altura fija consistente con el resto de los .form-control
-   (10px 12px de padding + font-size 14px ≈ 40px) y se le pide al
-   iframe inyectado que ocupe el 100% del contenedor padre. */
-#mp-card-form .form-control { height: 40px; padding: 0; overflow: hidden; }
-#mp-card-form .form-control iframe { width: 100% !important; height: 100% !important; border: none !important; display: block !important; }
-#mp-card-form select.form-control { padding: 0 12px; }
-
 /* ══════════════════════════════════
    SELECTOR VISUAL DE ALIMENTO
    (Registro de Alimentación → campo "Alimento")
