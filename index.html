@@ -2524,9 +2524,11 @@ html[data-font-size="large"] .toast-container {
 }
 .food-wizard-pay-selected-row .food-wizard-pay-icon { width: 30px; height: 30px; font-size: 12px; }
 
-/* Pantalla final — "Pedido confirmado" (NO "pago exitoso": todavía no
-   hay pasarela real conectada, ver saveFoodOrder()). Reemplaza todo el
-   contenido del modal cuando el pedido ya se guardó. */
+/* Pantalla final — "Pedido confirmado". El registro se guarda recién
+   después de que el pago resuelve (ver fwCompleteOrderAfterPayment en
+   el JS); esta pantalla reemplaza todo el contenido del modal en ese
+   momento, con el estado real del pago (Aprobado/En revisión/
+   Pendiente) si corresponde. */
 .food-order-done { padding: 26px 24px 30px; text-align: center; }
 .food-order-done-check {
   width: 62px; height: 62px; border-radius: 50%; background: var(--sage-light); color: var(--sage-solid);
@@ -6322,15 +6324,16 @@ document.addEventListener('DOMContentLoaded', function () {
      Reusa el picker de alimento (#food-picker-overlay, arriba) seteando
      su valor sobre los mismos hidden #fw-brand/#fw-price para no
      duplicar esa lógica.
-     IMPORTANTE (ver saveFoodOrder() en el JS): el método de pago
-     elegido en el paso 5 es SOLO INFORMATIVO por ahora. No hay pasarela
-     de pago real conectada todavía -- el botón final guarda el registro
-     de alimentación (mismo addAlimentacion de siempre, con paymentMethod
-     agregado como columna nueva) y muestra "Pedido confirmado", nunca
-     "Pago exitoso" ni "Pago procesado", para no dar a entender que ya
-     se cobró algo. Cuando se conecte Mercado Pago u otra pasarela, el
-     lugar natural para insertar esa llamada es adentro de
-     saveFoodOrder(), antes de guardar el registro. -->
+     Método de pago del paso 5: 3 opciones habilitadas (Mercado Pago,
+     Transferencia bancaria, Efectivo -- ver FOOD_WIZARD_PAYMENT_METHODS
+     en el JS). El botón final ("Confirmar pedido") NO guarda el
+     registro directo: dispara fwSubmitPayment(), que llama a
+     pagarConMercadoPago/pagarPorTransferencia/pagarEnEfectivo según el
+     método elegido. El registro de Alimentación (addAlimentacion) se
+     guarda recién cuando ese pago resuelve -- ver
+     fwCompleteOrderAfterPayment(), llamada desde mostrarComprobante().
+     Si el pago es rechazado (mostrarErrorPago), no se guarda nada y el
+     cliente vuelve al paso 5 para reintentar u elegir otro método. -->
 <div class="modal-overlay" id="modal-wizard-food">
   <div class="modal" style="max-width:460px">
     <div class="modal-header">
@@ -6371,9 +6374,11 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
     </div>
 
-    <!-- Contenedor que se reemplaza entero por la pantalla final
-         "Pedido confirmado" (ver saveFoodOrder). Mientras tanto contiene
-         los 6 paneles + la barra de navegación. -->
+    <!-- Contenedor que se reemplaza entero por la pantalla de "Procesando
+         pago…" (mostrarAnimacionTransferencia) y, cuando el pago resuelve,
+         por "Pedido confirmado" (fwShowOrderDone, llamada desde
+         fwCompleteOrderAfterPayment). Mientras tanto contiene los 6
+         paneles + la barra de navegación. -->
     <div id="fw-body-wrap">
 
     <!-- ── PASO 1 — Mascota y alimento ── -->
@@ -6470,6 +6475,62 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
       <div class="food-wizard-pay-section-title">Elegí tu método de pago</div>
       <div id="fw-pay-list"></div>
+
+      <!-- ── FORM DE TARJETA — Mercado Pago (Checkout API / cardForm) ──
+           Solo visible cuando fwSelectedPaymentKey === 'mp' (ver
+           fwRenderPaymentList). IDs EXACTOS que espera pagarConMercadoPago
+           / mp.cardForm(): no renombrar ninguno de estos ids, el SDK los
+           busca por id literal, no por name ni por posición.
+           El SDK tokeniza la tarjeta en el navegador del cliente -- el
+           número de tarjeta no pasa por tu servidor ni por Apps Script. -->
+      <form id="mp-card-form" style="display:none; margin-top:16px">
+        <div class="form-row">
+          <label>Número de tarjeta *</label>
+          <div class="form-control" id="form-checkout__cardNumber"></div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Vencimiento *</label>
+            <div class="form-control" id="form-checkout__expirationDate"></div>
+          </div>
+          <div class="form-row">
+            <label>Código de seguridad *</label>
+            <div class="form-control" id="form-checkout__securityCode"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Nombre del titular *</label>
+          <input class="form-control" id="form-checkout__cardholderName" type="text" placeholder="Como figura en la tarjeta" />
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Tipo de documento *</label>
+            <select class="form-control" id="form-checkout__identificationType"></select>
+          </div>
+          <div class="form-row">
+            <label>Número de documento *</label>
+            <input class="form-control" id="form-checkout__identificationNumber" type="text" inputmode="numeric" placeholder="Sin puntos" />
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Banco emisor *</label>
+            <select class="form-control" id="form-checkout__issuer"></select>
+          </div>
+          <div class="form-row">
+            <label>Cuotas *</label>
+            <select class="form-control" id="form-checkout__installments"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Email *</label>
+          <input class="form-control" id="form-checkout__cardholderEmail" type="email" placeholder="tu@email.com" />
+        </div>
+        <!-- Sin <button type="submit">: el submit lo dispara fwGoStep desde
+             el botón "Confirmar pedido" del wizard (ver fwSubmitPayment),
+             no un botón propio del form, para no duplicar la navegación
+             de pasos que ya maneja el wizard. -->
+      </form>
     </div>
 
     <!-- ── PASO 6 — Confirmación (resumen antes de confirmar) ── -->
@@ -11293,20 +11354,20 @@ let fwSelectedPaymentKey = null; // 'credit' | 'debit' | 'mp' | 'modo' | 'transf
 // existirían en el DOM.
 let fwBodyWrapOriginalHtml = null;
 
-// Catálogo de métodos de pago del paso 5. alias/aliasLabel solo están
-// presentes en Mercado Pago y MODO -- son los 2 alias pedidos
-// ("Alias Mercado Pago: digo.papa.onza.mp" / "Alias Modo:
-// Fuego.Asado.vino"), mostrados debajo de esa opción puntual cuando
-// está seleccionada (ver fwRenderPaymentList/fwSelectPayment), tal
-// como se ve en la referencia visual. El resto de los métodos no
-// necesitan alias porque no son transferencias a una cuenta propia.
+// Catálogo de métodos de pago del paso 5. Solo 3 métodos habilitados:
+// Mercado Pago, Transferencia bancaria y Efectivo. "Tarjeta de
+// crédito/débito" (que en realidad se cobraba vía Mercado Pago) y
+// "Modo" se sacaron a pedido -- Mercado Pago ya cubre tarjeta como
+// forma de pago dentro de su propio checkout (#mp-card-form), así que
+// no hace falta una opción de wizard aparte para eso.
+// alias/aliasLabel solo está presente en Mercado Pago (el alias para
+// transferir directo a esa cuenta); Transferencia bancaria muestra su
+// propio alias/CBU recién en el comprobante (lo devuelve el backend en
+// confirmarPagoTransferencia), no acá en la lista.
 const FOOD_WIZARD_PAYMENT_METHODS = [
-  { key: 'credit',   icon: 'fa-credit-card',        title: 'Tarjeta de crédito',        sub: 'Visa, Mastercard, American Express, etc.' },
-  { key: 'debit',    icon: 'fa-credit-card',         title: 'Tarjeta de débito',          sub: 'Todas las tarjetas' },
-  { key: 'mp',       icon: 'fa-handshake',           title: 'Mercado Pago',               sub: 'Pagá con tu cuenta',  alias: 'digo.papa.onza.mp',    aliasLabel: 'Alias Mercado Pago' },
-  { key: 'modo',     icon: 'fa-mobile-screen-button', title: 'Modo',                       sub: 'Pagá desde tu banco', alias: 'Fuego.Asado.vino',      aliasLabel: 'Alias Modo' },
-  { key: 'transfer', icon: 'fa-building-columns',    title: 'Transferencia bancaria',     sub: 'Desde tu Homebanking' },
-  { key: 'cash',     icon: 'fa-money-bill-wave',     title: 'Efectivo en puntos de pago', sub: 'Rapipago, Pago Fácil, etc.' },
+  { key: 'mp',       icon: 'fa-handshake',           title: 'Mercado Pago',           sub: 'Tarjeta o dinero en cuenta', alias: 'digo.papa.onza.mp', aliasLabel: 'Alias Mercado Pago' },
+  { key: 'transfer', icon: 'fa-building-columns',    title: 'Transferencia bancaria', sub: 'Desde tu Homebanking' },
+  { key: 'cash',     icon: 'fa-money-bill-wave',     title: 'Efectivo',               sub: 'Coordinamos el cobro en persona' },
 ];
 
 function openFoodWizard() {
@@ -11459,6 +11520,13 @@ function fwRenderPaymentList() {
       </label>
       ${aliasHtml}`;
   }).join('');
+
+  // El form de tarjeta de Mercado Pago solo se muestra si ese es el
+  // método elegido. No se hace mount/unmount del cardForm acá -- eso
+  // pasa recién al confirmar el pedido, en fwSubmitPayment -- esto
+  // solo controla si el bloque de inputs es visible o no.
+  const mpForm = document.getElementById('mp-card-form');
+  if (mpForm) mpForm.style.display = (fwSelectedPaymentKey === 'mp') ? '' : 'none';
 }
 
 function fwSelectPayment(key) {
@@ -11523,12 +11591,93 @@ function fwGoStep(dir) {
   if (dir > 0 && !fwValidateStep(fwCurrentStep)) return;
   const next = fwCurrentStep + dir;
   if (next < 1) return;
-  if (next > FW_TOTAL_STEPS) { saveFoodOrder(); return; }
+  // Antes: if (next > FW_TOTAL_STEPS) { saveFoodOrder(); return; }
+  // saveFoodOrder() guardaba el pedido directo, sin pasar por ninguna
+  // de las 3 funciones de pago -- por eso nunca se cobraba nada (ver
+  // el propio comentario que tenía arriba: "esto NO cobra nada").
+  // Ahora fwSubmitPayment() decide qué función de pago llamar según
+  // fwSelectedPaymentKey, y saveFoodOrder (más abajo, renombrada
+  // internamente pero misma firma) se dispara recién cuando ese pago
+  // resuelve -- nunca antes.
+  if (next > FW_TOTAL_STEPS) { fwSubmitPayment(); return; }
   fwCurrentStep = next;
   if (fwCurrentStep === 2) fwSyncDogSummary();
   if (fwCurrentStep === 6) fwRenderConfirmSummary();
   fwRenderStep();
 }
+
+// ── Dispara la función de pago correspondiente al método elegido en
+//    el paso 5. Las 3 funciones de pago (pagarConMercadoPago /
+//    pagarEnEfectivo / pagarPorTransferencia) llaman a
+//    mostrarComprobante()/mostrarErrorPago() cuando terminan, y esas
+//    dos son las que efectivamente guardan el pedido (mostrarComprobante
+//    llama a fwCompleteOrderAfterPayment) o lo dejan sin guardar
+//    (mostrarErrorPago no guarda nada, el cliente vuelve a intentar).
+//    Bloquea el botón "Confirmar pedido" mientras tanto para que un
+//    doble click no dispare dos pagos. ──
+function fwSubmitPayment() {
+  if (!fwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return; }
+
+  const dogId = parseInt(document.getElementById('fw-dog').value);
+  const dog = getDog(dogId);
+  const brand = document.getElementById('fw-brand').value.trim();
+  const price = Number(document.getElementById('fw-price').value) || 0;
+  if (!dog || !brand) { showToast('Faltan datos del pedido', 'error'); return; }
+
+  // Guarda todo lo que hace falta para completar el registro DESPUÉS
+  // de que el pago resuelva -- ninguna de las 3 funciones de pago
+  // conoce los datos del pedido de Alimentación, solo reciben
+  // monto/descripcion/mail/referencia.
+  fwPendingOrder = {
+    dogId, dog, brand,
+    portion: parseFloat(document.getElementById('fw-portion').value) || 0,
+    freq: document.getElementById('fw-freq').value,
+    last: document.getElementById('fw-last').value,
+    next: document.getElementById('fw-next').value,
+    notes: document.getElementById('fw-notes').value.trim(),
+    price,
+    method: FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === fwSelectedPaymentKey),
+    newId: genFoodId(),
+    orderNumber: fwGenOrderNumber()
+  };
+
+  const nextBtn = document.getElementById('fw-btn-next');
+  if (nextBtn) { nextBtn.disabled = true; nextBtn.dataset.origHtml = nextBtn.innerHTML; nextBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size:11px;margin-right:4px"></i> Procesando…'; }
+
+  const descripcion = 'Patas y Bigotes · ' + brand + ' · ' + (dog.name || '');
+  const mail = (dog.mail || currentUser.email || '').toLowerCase();
+  const referencia = fwPendingOrder.newId;
+
+  if (fwSelectedPaymentKey === 'mp') {
+    if (price <= 0) { showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error'); fwUnlockConfirmBtn(); return; }
+    // pagarConMercadoPago monta el cardForm y define su callback
+    // onSubmit, pero el pago recién arranca cuando el <form
+    // id="mp-card-form"> efectivamente hace submit (ver cardForm.mount
+    // + onSubmit en pagarConMercadoPago) -- por eso primero se monta y
+    // recién después se dispara el submit a mano, ya que el form no
+    // tiene su propio <button type="submit"> (ver comentario en el
+    // HTML del form: el submit lo maneja el wizard, no el form solo).
+    pagarConMercadoPago(price, descripcion, mail, referencia);
+    setTimeout(() => {
+      const form = document.getElementById('mp-card-form');
+      if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }, 300); // margen para que autoMount:true del cardForm termine de montar los campos
+  } else if (fwSelectedPaymentKey === 'transfer') {
+    pagarPorTransferencia(price, descripcion, mail, referencia);
+  } else if (fwSelectedPaymentKey === 'cash') {
+    pagarEnEfectivo(price, descripcion, mail, referencia);
+  } else {
+    showToast('Método de pago no reconocido', 'error');
+    fwUnlockConfirmBtn();
+  }
+}
+
+function fwUnlockConfirmBtn() {
+  const nextBtn = document.getElementById('fw-btn-next');
+  if (nextBtn) { nextBtn.disabled = false; if (nextBtn.dataset.origHtml) nextBtn.innerHTML = nextBtn.dataset.origHtml; }
+}
+
+let fwPendingOrder = null; // seteado por fwSubmitPayment, leído por fwCompleteOrderAfterPayment
 
 function fwRenderStep() {
   document.querySelectorAll('#fw-steps .wizard-step').forEach(el => {
@@ -11597,70 +11746,63 @@ function fwFormatDateDisplay(isoDate) {
 // addAlimentacion que ya usa saveFood() para el modal viejo, así que el
 // registro queda en la tabla de Alimentación exactamente igual que uno
 // cargado por ese otro camino. Lo único nuevo es que se agrega
-// paymentMethod (y paymentAlias, cuando aplica) como parámetro extra en
-// la URL de addAlimentacion, para que quede la columna disponible en la
-// hoja de Sheets del lado del Apps Script -- ese script no se puede
-// editar desde acá, así que hasta que se agregue esa columna del otro
-// lado, el parámetro simplemente llega y el Apps Script actual lo
-// ignora sin romper nada (handleAddAlimentacion ya ignora hoy cualquier
-// query param que no lea explícitamente).
+// paymentMethod / paymentAlias / paymentStatus / paymentRef como
+// parámetro extra en la URL de addAlimentacion, para que quede
+// disponible en la hoja de Sheets del lado del Apps Script (que ya
+// ignora sin romper nada cualquier query param que no lea
+// explícitamente, así que agregar estos no rompe handleAddAlimentacion
+// aunque esa función no los lea todavía).
 //
-// IMPORTANTE: esto NO cobra nada. No hay pasarela de pago conectada.
-// Cuando se integre Mercado Pago (u otra pasarela), el lugar donde
-// insertar esa llamada es ACÁ, antes del push a state.food -- por
-// ejemplo, redirigiendo a la URL de checkout que devuelva la pasarela y
-// recién completando el guardado cuando esa pasarela confirme el pago
-// (webhook/redirect de vuelta), en vez del guardado inmediato de hoy.
-async function saveFoodOrder() {
-  const dogId  = parseInt(document.getElementById('fw-dog').value);
-  const brand  = document.getElementById('fw-brand').value.trim();
-  const portion = parseFloat(document.getElementById('fw-portion').value) || 0;
-  const freq   = document.getElementById('fw-freq').value;
-  const last   = document.getElementById('fw-last').value;
-  const next   = document.getElementById('fw-next').value;
-  const notes  = document.getElementById('fw-notes').value.trim();
-  const price  = Number(document.getElementById('fw-price').value) || 0;
-  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === fwSelectedPaymentKey);
-  if (!dogId || !brand || !method) { showToast('Faltan datos del pedido', 'error'); return; }
+// A DIFERENCIA de la versión anterior (saveFoodOrder), esta función
+// YA NO se llama directo desde fwGoStep: se llama únicamente desde
+// mostrarComprobante(), es decir, solo después de que una de las 3
+// funciones de pago (pagarConMercadoPago/pagarEnEfectivo/
+// pagarPorTransferencia) confirmó el pago o dejó constancia de pago
+// pendiente. Si el pago es rechazado (mostrarErrorPago), esta función
+// nunca se llama y no se guarda ningún registro -- así se evita que
+// quede un pedido "confirmado" en la tabla sin que el pago se haya
+// efectivamente iniciado.
+async function fwCompleteOrderAfterPayment(comprobante) {
+  const o = fwPendingOrder;
+  if (!o) { addLiveLog('[WARN] fwCompleteOrderAfterPayment llamada sin fwPendingOrder', 'err'); return; }
 
-  const newId = genFoodId();
-  const orderNumber = fwGenOrderNumber();
-  state.food.push({ id: newId, dogId, brand, portion, freq, last, next, notes });
+  state.food.push({ id: o.newId, dogId: o.dogId, brand: o.brand, portion: o.portion, freq: o.freq, last: o.last, next: o.next, notes: o.notes });
   saveFoodToLS();
 
-  const dog = getDog(dogId);
   if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
   else renderFood();
   refreshNotifBell();
 
-  // Pantalla final del wizard: "Pedido confirmado" (nunca "pago
-  // exitoso"/"pago procesado" -- ver comentario arriba de la función).
-  fwShowOrderDone({ dog, brand, price, method, orderNumber, when: new Date() });
+  fwShowOrderDone({ dog: o.dog, brand: o.brand, price: o.price, method: o.method, orderNumber: o.orderNumber, when: new Date(), comprobante });
 
   try {
     const url = APPS_SCRIPT_URL
       + '?action=addAlimentacion'
-      + '&id=' + encodeURIComponent(newId)
-      + '&name=' + encodeURIComponent(dog.name || '')
-      + '&mail=' + encodeURIComponent(dog.mail || '')
-      + '&brand=' + encodeURIComponent(brand)
-      + '&portion=' + encodeURIComponent(portion)
-      + '&freq=' + encodeURIComponent(freq)
-      + '&last=' + encodeURIComponent(last)
-      + '&next=' + encodeURIComponent(next)
-      + '&notes=' + encodeURIComponent(notes)
-      + '&paymentMethod=' + encodeURIComponent(method.title)
-      + '&paymentAlias=' + encodeURIComponent(method.alias || '')
-      + '&orderNumber=' + encodeURIComponent(orderNumber);
+      + '&id=' + encodeURIComponent(o.newId)
+      + '&name=' + encodeURIComponent(o.dog.name || '')
+      + '&mail=' + encodeURIComponent(o.dog.mail || '')
+      + '&brand=' + encodeURIComponent(o.brand)
+      + '&portion=' + encodeURIComponent(o.portion)
+      + '&freq=' + encodeURIComponent(o.freq)
+      + '&last=' + encodeURIComponent(o.last)
+      + '&next=' + encodeURIComponent(o.next)
+      + '&notes=' + encodeURIComponent(o.notes)
+      + '&paymentMethod=' + encodeURIComponent(o.method.title)
+      + '&paymentAlias=' + encodeURIComponent(o.method.alias || '')
+      + '&paymentStatus=' + encodeURIComponent((comprobante && comprobante.estado) || '')
+      + '&paymentRef=' + encodeURIComponent((comprobante && comprobante.id) || '')
+      + '&orderNumber=' + encodeURIComponent(o.orderNumber);
     const res = await fetchJSONP(url);
     const confirmedOk = Array.isArray(res) && res[0] && res[0].ok === true;
     if (!confirmedOk) {
       addLiveLog('[WARN] No se pudo sincronizar el pedido de Alimentación con la planilla', 'err');
     }
-    notifyAdmin('alimentacion', 'alta', dog.name || '', 'Marca: ' + brand + ' · Pago: ' + method.title);
+    notifyAdmin('alimentacion', 'alta', o.dog.name || '', 'Marca: ' + o.brand + ' · Pago: ' + o.method.title + ' (' + ((comprobante && comprobante.estado) || '—') + ')');
   } catch (e) {
     addLiveLog('[WARN] Pedido guardado solo local (sin conexión a planilla): ' + e.message, 'err');
   }
+
+  fwPendingOrder = null;
 }
 
 // Número de pedido corto y legible (no es el mismo id que la fila de
@@ -11678,7 +11820,7 @@ function fwGenOrderNumber() {
 // esa tarjeta se inyecta afuera del modal, en la vista de fondo, y este
 // wizard todavía está abierto en pantalla -- tiene más sentido cerrar
 // el flujo adentro del mismo modal con su propia pantalla de cierre.
-function fwShowOrderDone({ dog, brand, price, method, orderNumber, when }) {
+function fwShowOrderDone({ dog, brand, price, method, orderNumber, when, comprobante }) {
   const wrap = document.getElementById('fw-body-wrap');
   const nav = document.getElementById('fw-nav');
   const steps = document.getElementById('fw-steps');
@@ -11687,6 +11829,23 @@ function fwShowOrderDone({ dog, brand, price, method, orderNumber, when }) {
   document.getElementById('fw-modal-title-text').textContent = 'Pedido confirmado';
   if (!wrap) return;
   const dateStr = when.toLocaleDateString('es-AR') + ' · ' + when.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  const estado = (comprobante && comprobante.estado) || '';
+
+  // Nota final: el texto varía según si el pago ya se cobró
+  // efectivamente (Mercado Pago aprobado) o si queda pendiente de
+  // verificación/cobro en persona (transferencia/efectivo), en vez de
+  // decir siempre lo mismo sin importar el método.
+  let notaTexto;
+  if (estado === 'Aprobado') {
+    notaTexto = 'Tu pago fue aprobado y tu pedido quedó registrado.';
+  } else if (estado === 'En revisión') {
+    notaTexto = 'Tu pago quedó en revisión por Mercado Pago. Te avisamos apenas se confirme.';
+  } else if (comprobante && comprobante.alias) {
+    notaTexto = 'Tu pedido quedó registrado. Transferí a ' + comprobante.alias + ' para completar el pago; lo confirmamos en breve.';
+  } else {
+    notaTexto = 'Tu pedido quedó registrado. En breve nos pondremos en contacto para coordinar el cobro en persona.';
+  }
+
   wrap.innerHTML = `
     <div class="food-order-done">
       <div class="food-order-done-check"><i class="fa-solid fa-check"></i></div>
@@ -11697,12 +11856,13 @@ function fwShowOrderDone({ dog, brand, price, method, orderNumber, when }) {
         <div class="food-order-done-row"><span class="fod-label">Mascota</span><span class="fod-value">${escapeHtml(dog.name || '—')}</span></div>
         <div class="food-order-done-row"><span class="fod-label">Precio</span><span class="fod-value">${price > 0 ? formatCLP(price) : '—'}</span></div>
         <div class="food-order-done-row"><span class="fod-label">Método de pago</span><span class="fod-value">${escapeHtml(method.title)}</span></div>
+        ${estado ? `<div class="food-order-done-row"><span class="fod-label">Estado del pago</span><span class="fod-value">${escapeHtml(estado)}</span></div>` : ''}
         <div class="food-order-done-row"><span class="fod-label">Fecha</span><span class="fod-value">${escapeHtml(dateStr)}</span></div>
         <div class="food-order-done-row"><span class="fod-label">N° de pedido</span><span class="fod-value">${escapeHtml(orderNumber)}</span></div>
       </div>
       <div class="food-order-done-note">
         <i class="fa-solid fa-circle-info"></i>
-        <span>Tu pedido quedó registrado con el método de pago elegido. Todavía no se procesó ningún cobro: en breve nos pondremos en contacto para coordinar el pago.</span>
+        <span>${escapeHtml(notaTexto)}</span>
       </div>
       <div class="food-order-done-actions">
         <button class="btn btn-secondary" onclick="closeFoodWizard()">Cerrar</button>
@@ -13756,9 +13916,54 @@ async function pagarPorTransferencia(monto, descripcion, mailComprador, referenc
   }
 }
 
-// mostrarAnimacionTransferencia(), mostrarComprobante() y
-// mostrarErrorPago() son funciones de UI tuyas — conectalas a los
-// pasos 5/6 del wizard que ya tenés armado en la Imagen 1.
+// ═══════════════════════════════════════════════════════════════
+//  mostrarAnimacionTransferencia() / mostrarComprobante() /
+//  mostrarErrorPago() — UI de las 3 pantallas de resultado del pago.
+//  Reemplazan #fw-body-wrap con el mismo patrón que fwShowOrderDone
+//  (oculta #fw-steps/#fw-nav, reemplaza el contenido), en vez de un
+//  modal aparte, para quedarse dentro del mismo wizard que el cliente
+//  ya tiene abierto.
+//
+//  El nombre mostrarAnimacionTransferencia() se conserva tal cual lo
+//  pide pagarConMercadoPago/pagarEnEfectivo/pagarPorTransferencia
+//  (no se renombra a algo más genérico) aunque hoy se usa como
+//  pantalla de "procesando" para los 3 métodos, no solo transferencia.
+// ═══════════════════════════════════════════════════════════════
+function mostrarAnimacionTransferencia() {
+  const wrap = document.getElementById('fw-body-wrap');
+  const nav = document.getElementById('fw-nav');
+  const steps = document.getElementById('fw-steps');
+  if (steps) steps.style.display = 'none';
+  if (nav) nav.style.display = 'none';
+  document.getElementById('fw-modal-title-text').textContent = 'Procesando pago…';
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="food-order-done">
+      <div class="food-order-done-check" style="background:transparent"><i class="fa-solid fa-spinner fa-spin" style="color:var(--accent, #6C5CE7)"></i></div>
+      <h3>Procesando tu pago</h3>
+      <p>No cierres esta ventana, puede tardar unos segundos…</p>
+    </div>`;
+}
+
+// Estado del pago (Aprobado / En revisión / Pendiente / Rechazado) ya
+// resuelto y traducido por cada función de pago antes de llamar acá:
+// mostrarComprobante() solo lo muestra, no decide qué significa cada
+// status de Mercado Pago -- eso queda en pagarConMercadoPago.
+function mostrarComprobante({ metodo, estado, id, monto, fecha, alias }) {
+  fwCompleteOrderAfterPayment({ estado, id, monto, fecha, alias, metodo });
+  fwUnlockConfirmBtn();
+}
+
+// Pago rechazado / error de red / etc: a propósito NO llama a
+// fwCompleteOrderAfterPayment, así que el registro de Alimentación
+// nunca se guarda si el pago no se pudo procesar. Vuelve al paso 5
+// (método de pago) para que el cliente pueda reintentar o elegir otro
+// método, en vez de dejarlo trabado en una pantalla sin salida.
+function mostrarErrorPago(mensaje) {
+  showToast(mensaje || 'No se pudo procesar el pago. Probá de nuevo.', 'error');
+  fwUnlockConfirmBtn();
+  fwPendingOrder = null;
+}
 </script>
 </body>
 </html>
