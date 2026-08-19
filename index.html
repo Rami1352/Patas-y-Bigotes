@@ -4,6 +4,32 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Patas y Bigotes — Portal de Clientes</title>
+
+<!-- ═══════════════════════════════════════════════════════════════
+  Patas y Bigotes — SDK de Mercado Pago (v24)
+  FIX: este bloque vivía al final del <body> (después de línea 14000),
+  pero fwMountMercadoPagoCardForm() se llama mucho antes, apenas el
+  usuario elige "Mercado Pago" en el paso 5 del wizard de pago (ver
+  requestAnimationFrame(() => fwMountMercadoPagoCardForm()) más abajo
+  en el archivo). Como el <script src="sdk.mercadopago.com..."> y el
+  `const mp = new MercadoPago(...)` recién se ejecutaban al final del
+  documento, para cuando el usuario llegaba al paso 5, la clase
+  MercadoPago todavía no existía en el navegador → "Uncaught
+  ReferenceError: MercadoPago is not defined". Al mismo tiempo,
+  fwMountMercadoPagoCardForm() chequeaba `typeof mp === 'undefined'`,
+  cortaba en silencio y nunca llamaba a mp.cardForm(...): por eso los
+  campos de tarjeta se veían pero no recibían ningún iframe interactivo,
+  y los <select> de banco emisor/cuotas quedaban vacíos y bloqueados.
+  Se soluciona cargando el SDK y creando `mp` acá, en el <head>, antes
+  de que se ejecute cualquier función del wizard.
+═══════════════════════════════════════════════════════════════ -->
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script>
+// Reemplazar MI_PUBLIC_KEY por tu Public Key real
+// (la que empieza con APP_USR-..., NO el Access Token)
+const mp = new MercadoPago('APP_USR-4ed70e56-a89f-4e2a-a82b-66514996a635', { locale: 'es-AR' });
+</script>
+
 <script>
 /* Aplica el tema y el tamaño de letra ANTES del primer pintado, para evitar el "flash" de valores incorrectos. */
 (function() {
@@ -11709,7 +11735,7 @@ async function fwHandleMercadoPagoSubmit(event) {
   mostrarAnimacionTransferencia();
 
   try {
-    const resp = await fetch(WEBAPP_URL, {
+    const resp = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify({
         action: 'crearPagoMercadoPago',
@@ -14024,26 +14050,21 @@ function syncLanguageUI() {
   Patas y Bigotes — snippet de frontend para el paso "Método de pago"
   del wizard de Confirmación (ver Imagen 1, pasos 5 y 6).
 
-  ÚNICO placeholder que hay que reemplazar acá: MI_PUBLIC_KEY.
-  Es la Public Key (empieza con APP_USR-...), que SÍ es segura de
-  tener en el HTML — está diseñada para viajar al navegador del
-  cliente. El Access Token NUNCA va en este archivo.
+  v24: el <script src="sdk.mercadopago.com..."> y el `const mp = new
+  MercadoPago(...)` que vivían acá se movieron al <head> del
+  documento (ver el bloque comentado "FIX" justo después del <title>).
+  Motivo: fwMountMercadoPagoCardForm() se llama apenas el usuario
+  elige "Mercado Pago" en el paso 5 del wizard, mucho antes de que el
+  parser llegara a este punto del <body> — así que `mp` todavía no
+  existía cuando hacía falta, y el navegador tiraba "Uncaught
+  ReferenceError: MercadoPago is not defined". También se eliminó
+  WEBAPP_URL: no se usaba en ningún fetch real del archivo (el único
+  fetch de Mercado Pago, en fwHandleMercadoPagoSubmit, ya usaba
+  APPS_SCRIPT_URL correctamente); dejarla declarada sin uso era el
+  tipo de variable fantasma que conviene no reintroducir.
 ═══════════════════════════════════════════════════════════════ -->
 
-<!-- 1) Cargar el SDK oficial de Mercado Pago (una sola vez, en el <head> o antes de cerrar </body>) -->
-<script src="https://sdk.mercadopago.com/js/v2"></script>
-
 <script>
-// ─────────────────────────────────────────────────────────────
-//  Reemplazar MI_PUBLIC_KEY por tu Public Key real
-//  (la que empieza con APP_USR-..., NO el Access Token)
-// ─────────────────────────────────────────────────────────────
-const mp = new MercadoPago('APP_USR-4ed70e56-a89f-4e2a-a82b-66514996a635', { locale: 'es-AR' });
-
-// URL de tu Web App de Apps Script (la misma que ya usás para
-// addAlimentacion, getAlimentacion, etc. — no cambia)
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycby5o4b4eB3kJs3W1J22EKrAeX8hnUz_nLFPlucaa4Nlr5WhUKbc5gx0Ma2XNfvG84rW/exec';
-
 // ─────────────────────────────────────────────────────────────
 //  MERCADO PAGO (tarjeta o dinero en cuenta vía Checkout API)
 //  El montaje del cardForm y su callback onSubmit ya no viven acá:
