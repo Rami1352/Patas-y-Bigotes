@@ -35,12 +35,10 @@
 // search?public_key=... para precargar medios de pago); si la página
 // navega o se re-renderiza antes de que esas respuestas vuelvan, alguna
 // queda "(cancelada)" y aparece como error en la consola sin que el
-// usuario haya llegado siquiera al wizard de pago -- es lo que se veía
-// en la pantalla de login.
+// usuario haya llegado siquiera al wizard de pago.
 // Se resuelve con inicialización perezosa: fwGetMercadoPago() crea `mp`
 // recién la primera vez que hace falta de verdad (fwMountMercadoPagoCardForm,
 // paso 5 del wizard, cuando el usuario elige "Mercado Pago" como método).
-// Antes de eso, `mp` no existe y el SDK no hace ninguna llamada de red.
 var mp = null;
 function fwGetMercadoPago() {
   if (mp) return mp;
@@ -11673,35 +11671,69 @@ function fwSelectPayment(key) {
 // no vuelve a montar. El callback onSubmit queda definido acá mismo
 // (antes vivía en pagarConMercadoPago); fwSubmitPayment ahora solo
 // dispara el submit del form, no vuelve a llamar a mp.cardForm().
-function fwMountMercadoPagoCardForm() {
-  if (fwMountedCardForm) return; // ya montado, no hacer nada
-  // FIX v25: `mp` ya no es global-siempre-creado; se pide acá, la primera
-  // vez que hace falta de verdad (ver fwGetMercadoPago en el <head>). Si
-  // el SDK externo todavía no terminó de cargar (red lenta), se reintenta
-  // en el próximo frame en vez de mostrar error de una: es la misma
-  // situación que ya se maneja más abajo para "form todavía no visible".
+// FIX v26: fwMountedCardForm podía quedar seteado (objeto no-null) SIN que
+// el SDK hubiera inyectado ningún <iframe> real dentro de
+// #form-checkout__cardNumber / issuer / installments -- confirmado
+// inspeccionando el DOM en producción: el div de "Número de tarjeta"
+// quedaba completamente vacío pese a que fwMountedCardForm ya no era null.
+// mp.cardForm() con autoMount:true resuelve su callback igual, aunque no
+// haya podido pintar el iframe adentro, si en el instante exacto de la
+// llamada el contenedor tenía offsetParent no-nulo PERO todavía medía 0
+// (o casi 0) de ancho real -- típico durante la transición CSS de
+// apertura de un modal (opacity/transform), que dura más que el único
+// requestAnimationFrame que se esperaba antes. offsetParent==null detecta
+// "display:none", pero no detecta "visible pero sin tamaño todavía", que
+// es exactamente lo que pasaba acá.
+//
+// Se agregan dos cosas sobre el mismo flujo:
+//  1) fwCardFormMountReady(): además de offsetParent, exige un ancho
+//     mínimo real del contenedor.
+//  2) Verificación POST-montaje: 120ms después de llamar a
+//     mp.cardForm(), se chequea si el iframe realmente apareció dentro
+//     de #form-checkout__cardNumber. Si no apareció, se descarta el
+//     montaje fallido (fwMountedCardForm vuelve a null) y se reintenta
+//     desde cero, dándole tiempo real a que el modal termine su
+//     animación en vez de confiar en un solo frame.
+var FW_MP_MOUNT_MAX_RETRIES = 15; // ~15 * 120ms ≈ 1.8s de margen total
+function fwCardFormMountReady() {
+  const mpFormEl = document.getElementById('mp-card-form');
+  if (!mpFormEl || mpFormEl.offsetParent === null) return false;
+  const cardNumEl = document.getElementById('form-checkout__cardNumber');
+  // >4px en vez de >0 para no contar como "listo" un contenedor que
+  // todavía está en el primer frame de una animación de scale-in.
+  return !!(cardNumEl && cardNumEl.getBoundingClientRect().width > 4);
+}
+
+function fwMountMercadoPagoCardForm(_retryCount) {
+  const retryCount = _retryCount || 0;
+  if (fwMountedCardForm) return; // ya montado con iframe confirmado, no hacer nada
+  if (retryCount > FW_MP_MOUNT_MAX_RETRIES) {
+    console.error('[MercadoPago] fwMountMercadoPagoCardForm: se agotaron los reintentos de montaje; el contenedor nunca alcanzó un tamaño real.');
+    showToast('No se pudo cargar el formulario de tarjeta. Cerrá y volvé a abrir el pago.', 'error');
+    return;
+  }
+  // `mp` ya no es global-siempre-creado (fix v25); se pide acá, la primera
+  // vez que hace falta de verdad. Si el SDK externo todavía no terminó de
+  // cargar (red lenta), se reintenta en el próximo frame.
   var mpInstance = fwGetMercadoPago();
   if (!mpInstance) {
     if (typeof MercadoPago === 'undefined') {
-      requestAnimationFrame(fwMountMercadoPagoCardForm);
+      requestAnimationFrame(() => fwMountMercadoPagoCardForm(retryCount + 1));
       return;
     }
     showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
     return;
   }
-  // FIX: si el form todavía no es visible en el DOM (offsetParent null,
-  // p.ej. porque el display:'' recién seteado en fwRenderPaymentList
-  // todavía no se pintó), mp.cardForm() con autoMount:true puede no
-  // encontrar destino real donde inyectar los iframes de tarjeta y
-  // fallar en silencio -- reintenta en el próximo frame en vez de
-  // montar sobre un form todavía no pintado.
-  const mpFormEl = document.getElementById('mp-card-form');
-  if (mpFormEl && mpFormEl.offsetParent === null) {
-    requestAnimationFrame(fwMountMercadoPagoCardForm);
+  // Si el contenedor todavía no tiene tamaño real (ver fwCardFormMountReady
+  // arriba), se espera con setTimeout -- no requestAnimationFrame -- porque
+  // lo que falta no es "el próximo frame de pintado" sino que termine una
+  // transición CSS que puede durar varios cientos de ms.
+  if (!fwCardFormMountReady()) {
+    setTimeout(() => fwMountMercadoPagoCardForm(retryCount + 1), 120);
     return;
   }
   try {
-    fwMountedCardForm = mpInstance.cardForm({
+    const candidate = mpInstance.cardForm({
       amount: '100', // placeholder: fwSubmitPayment resuelve el monto real al confirmar; el SDK solo lo usa para validar formato acá
       autoMount: true,
       form: {
@@ -11719,13 +11751,6 @@ function fwMountMercadoPagoCardForm() {
       callbacks: {
         onFormMounted: error => {
           if (error) {
-            // FIX: antes solo se veía en la consola sin detalle
-            // adicional -- ahora se deja explícito que este es el
-            // punto exacto donde el SDK de MP falló al montar sobre
-            // #form-checkout__cardNumber / expirationDate /
-            // securityCode, útil si el problema de "campos no
-            // editables" vuelve a aparecer y hay que diagnosticarlo
-            // desde la consola del navegador (F12).
             console.error('[MercadoPago] fwMountMercadoPagoCardForm: onFormMounted devolvió error. Los campos de tarjeta pueden quedar visibles pero no editables. Detalle:', error);
             showToast('No se pudo cargar el formulario de tarjeta.', 'error');
           }
@@ -11733,6 +11758,24 @@ function fwMountMercadoPagoCardForm() {
         onSubmit: fwHandleMercadoPagoSubmit
       }
     });
+
+    // Verificación post-montaje: onFormMounted puede llamarse sin error
+    // aunque el iframe nunca haya quedado insertado en el DOM (es
+    // exactamente el caso reproducido en producción). Se chequea el DOM
+    // real 120ms después, no el callback del SDK, porque ese callback ya
+    // demostró no ser confiable para detectar este fallo puntual.
+    setTimeout(() => {
+      const cardNumEl = document.getElementById('form-checkout__cardNumber');
+      const iframeOk = !!(cardNumEl && cardNumEl.querySelector('iframe'));
+      if (iframeOk) {
+        fwMountedCardForm = candidate; // recién ahora se confirma como montado de verdad
+      } else {
+        // Montaje fantasma: se descarta y se reintenta desde cero.
+        try { if (candidate && typeof candidate.unmount === 'function') candidate.unmount(); } catch (e) { /* nada que desmontar */ }
+        fwMountedCardForm = null;
+        fwMountMercadoPagoCardForm(retryCount + 1);
+      }
+    }, 120);
   } catch (err) {
     console.error(err);
     showToast('No se pudo iniciar Mercado Pago.', 'error');
