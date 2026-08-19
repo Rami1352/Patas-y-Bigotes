@@ -6326,10 +6326,13 @@ document.addEventListener('DOMContentLoaded', function () {
      duplicar esa lógica.
      Método de pago del paso 5: 3 opciones habilitadas (Mercado Pago,
      Transferencia bancaria, Efectivo -- ver FOOD_WIZARD_PAYMENT_METHODS
-     en el JS). El botón final ("Confirmar pedido") NO guarda el
-     registro directo: dispara fwSubmitPayment(), que llama a
-     pagarConMercadoPago/pagarPorTransferencia/pagarEnEfectivo según el
-     método elegido. El registro de Alimentación (addAlimentacion) se
+     en el JS). Mercado Pago monta su cardForm apenas se elige (ver
+     fwSelectPayment/fwMountMercadoPagoCardForm), no recién al
+     confirmar. El botón final ("Confirmar pedido") NO guarda el
+     registro directo: dispara fwSubmitPayment(), que dispara el submit
+     del cardForm ya montado (Mercado Pago) o llama a
+     fwPagarPorTransferencia/fwPagarEnEfectivo según el método elegido.
+     El registro de Alimentación (addAlimentacion) se
      guarda recién cuando ese pago resuelve -- ver
      fwCompleteOrderAfterPayment(), llamada desde mostrarComprobante().
      Si el pago es rechazado (mostrarErrorPago), no se guarda nada y el
@@ -6435,7 +6438,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <input type="hidden" id="fw-price" value="0" />
       </div>
       <div class="form-row-2">
-        <div class="form-row"><label>Porción diaria (gr) *</label><input class="form-control" id="fw-portion" type="number" placeholder="300" /></div>
+        <div class="form-row"><label>Porción diaria (gr)</label><input class="form-control" id="fw-portion" type="number" placeholder="300" /></div>
         <div class="form-row"><label>Frecuencia *</label>
           <select class="form-control" id="fw-freq">
             <option>1 vez al día</option><option>2 veces al día</option><option>3 veces al día</option>
@@ -6477,10 +6480,14 @@ document.addEventListener('DOMContentLoaded', function () {
       <div id="fw-pay-list"></div>
 
       <!-- ── FORM DE TARJETA — Mercado Pago (Checkout API / cardForm) ──
-           Solo visible cuando fwSelectedPaymentKey === 'mp' (ver
-           fwRenderPaymentList). IDs EXACTOS que espera pagarConMercadoPago
-           / mp.cardForm(): no renombrar ninguno de estos ids, el SDK los
-           busca por id literal, no por name ni por posición.
+           Visible Y montado (mp.cardForm) apenas fwSelectedPaymentKey
+           pasa a 'mp' (ver fwSelectPayment/fwMountMercadoPagoCardForm):
+           antes se mostraba acá pero recién se montaba 4 pasos después,
+           al confirmar, así que los campos se veían pero no se podía
+           escribir nada en ellos -- ver informe de bugs, punto 3. IDs
+           EXACTOS que espera fwMountMercadoPagoCardForm / mp.cardForm():
+           no renombrar ninguno de estos ids, el SDK los busca por id
+           literal, no por name ni por posición.
            El SDK tokeniza la tarjeta en el navegador del cliente -- el
            número de tarjeta no pasa por tu servidor ni por Apps Script. -->
       <form id="mp-card-form" style="display:none; margin-top:16px">
@@ -11345,6 +11352,19 @@ function openFoodModalLegacy() {
 let fwCurrentStep = 1;
 const FW_TOTAL_STEPS = 6;
 let fwSelectedPaymentKey = null; // 'credit' | 'debit' | 'mp' | 'modo' | 'transfer' | 'cash'
+// FIX (ver informe de bugs): antes el cardForm de Mercado Pago recién
+// se montaba en fwSubmitPayment (al tocar "Confirmar pedido", paso 6),
+// pero el bloque #mp-card-form ya se mostraba visible desde que se
+// elegía "Mercado Pago" en el paso 5 (ver fwRenderPaymentList). Entre
+// medio, los campos (número de tarjeta, vencimiento, etc.) eran divs
+// vacíos sin ningún listener del SDK atrás: se veían pero no se podía
+// escribir nada en ellos hasta 4 pasos después. Ahora se monta en el
+// momento en que se elige Mercado Pago (fwSelectPayment) y esta
+// variable guarda la instancia para poder desmontarla si el cliente
+// cambia a otro método o vuelve a abrir el wizard -- mp.cardForm()
+// tira error si se monta dos veces sobre los mismos ids sin desmontar
+// antes.
+let fwMountedCardForm = null;
 // fwShowOrderDone() reemplaza el innerHTML de #fw-body-wrap por la
 // pantalla final "Pedido confirmado", destruyendo los 6
 // wizard-panel originales. Se guarda una copia UNA sola vez (primer
@@ -11374,6 +11394,13 @@ function openFoodWizard() {
   editingFoodId = null;
   fwCurrentStep = 1;
   fwSelectedPaymentKey = null;
+  // El wrap se puede restaurar (o no) más abajo según venga de "Pedido
+  // confirmado"; en cualquier caso, cualquier cardForm montado en una
+  // apertura anterior quedó sobre nodos que ya no existen o están por
+  // ser reemplazados, así que se descarta la referencia sin llamar a
+  // .unmount() (llamarlo sobre nodos ya desconectados del DOM no hace
+  // falta y puede tirar error).
+  fwMountedCardForm = null;
 
   const wrap = document.getElementById('fw-body-wrap');
   if (wrap) {
@@ -11530,8 +11557,124 @@ function fwRenderPaymentList() {
 }
 
 function fwSelectPayment(key) {
+  const wasMp = fwSelectedPaymentKey === 'mp';
   fwSelectedPaymentKey = key;
   fwRenderPaymentList();
+
+  if (key === 'mp') {
+    // Montar apenas se elige, no recién al confirmar: así los campos
+    // (número de tarjeta, vencimiento, etc.) quedan editables desde que
+    // se ven, en vez de mostrarse 4 pasos antes de que el SDK los
+    // conecte de verdad.
+    fwMountMercadoPagoCardForm();
+  } else if (wasMp) {
+    // Se cambió de Mercado Pago a otro método: se desmonta para poder
+    // volver a montar limpio si el cliente elige Mercado Pago de nuevo
+    // (mp.cardForm() no permite montar dos veces sin desmontar antes).
+    fwUnmountMercadoPagoCardForm();
+  }
+}
+
+// Monta el cardForm de Mercado Pago sobre #mp-card-form (ids fijos, ver
+// comentario en el HTML del form). Idempotente: si ya hay uno montado,
+// no vuelve a montar. El callback onSubmit queda definido acá mismo
+// (antes vivía en pagarConMercadoPago); fwSubmitPayment ahora solo
+// dispara el submit del form, no vuelve a llamar a mp.cardForm().
+function fwMountMercadoPagoCardForm() {
+  if (fwMountedCardForm) return; // ya montado, no hacer nada
+  if (typeof mp === 'undefined' || !mp) {
+    showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
+    return;
+  }
+  try {
+    fwMountedCardForm = mp.cardForm({
+      amount: '100', // placeholder: fwSubmitPayment resuelve el monto real al confirmar; el SDK solo lo usa para validar formato acá
+      autoMount: true,
+      form: {
+        id: 'mp-card-form',
+        cardNumber: { id: 'form-checkout__cardNumber' },
+        expirationDate: { id: 'form-checkout__expirationDate' },
+        securityCode: { id: 'form-checkout__securityCode' },
+        cardholderName: { id: 'form-checkout__cardholderName' },
+        issuer: { id: 'form-checkout__issuer' },
+        installments: { id: 'form-checkout__installments' },
+        identificationType: { id: 'form-checkout__identificationType' },
+        identificationNumber: { id: 'form-checkout__identificationNumber' },
+        cardholderEmail: { id: 'form-checkout__cardholderEmail' },
+      },
+      callbacks: {
+        onFormMounted: error => {
+          if (error) {
+            console.error('Error montando el form de MP:', error);
+            showToast('No se pudo cargar el formulario de tarjeta.', 'error');
+          }
+        },
+        onSubmit: fwHandleMercadoPagoSubmit
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    showToast('No se pudo iniciar Mercado Pago.', 'error');
+  }
+}
+
+function fwUnmountMercadoPagoCardForm() {
+  if (fwMountedCardForm && typeof fwMountedCardForm.unmount === 'function') {
+    try { fwMountedCardForm.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes: no hace falta hacer nada */ }
+  }
+  fwMountedCardForm = null;
+}
+
+// Callback real de submit del form de tarjeta: separado de
+// fwMountMercadoPagoCardForm para que fwSubmitPayment pueda referenciar
+// el monto/descripcion/mail/referencia vigentes de fwPendingOrder en el
+// momento del submit (el form se monta antes, en el paso 5, cuando esos
+// datos todavía no están armados).
+async function fwHandleMercadoPagoSubmit(event) {
+  event.preventDefault();
+  if (!fwMountedCardForm) { mostrarErrorPago('El formulario de tarjeta no está listo. Volvé a intentar.'); return; }
+  const o = fwPendingOrder;
+  if (!o) { mostrarErrorPago('No se pudo recuperar el pedido. Volvé a intentar.'); return; }
+
+  const formData = fwMountedCardForm.getCardFormData();
+  const descripcion = 'Patas y Bigotes · ' + o.brand + ' · ' + (o.dog.name || '');
+  const mail = (o.dog.mail || currentUser.email || '').toLowerCase();
+  const referencia = o.newId;
+
+  mostrarAnimacionTransferencia();
+
+  try {
+    const resp = await fetch(WEBAPP_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'crearPagoMercadoPago',
+        token: formData.token,
+        paymentMethodId: formData.paymentMethodId,
+        installments: formData.installments,
+        issuerId: formData.issuerId,
+        amount: o.price,
+        description: descripcion,
+        payerEmail: mail,
+        externalReference: referencia
+      })
+    });
+    const data = await resp.json();
+
+    if (data.ok && data.status === 'approved') {
+      mostrarComprobante({ metodo: 'Mercado Pago', estado: 'Aprobado', id: data.paymentId, monto: data.amount, fecha: data.dateApproved });
+    } else if (data.ok && data.status === 'in_process') {
+      mostrarComprobante({ metodo: 'Mercado Pago', estado: 'En revisión', id: data.paymentId, monto: data.amount });
+    } else {
+      mostrarErrorPago((data && data.error) || 'El pago fue rechazado. Probá con otro medio.');
+    }
+  } catch (err) {
+    // Red caída, CORS, timeout, etc: sin este catch la pantalla de
+    // "Procesando tu pago" quedaba trabada para siempre (ver informe de
+    // bugs, punto 4, mismo problema que tenían pagarEnEfectivo y
+    // pagarPorTransferencia).
+    console.error(err);
+    mostrarErrorPago('No se pudo conectar con Mercado Pago. Revisá tu conexión e intentá de nuevo.');
+  }
 }
 
 // Copia el alias al portapapeles (navigator.clipboard con fallback a
@@ -11571,8 +11714,11 @@ function fwValidateStep(step) {
     return true;
   }
   if (step === 2) {
+    // Porción diaria es opcional: si se deja vacía, se avanza sin más.
+    // Si el usuario SÍ escribió algo, tiene que ser un número válido
+    // (> 0) para evitar guardar una porción sin sentido como "0" o "-5".
     const portion = document.getElementById('fw-portion').value;
-    if (!portion || Number(portion) <= 0) { showToast('Completá la porción diaria', 'error'); document.getElementById('fw-portion').focus(); return false; }
+    if (portion && Number(portion) <= 0) { showToast('La porción diaria tiene que ser mayor a 0', 'error'); document.getElementById('fw-portion').focus(); return false; }
     return true;
   }
   if (step === 3) {
@@ -11607,12 +11753,14 @@ function fwGoStep(dir) {
 }
 
 // ── Dispara la función de pago correspondiente al método elegido en
-//    el paso 5. Las 3 funciones de pago (pagarConMercadoPago /
-//    pagarEnEfectivo / pagarPorTransferencia) llaman a
-//    mostrarComprobante()/mostrarErrorPago() cuando terminan, y esas
-//    dos son las que efectivamente guardan el pedido (mostrarComprobante
-//    llama a fwCompleteOrderAfterPayment) o lo dejan sin guardar
-//    (mostrarErrorPago no guarda nada, el cliente vuelve a intentar).
+//    el paso 5. Para Mercado Pago, dispara el submit del cardForm ya
+//    montado (fwHandleMercadoPagoSubmit); para los otros dos métodos,
+//    llama a fwPagarPorTransferencia / fwPagarEnEfectivo. Las 3 rutas
+//    terminan llamando a mostrarComprobante()/mostrarErrorPago() cuando
+//    terminan, y esas dos son las que efectivamente guardan el pedido
+//    (mostrarComprobante llama a fwCompleteOrderAfterPayment) o lo
+//    dejan sin guardar (mostrarErrorPago no guarda nada, el cliente
+//    vuelve a intentar).
 //    Bloquea el botón "Confirmar pedido" mientras tanto para que un
 //    doble click no dispare dos pagos. ──
 function fwSubmitPayment() {
@@ -11650,22 +11798,26 @@ function fwSubmitPayment() {
 
   if (fwSelectedPaymentKey === 'mp') {
     if (price <= 0) { showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error'); fwUnlockConfirmBtn(); return; }
-    // pagarConMercadoPago monta el cardForm y define su callback
-    // onSubmit, pero el pago recién arranca cuando el <form
-    // id="mp-card-form"> efectivamente hace submit (ver cardForm.mount
-    // + onSubmit en pagarConMercadoPago) -- por eso primero se monta y
-    // recién después se dispara el submit a mano, ya que el form no
-    // tiene su propio <button type="submit"> (ver comentario en el
-    // HTML del form: el submit lo maneja el wizard, no el form solo).
-    pagarConMercadoPago(price, descripcion, mail, referencia);
-    setTimeout(() => {
-      const form = document.getElementById('mp-card-form');
-      if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
-    }, 300); // margen para que autoMount:true del cardForm termine de montar los campos
+    if (!fwMountedCardForm) {
+      // No debería pasar (se monta en fwSelectPayment al elegir
+      // Mercado Pago), pero por las dudas: sin esto el submit no hace
+      // nada y el botón queda trabado en "Procesando…" sin explicar
+      // por qué.
+      showToast('El formulario de tarjeta no cargó. Volvé a elegir Mercado Pago como método de pago.', 'error');
+      fwUnlockConfirmBtn();
+      return;
+    }
+    // El submit real y la llamada al backend viven en
+    // fwHandleMercadoPagoSubmit (callback onSubmit del cardForm,
+    // definido en fwMountMercadoPagoCardForm): acá solo se dispara el
+    // submit del form, ya que #mp-card-form no tiene su propio <button
+    // type="submit"> (el submit lo maneja el wizard, no el form solo).
+    const form = document.getElementById('mp-card-form');
+    if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
   } else if (fwSelectedPaymentKey === 'transfer') {
-    pagarPorTransferencia(price, descripcion, mail, referencia);
+    fwPagarPorTransferencia(price, descripcion, mail, referencia);
   } else if (fwSelectedPaymentKey === 'cash') {
-    pagarEnEfectivo(price, descripcion, mail, referencia);
+    fwPagarEnEfectivo(price, descripcion, mail, referencia);
   } else {
     showToast('Método de pago no reconocido', 'error');
     fwUnlockConfirmBtn();
@@ -11755,9 +11907,9 @@ function fwFormatDateDisplay(isoDate) {
 //
 // A DIFERENCIA de la versión anterior (saveFoodOrder), esta función
 // YA NO se llama directo desde fwGoStep: se llama únicamente desde
-// mostrarComprobante(), es decir, solo después de que una de las 3
-// funciones de pago (pagarConMercadoPago/pagarEnEfectivo/
-// pagarPorTransferencia) confirmó el pago o dejó constancia de pago
+// mostrarComprobante(), es decir, solo después de que alguna de las
+// rutas de pago (fwHandleMercadoPagoSubmit/fwPagarEnEfectivo/
+// fwPagarPorTransferencia) confirmó el pago o dejó constancia de pago
 // pendiente. Si el pago es rechazado (mostrarErrorPago), esta función
 // nunca se llama y no se guarda ningún registro -- así se evita que
 // quede un pedido "confirmado" en la tabla sin que el pago se haya
@@ -12077,7 +12229,7 @@ function closeFoodPicker() {
 // scroll) desde la última apertura.
 function positionFoodPickerPanel() {
   const panel = document.getElementById('food-picker-panel');
-  const trigger = document.getElementById('food-picker-trigger');
+  const trigger = document.getElementById(activeFoodPickerPrefix + '-picker-trigger');
   if (!panel || !trigger) return;
   if (window.innerWidth < 640) {
     // Mobile: el bottom sheet se posiciona 100% por CSS.
@@ -13781,138 +13933,93 @@ const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycby5o4b4eB3kJs3W1J22E
 
 // ─────────────────────────────────────────────────────────────
 //  MERCADO PAGO (tarjeta o dinero en cuenta vía Checkout API)
-//  Se asume un <form id="mp-card-form"> con los campos que pide
-//  el SDK: cardNumber, cardholderName, expirationDate/expirationMonth/
-//  expirationYear, securityCode, docType, docNumber, email.
-//  El SDK arma los data-checkout-* automáticamente si el form tiene
-//  esos ids/name — ver docs: https://www.mercadopago.com.ar/developers/es/docs/checkout-api/integration-configuration/card/integrate-via-cardform
+//  El montaje del cardForm y su callback onSubmit ya no viven acá:
+//  ver fwMountMercadoPagoCardForm() y fwHandleMercadoPagoSubmit() más
+//  arriba en el archivo, junto al resto de la lógica del wizard. Se
+//  movieron para poder montar el form apenas se elige Mercado Pago en
+//  el paso 5 (antes se montaba recién al confirmar el pedido, 4 pasos
+//  después, dejando los campos visibles pero sin poder escribir nada
+//  en ellos mientras tanto -- ver informe de bugs, punto 3).
 // ─────────────────────────────────────────────────────────────
-async function pagarConMercadoPago(monto, descripcion, mailComprador, referenciaExterna) {
+
+// ─────────────────────────────────────────────────────────────
+//  EFECTIVO / TRANSFERENCIA BANCARIA
+//
+//  FIX (ver informe de bugs, punto 4): las versiones anteriores de
+//  estas dos funciones (pagarEnEfectivo/pagarPorTransferencia) usaban
+//  fetch(WEBAPP_URL, {method:'POST', ...}) directo contra el Web App
+//  de Apps Script. Un POST así, sin mode/headers explícitos, puede
+//  fallar por CORS al pegar contra script.google.com (que redirige a
+//  script.googleusercontent.com) según el navegador -- y como esas
+//  funciones no tenían try/catch, un fetch() que tira TypeError
+//  dejaba la pantalla de "Procesando tu pago… no cierres esta
+//  ventana" trabada para siempre, sin ningún mensaje de error.
+//
+//  Se reemplazan acá por fwPagarEnEfectivo/fwPagarPorTransferencia,
+//  que usan fetchJSONP (mismo mecanismo GET + <script> que ya usan
+//  las otras ~19 llamadas al backend en este archivo, ver
+//  fetchJSONP más arriba) en vez de fetch()+POST: evita el problema
+//  de CORS de raíz porque nunca depende de que el navegador permita
+//  la petición cross-origin, y ya tiene su propio timeout (14s) y
+//  manejo de error incorporado.
+//
+//  Del lado del Apps Script, handleConfirmarPagoEfectivo y
+//  handleConfirmarPagoTransferencia tienen que devolver con
+//  returnJSONP(...) en vez de jsonOut(...) para que esto funcione
+//  (ver v23 del Apps Script).
+// ─────────────────────────────────────────────────────────────
+async function fwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaExterna) {
+  mostrarAnimacionTransferencia();
   try {
-    // El SDK tokeniza la tarjeta EN EL NAVEGADOR del cliente. El número
-    // de tarjeta nunca sale de acá como texto plano hacia tu servidor.
-    const cardForm = mp.cardForm({
-      amount: String(monto),
-      autoMount: true,
-      form: {
-        id: 'mp-card-form',
-        cardNumber: { id: 'form-checkout__cardNumber' },
-        expirationDate: { id: 'form-checkout__expirationDate' },
-        securityCode: { id: 'form-checkout__securityCode' },
-        cardholderName: { id: 'form-checkout__cardholderName' },
-        issuer: { id: 'form-checkout__issuer' },
-        installments: { id: 'form-checkout__installments' },
-        identificationType: { id: 'form-checkout__identificationType' },
-        identificationNumber: { id: 'form-checkout__identificationNumber' },
-        cardholderEmail: { id: 'form-checkout__cardholderEmail' },
-      },
-      callbacks: {
-        onFormMounted: error => {
-          if (error) console.error('Error montando el form de MP:', error);
-        },
-        onSubmit: async event => {
-          event.preventDefault();
-          const formData = cardForm.getCardFormData();
-
-          mostrarAnimacionTransferencia(); // tu animación existente / nueva
-
-          const resp = await fetch(WEBAPP_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-              action: 'crearPagoMercadoPago',
-              token: formData.token,
-              paymentMethodId: formData.paymentMethodId,
-              installments: formData.installments,
-              issuerId: formData.issuerId,
-              amount: monto,
-              description: descripcion,
-              payerEmail: mailComprador,
-              externalReference: referenciaExterna
-            })
-          });
-          const data = await resp.json();
-
-          if (data.ok && data.status === 'approved') {
-            mostrarComprobante({
-              metodo: 'Mercado Pago',
-              estado: 'Aprobado',
-              id: data.paymentId,
-              monto: data.amount,
-              fecha: data.dateApproved
-            });
-          } else if (data.ok && data.status === 'in_process') {
-            mostrarComprobante({
-              metodo: 'Mercado Pago',
-              estado: 'En revisión',
-              id: data.paymentId,
-              monto: data.amount
-            });
-          } else {
-            mostrarErrorPago(data.error || 'El pago fue rechazado. Probá con otro medio.');
-          }
-        }
-      }
-    });
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoEfectivo'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      mostrarComprobante({
+        metodo: 'Efectivo',
+        estado: 'Pendiente de cobro en persona',
+        id: data.comprobanteId,
+        monto: monto
+      });
+    } else {
+      mostrarErrorPago((data && data.error) || 'No se pudo registrar el pago en efectivo.');
+    }
   } catch (err) {
     console.error(err);
-    mostrarErrorPago('No se pudo iniciar el pago con Mercado Pago.');
+    mostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-//  EFECTIVO
-// ─────────────────────────────────────────────────────────────
-async function pagarEnEfectivo(monto, descripcion, mailComprador, referenciaExterna) {
+async function fwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
   mostrarAnimacionTransferencia();
-  const resp = await fetch(WEBAPP_URL, {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'confirmarPagoEfectivo',
-      amount: monto,
-      description: descripcion,
-      payerEmail: mailComprador,
-      externalReference: referenciaExterna
-    })
-  });
-  const data = await resp.json();
-  if (data.ok) {
-    mostrarComprobante({
-      metodo: 'Efectivo',
-      estado: 'Pendiente de cobro en persona',
-      id: data.comprobanteId,
-      monto: monto
-    });
-  } else {
-    mostrarErrorPago(data.error);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-//  TRANSFERENCIA BANCARIA
-// ─────────────────────────────────────────────────────────────
-async function pagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
-  mostrarAnimacionTransferencia();
-  const resp = await fetch(WEBAPP_URL, {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'confirmarPagoTransferencia',
-      amount: monto,
-      description: descripcion,
-      payerEmail: mailComprador,
-      externalReference: referenciaExterna
-    })
-  });
-  const data = await resp.json();
-  if (data.ok) {
-    mostrarComprobante({
-      metodo: 'Transferencia bancaria',
-      estado: 'Pendiente de verificación',
-      id: data.comprobanteId,
-      monto: monto,
-      alias: data.alias // se lo mostrás al cliente para que transfiera
-    });
-  } else {
-    mostrarErrorPago(data.error);
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoTransferencia'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      mostrarComprobante({
+        metodo: 'Transferencia bancaria',
+        estado: 'Pendiente de verificación',
+        id: data.comprobanteId,
+        monto: monto,
+        alias: data.alias // se lo muestra al cliente para que transfiera
+      });
+    } else {
+      mostrarErrorPago((data && data.error) || 'No se pudo registrar la transferencia.');
+    }
+  } catch (err) {
+    console.error(err);
+    mostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
   }
 }
 
