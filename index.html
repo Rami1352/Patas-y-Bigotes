@@ -2297,6 +2297,30 @@ html[data-font-size="large"] .toast-container {
 .form-control:focus { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(45,80,22,.08); }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* #mp-card-form (paso 5 del wizard, checkout de Mercado Pago) — el SDK
+   de MP (mp.cardForm(), ver fwMountMercadoPagoCardForm) toma
+   #form-checkout__cardNumber / expirationDate / securityCode (divs
+   vacíos en el HTML) e inyecta adentro un <iframe> propio para
+   capturar esos datos de forma segura (PCI-compliant: el número de
+   tarjeta nunca pasa por el DOM de este sitio). Sin una altura
+   explícita en el contenedor, ese iframe puede quedar con su tamaño
+   por defecto del navegador en vez de ocupar el .form-control -- se ve
+   el recuadro pero no hay nada clickeable/tipeable adentro, que es
+   justamente el bug reportado ("no me deja poner el numero de la
+   tarjeta"). Mismo problema afecta a #form-checkout__issuer y
+   #form-checkout__installments: son <select> nativos en el HTML, pero
+   el SDK controla su contenido (opciones) una vez que puede leer el
+   BIN de la tarjeta -- si el campo de tarjeta de arriba nunca recibe
+   datos por este mismo bug de altura, esos dos selects se quedan
+   vacíos y se ven como un recuadro roto (bordes sin opciones
+   cargadas), que es la Imagen 2/3 reportada por el usuario. Se fuerza
+   una altura fija consistente con el resto de los .form-control
+   (10px 12px de padding + font-size 14px ≈ 40px) y se le pide al
+   iframe inyectado que ocupe el 100% del contenedor padre. */
+#mp-card-form .form-control { height: 40px; padding: 0; overflow: hidden; }
+#mp-card-form .form-control iframe { width: 100% !important; height: 100% !important; border: none !important; display: block !important; }
+#mp-card-form select.form-control { padding: 0 12px; }
+
 /* ══════════════════════════════════
    SELECTOR VISUAL DE ALIMENTO
    (Registro de Alimentación → campo "Alimento")
@@ -11380,13 +11404,16 @@ let fwBodyWrapOriginalHtml = null;
 // "Modo" se sacaron a pedido -- Mercado Pago ya cubre tarjeta como
 // forma de pago dentro de su propio checkout (#mp-card-form), así que
 // no hace falta una opción de wizard aparte para eso.
-// alias/aliasLabel solo está presente en Mercado Pago (el alias para
-// transferir directo a esa cuenta); Transferencia bancaria muestra su
-// propio alias/CBU recién en el comprobante (lo devuelve el backend en
-// confirmarPagoTransferencia), no acá en la lista.
+// alias/aliasLabel: Mercado Pago y Transferencia bancaria muestran el
+// suyo acá mismo, debajo de la opción, apenas se tilda (ver
+// fwRenderPaymentList). El de Transferencia bancaria coincide con
+// TRANSFERENCIA_ALIAS en Propiedades del Script (backend), así que el
+// cliente ve el mismo alias acá y en el comprobante final que devuelve
+// confirmarPagoTransferencia -- no hace falta esperar a confirmar el
+// pago para saber a dónde transferir.
 const FOOD_WIZARD_PAYMENT_METHODS = [
   { key: 'mp',       icon: 'fa-handshake',           title: 'Mercado Pago',           sub: 'Tarjeta o dinero en cuenta', alias: 'digo.papa.onza.mp', aliasLabel: 'Alias Mercado Pago' },
-  { key: 'transfer', icon: 'fa-building-columns',    title: 'Transferencia bancaria', sub: 'Desde tu Homebanking' },
+  { key: 'transfer', icon: 'fa-building-columns',    title: 'Transferencia bancaria', sub: 'Desde tu Homebanking', alias: 'Fuego.asado.vino', aliasLabel: 'Alias para transferir' },
   { key: 'cash',     icon: 'fa-money-bill-wave',     title: 'Efectivo',               sub: 'Coordinamos el cobro en persona' },
 ];
 
@@ -12203,12 +12230,43 @@ async function openFoodPicker(prefix) {
     const listEl = document.getElementById('food-picker-list');
     if (listEl) listEl.innerHTML = '<div class="food-picker-empty"><i class="fa-solid fa-spinner fa-spin"></i> Cargando catálogo…</div>';
   }
-  positionFoodPickerPanel();
+  void trigger.offsetHeight;
+  positionFoodPickerPanel(); // primer intento inmediato: cubre el caso común donde el modal ya estaba asentado
+
+  // FIX: el comentario original de esta función asumía que
+  // #food-picker-trigger siempre tiene layout estable apenas se abre
+  // porque el usuario tarda más en encontrar/clickear "Seleccionar
+  // alimento" que lo que dura la animación del modal padre. Eso vale
+  // para modal-add-food, pero #fw-picker-trigger (mismo trigger,
+  // reusado dentro del wizard de Registro de Alimentación) puede
+  // clickearse mientras modal-wizard-food todavía está a mitad de su
+  // animación de apertura (.modal { animation: modalScaleIn .32s },
+  // ver CSS) -- ese transform: scale(.9→1) hace que
+  // trigger.getBoundingClientRect() cambie en cada frame durante esos
+  // ~320ms, así que positionFoodPickerPanel() de arriba puede anclar
+  // el panel a una posición intermedia (pegado arriba). Mismo fix
+  // exacto que ya se usa en openDewormPicker(): esperar al
+  // 'animationend' del <div class="modal"> padre antes de la medición
+  // real, con un setTimeout de 340ms como respaldo (por si la
+  // animación está desactivada por prefers-reduced-motion:reduce,
+  // donde 'animationend' nunca dispara).
+  const modalEl = trigger.closest('.modal');
+  if (modalEl) {
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      positionFoodPickerPanel();
+    };
+    modalEl.addEventListener('animationend', settle, { once: true });
+    setTimeout(settle, 340);
+  }
 
   await ensureFoodCatalogLoaded();
   renderFoodPickerList();
   // Se reposiciona de nuevo por si la altura real de la lista (loading vs.
   // catálogo cargado) cambió cuánto espacio ocupa el panel.
+  void trigger.offsetHeight;
   positionFoodPickerPanel();
 
   const liveSearch = document.getElementById('food-picker-search-input');
@@ -13420,7 +13478,13 @@ async function deleteFood(id) {
 document.querySelectorAll('.modal-overlay').forEach(o => {
   // Los modales de Alimentación y Desparasitarios no se cierran al clickear
   // afuera del cuadro blanco (piden confirmación explícita con Cancelar/✕).
-  if (o.id === 'modal-add-food' || o.id === 'modal-add-deworm') return;
+  // modal-wizard-food se agrega a esta misma excepción: es un wizard de
+  // 6 pasos (mascota, alimento, precio, fechas, notas, pago) y un click
+  // afuera del cuadro -- muy fácil de hacer sin querer mientras se
+  // completa un form largo -- lo cerraba sin ningún aviso, perdiendo
+  // todo lo cargado hasta ese paso. Se cierra solo con la ✕
+  // (closeFoodWizard) o al confirmar el pedido.
+  if (o.id === 'modal-add-food' || o.id === 'modal-add-deworm' || o.id === 'modal-wizard-food') return;
   o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
 });
 
