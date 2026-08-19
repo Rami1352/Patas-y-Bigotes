@@ -27,7 +27,27 @@
 <script>
 // Reemplazar MI_PUBLIC_KEY por tu Public Key real
 // (la que empieza con APP_USR-..., NO el Access Token)
-const mp = new MercadoPago('APP_USR-4ed70e56-a89f-4e2a-a82b-66514996a635', { locale: 'es-AR' });
+//
+// FIX v25: antes `mp` se instanciaba acá mismo, de forma incondicional,
+// apenas cargaba CUALQUIER página del portal (incluida la de login, antes
+// de que exista sesión o pedido alguno). new MercadoPago(...) dispara de
+// entrada sus propias llamadas de red (widgets?public_key=..., luego
+// search?public_key=... para precargar medios de pago); si la página
+// navega o se re-renderiza antes de que esas respuestas vuelvan, alguna
+// queda "(cancelada)" y aparece como error en la consola sin que el
+// usuario haya llegado siquiera al wizard de pago -- es lo que se veía
+// en la pantalla de login.
+// Se resuelve con inicialización perezosa: fwGetMercadoPago() crea `mp`
+// recién la primera vez que hace falta de verdad (fwMountMercadoPagoCardForm,
+// paso 5 del wizard, cuando el usuario elige "Mercado Pago" como método).
+// Antes de eso, `mp` no existe y el SDK no hace ninguna llamada de red.
+var mp = null;
+function fwGetMercadoPago() {
+  if (mp) return mp;
+  if (typeof MercadoPago === 'undefined') return null; // SDK todavía no cargó
+  mp = new MercadoPago('APP_USR-4ed70e56-a89f-4e2a-a82b-66514996a635', { locale: 'es-AR' });
+  return mp;
+}
 </script>
 
 <script>
@@ -11655,7 +11675,17 @@ function fwSelectPayment(key) {
 // dispara el submit del form, no vuelve a llamar a mp.cardForm().
 function fwMountMercadoPagoCardForm() {
   if (fwMountedCardForm) return; // ya montado, no hacer nada
-  if (typeof mp === 'undefined' || !mp) {
+  // FIX v25: `mp` ya no es global-siempre-creado; se pide acá, la primera
+  // vez que hace falta de verdad (ver fwGetMercadoPago en el <head>). Si
+  // el SDK externo todavía no terminó de cargar (red lenta), se reintenta
+  // en el próximo frame en vez de mostrar error de una: es la misma
+  // situación que ya se maneja más abajo para "form todavía no visible".
+  var mpInstance = fwGetMercadoPago();
+  if (!mpInstance) {
+    if (typeof MercadoPago === 'undefined') {
+      requestAnimationFrame(fwMountMercadoPagoCardForm);
+      return;
+    }
     showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
     return;
   }
@@ -11671,7 +11701,7 @@ function fwMountMercadoPagoCardForm() {
     return;
   }
   try {
-    fwMountedCardForm = mp.cardForm({
+    fwMountedCardForm = mpInstance.cardForm({
       amount: '100', // placeholder: fwSubmitPayment resuelve el monto real al confirmar; el SDK solo lo usa para validar formato acá
       autoMount: true,
       form: {
