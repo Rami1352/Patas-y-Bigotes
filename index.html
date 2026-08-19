@@ -6420,6 +6420,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="form-row">
         <label>Mascota</label>
         <div class="food-wizard-product-card" style="margin-top:0">
+          <img class="food-wizard-product-thumb" id="fw-p2-dog-thumb" src="" alt="" style="display:none" />
           <div class="food-wizard-product-thumb-fallback" id="fw-p2-dog-icon"><i class="fa-solid fa-paw"></i></div>
           <div class="food-wizard-product-name" id="fw-p2-dog-name">—</div>
         </div>
@@ -11436,13 +11437,36 @@ function openFoodWizard() {
 function closeFoodWizard() { closeModal('modal-wizard-food'); }
 
 // Sincroniza la mascota elegida en el paso 1 hacia la tarjeta de
-// resumen del paso 2 (id/nombre son lo único que cambia entre pasos,
-// así que no hace falta repetir el <select>).
+// resumen del paso 2: nombre + foto. Mismo patrón img+fallback ya
+// usado unas líneas más abajo para la foto del alimento (fw-p2-thumb /
+// fw-p2-thumb-fallback en fwRenderProductCards), y mismo campo
+// dog.photo + photoPosition() que usa renderMisMascotas para la foto
+// de perfil. Antes fwSyncDogSummary solo copiaba el texto del
+// <option> elegido; el ícono de pata quedaba fijo siempre, sin la
+// cara de la mascota (pedido del usuario, ver Imagen 1: marcó en
+// azul justo el círculo del ícono genérico).
 function fwSyncDogSummary() {
   const sel = document.getElementById('fw-dog');
   const opt = sel && sel.options[sel.selectedIndex];
   const nameEl = document.getElementById('fw-p2-dog-name');
   if (nameEl) nameEl.textContent = opt ? opt.textContent : '—';
+
+  const dog = opt ? getDog(isNaN(opt.value) ? opt.value : Number(opt.value)) : null;
+  const thumb = document.getElementById('fw-p2-dog-thumb');
+  const fallback = document.getElementById('fw-p2-dog-icon');
+  if (dog && dog.photo) {
+    if (thumb) {
+      thumb.src = dog.photo;
+      thumb.alt = dog.name || '';
+      thumb.style.objectPosition = photoPosition(dog);
+      thumb.style.display = '';
+      thumb.onerror = function () { this.style.display = 'none'; if (fallback) fallback.style.display = 'flex'; };
+    }
+    if (fallback) fallback.style.display = 'none';
+  } else {
+    if (thumb) thumb.style.display = 'none';
+    if (fallback) fallback.style.display = 'flex';
+  }
 }
 // Delegado sobre document (no un addEventListener directo sobre
 // #fw-dog): el script principal corre al final del <body>, con el DOM
