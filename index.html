@@ -13595,5 +13595,170 @@ function syncLanguageUI() {
   setInitialPosition();
 })();
 </script>
+<!-- ═══════════════════════════════════════════════════════════════
+  Patas y Bigotes — snippet de frontend para el paso "Método de pago"
+  del wizard de Confirmación (ver Imagen 1, pasos 5 y 6).
+
+  ÚNICO placeholder que hay que reemplazar acá: MI_PUBLIC_KEY.
+  Es la Public Key (empieza con APP_USR-...), que SÍ es segura de
+  tener en el HTML — está diseñada para viajar al navegador del
+  cliente. El Access Token NUNCA va en este archivo.
+═══════════════════════════════════════════════════════════════ -->
+
+<!-- 1) Cargar el SDK oficial de Mercado Pago (una sola vez, en el <head> o antes de cerrar </body>) -->
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  Reemplazar MI_PUBLIC_KEY por tu Public Key real
+//  (la que empieza con APP_USR-..., NO el Access Token)
+// ─────────────────────────────────────────────────────────────
+const mp = new MercadoPago('APP_USR-4ed70e56-a89f-4e2a-a82b-66514996a635', { locale: 'es-AR' });
+
+// URL de tu Web App de Apps Script (la misma que ya usás para
+// addAlimentacion, getAlimentacion, etc. — no cambia)
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycby5o4b4eB3kJs3W1J22EKrAeX8hnUz_nLFPlucaa4Nlr5WhUKbc5gx0Ma2XNfvG84rW/exec';
+
+// ─────────────────────────────────────────────────────────────
+//  MERCADO PAGO (tarjeta o dinero en cuenta vía Checkout API)
+//  Se asume un <form id="mp-card-form"> con los campos que pide
+//  el SDK: cardNumber, cardholderName, expirationDate/expirationMonth/
+//  expirationYear, securityCode, docType, docNumber, email.
+//  El SDK arma los data-checkout-* automáticamente si el form tiene
+//  esos ids/name — ver docs: https://www.mercadopago.com.ar/developers/es/docs/checkout-api/integration-configuration/card/integrate-via-cardform
+// ─────────────────────────────────────────────────────────────
+async function pagarConMercadoPago(monto, descripcion, mailComprador, referenciaExterna) {
+  try {
+    // El SDK tokeniza la tarjeta EN EL NAVEGADOR del cliente. El número
+    // de tarjeta nunca sale de acá como texto plano hacia tu servidor.
+    const cardForm = mp.cardForm({
+      amount: String(monto),
+      autoMount: true,
+      form: {
+        id: 'mp-card-form',
+        cardNumber: { id: 'form-checkout__cardNumber' },
+        expirationDate: { id: 'form-checkout__expirationDate' },
+        securityCode: { id: 'form-checkout__securityCode' },
+        cardholderName: { id: 'form-checkout__cardholderName' },
+        issuer: { id: 'form-checkout__issuer' },
+        installments: { id: 'form-checkout__installments' },
+        identificationType: { id: 'form-checkout__identificationType' },
+        identificationNumber: { id: 'form-checkout__identificationNumber' },
+        cardholderEmail: { id: 'form-checkout__cardholderEmail' },
+      },
+      callbacks: {
+        onFormMounted: error => {
+          if (error) console.error('Error montando el form de MP:', error);
+        },
+        onSubmit: async event => {
+          event.preventDefault();
+          const formData = cardForm.getCardFormData();
+
+          mostrarAnimacionTransferencia(); // tu animación existente / nueva
+
+          const resp = await fetch(WEBAPP_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              action: 'crearPagoMercadoPago',
+              token: formData.token,
+              paymentMethodId: formData.paymentMethodId,
+              installments: formData.installments,
+              issuerId: formData.issuerId,
+              amount: monto,
+              description: descripcion,
+              payerEmail: mailComprador,
+              externalReference: referenciaExterna
+            })
+          });
+          const data = await resp.json();
+
+          if (data.ok && data.status === 'approved') {
+            mostrarComprobante({
+              metodo: 'Mercado Pago',
+              estado: 'Aprobado',
+              id: data.paymentId,
+              monto: data.amount,
+              fecha: data.dateApproved
+            });
+          } else if (data.ok && data.status === 'in_process') {
+            mostrarComprobante({
+              metodo: 'Mercado Pago',
+              estado: 'En revisión',
+              id: data.paymentId,
+              monto: data.amount
+            });
+          } else {
+            mostrarErrorPago(data.error || 'El pago fue rechazado. Probá con otro medio.');
+          }
+        }
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    mostrarErrorPago('No se pudo iniciar el pago con Mercado Pago.');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  EFECTIVO
+// ─────────────────────────────────────────────────────────────
+async function pagarEnEfectivo(monto, descripcion, mailComprador, referenciaExterna) {
+  mostrarAnimacionTransferencia();
+  const resp = await fetch(WEBAPP_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'confirmarPagoEfectivo',
+      amount: monto,
+      description: descripcion,
+      payerEmail: mailComprador,
+      externalReference: referenciaExterna
+    })
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    mostrarComprobante({
+      metodo: 'Efectivo',
+      estado: 'Pendiente de cobro en persona',
+      id: data.comprobanteId,
+      monto: monto
+    });
+  } else {
+    mostrarErrorPago(data.error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  TRANSFERENCIA BANCARIA
+// ─────────────────────────────────────────────────────────────
+async function pagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
+  mostrarAnimacionTransferencia();
+  const resp = await fetch(WEBAPP_URL, {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'confirmarPagoTransferencia',
+      amount: monto,
+      description: descripcion,
+      payerEmail: mailComprador,
+      externalReference: referenciaExterna
+    })
+  });
+  const data = await resp.json();
+  if (data.ok) {
+    mostrarComprobante({
+      metodo: 'Transferencia bancaria',
+      estado: 'Pendiente de verificación',
+      id: data.comprobanteId,
+      monto: monto,
+      alias: data.alias // se lo mostrás al cliente para que transfiera
+    });
+  } else {
+    mostrarErrorPago(data.error);
+  }
+}
+
+// mostrarAnimacionTransferencia(), mostrarComprobante() y
+// mostrarErrorPago() son funciones de UI tuyas — conectalas a los
+// pasos 5/6 del wizard que ya tenés armado en la Imagen 1.
+</script>
 </body>
 </html>
