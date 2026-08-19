@@ -5588,12 +5588,22 @@ var PYB_AUTH = (function () {
   }, { passive: true });
 })();
 
-// Exposición explícita en window: los onclick inline del HTML
-// (switchLoginTab, togglePasswordVisibility, handleLoginAction)
-// necesitan encontrarlas en el objeto global.
-window.switchLoginTab = switchLoginTab;
-window.togglePasswordVisibility = togglePasswordVisibility;
-window.handleLoginAction = handleLoginAction;
+// FIX: las tres asignaciones a window (switchLoginTab,
+// togglePasswordVisibility, handleLoginAction) vivían acá antes,
+// pero las tres funciones recién se definen en scripts posteriores
+// (switchLoginTab y handleLoginAction en la línea ~7166/7192,
+// togglePasswordVisibility en la línea ~11283) -- un <script> distinto
+// del que contiene este bloque (que cierra en la línea 5624). Al no
+// estar en el mismo <script>, el hoisting de function no alcanza entre
+// bloques: `window.switchLoginTab = switchLoginTab;` tiraba
+// `Uncaught ReferenceError: switchLoginTab is not defined` apenas el
+// navegador llegaba a esta línea, cortando en seco el resto de este
+// <script> -- incluyendo el document.addEventListener('DOMContentLoaded', ...)
+// de más abajo, que nunca llegaba a registrarse. Se movieron las tres
+// líneas al final del archivo (ver comentario "FIX: exposición a
+// window de funciones de login" cerca de </body>), donde ya corrieron
+// todos los <script> anteriores y las tres funciones existen de
+// verdad.
 
 // Listeners que reemplazan los onkeydown inline quitados de
 // #login-user, #login-pass y #register-pass-confirm.
@@ -14174,6 +14184,22 @@ function mostrarErrorPago(mensaje) {
   fwUnlockConfirmBtn();
   fwPendingOrder = null;
 }
+
+// FIX: exposición a window de funciones de login (switchLoginTab,
+// togglePasswordVisibility, handleLoginAction). Antes esto vivía
+// arriba, cerca de la línea 5594, en un <script> que cerraba antes de
+// que estas tres funciones llegaran a definirse (viven en <script>
+// posteriores) -- eso tiraba "Uncaught ReferenceError: switchLoginTab
+// is not defined" y cortaba en seco el resto de aquel bloque. Se movió
+// acá, al final de todo, después de que ya corrieron todos los demás
+// <script> del documento y las tres funciones existen de verdad. Los
+// onclick inline del HTML (switchLoginTab, togglePasswordVisibility,
+// handleLoginAction en los botones de login/registro) siguen
+// funcionando igual porque siguen quedando colgadas de window antes de
+// que el usuario pueda hacer click en nada.
+window.switchLoginTab = switchLoginTab;
+window.togglePasswordVisibility = togglePasswordVisibility;
+window.handleLoginAction = handleLoginAction;
 </script>
 </body>
 </html>
