@@ -12284,21 +12284,32 @@ function positionFoodPickerPanel() {
   const spaceBelow = window.innerHeight - 12 - top;
   const spaceAbove = rect.top - gap - 12;
   // Si no entra debajo del trigger, se abre hacia arriba -- pero solo
-  // si arriba hay más lugar que abajo. Antes esto exigía que el hueco
-  // de arriba alcanzara para el maxHeight COMPLETO (520px/70vh); si el
-  // trigger estaba a media pantalla (como en el modal de Alimentación/
-  // Desparasitación) ni arriba ni abajo cumplían esa condición, el panel
-  // se quedaba con top=rect.bottom+gap sin ajustar altura, y quedaba
-  // cortado por el borde inferior de la ventana. Ahora, si ninguno de
-  // los dos lados alcanza el maxHeight completo, se usa el lado con más
-  // espacio y se recorta panel.style.maxHeight a lo que realmente entra.
+  // si abajo NO alcanza un tamaño mínimo usable (minUsable) Y además
+  // arriba hay lugar para un panel al menos igual de alto que el de
+  // abajo. Antes esto exigía que el hueco de arriba alcanzara para el
+  // maxHeight COMPLETO (520px/70vh); si el trigger estaba a media
+  // pantalla (como en el modal de Alimentación/Desparasitación) ni
+  // arriba ni abajo cumplían esa condición, el panel se quedaba con
+  // top=rect.bottom+gap sin ajustar altura, y quedaba cortado por el
+  // borde inferior de la ventana.
+  // FIX: la condición anterior (spaceAbove > spaceBelow) solo comparaba
+  // cuál lado tenía MÁS aire libre, no si abajo ya alcanzaba para un
+  // panel usable. Con un trigger ubicado arriba dentro de un modal alto
+  // (p.ej. #fw-picker-trigger en el paso 1 del wizard de Registro de
+  // Alimentación, ver Imagen 1 del usuario), spaceAbove terminaba
+  // ganando por poco margen aunque spaceBelow ya tuviera de sobra para
+  // mostrar la lista completa (o casi), y el panel se abría tapando el
+  // trigger y el botón Continuar en vez de desplegarse hacia abajo como
+  // el usuario espera. Ahora solo se prefiere arriba cuando abajo no
+  // llega a minUsable Y arriba realmente ofrece más lugar.
   let usedMaxHeight = maxHeight;
+  const minUsable = 160; // panel de menos que esto no muestra ni 2 opciones cómodas
   if (spaceBelow < maxHeight) {
-    if (spaceAbove > spaceBelow) {
+    if (spaceBelow < minUsable && spaceAbove > spaceBelow) {
       top = Math.max(12, rect.top - gap - Math.min(maxHeight, spaceAbove));
       usedMaxHeight = Math.min(maxHeight, spaceAbove);
     } else {
-      usedMaxHeight = Math.max(160, spaceBelow);
+      usedMaxHeight = Math.max(minUsable, spaceBelow);
     }
   }
   panel.style.top = top + 'px';
