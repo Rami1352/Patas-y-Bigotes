@@ -2599,6 +2599,101 @@ html[data-font-size="large"] .toast-container {
 .food-picker-sheet-footer .btn { flex: 1; }
 
 /* ══════════════════════════════════
+   WIZARD "REGISTRO DE DESPARASITACIÓN" — pasos 1 a 6
+   Mismo patrón EXACTO que .food-wizard-* de arriba (mismo layout, mismas
+   reglas, mismos nombres de propiedad), pero apuntando a la paleta
+   violeta de Desparasitarios (--svc-deworm / --svc-deworm-bg) en vez de
+   --sage-*, para que el wizard combine con el resto del módulo (header,
+   iconos, botón "+ Agregar") en vez de aparecer en verde ajeno.
+   Se duplica en vez de generalizar .food-wizard-* con una variable de
+   color: mismo criterio que ya usa este archivo en el backend
+   (resolveCatalogPrecioDesparasitario se mantiene separada de
+   resolveCatalogPrecio "para no modificar una función que ya usa
+   producción") -- tocar .food-wizard-* arriesga romper Alimentación
+   sin necesidad.
+══════════════════════════════════ */
+.deworm-wizard-product-card {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-top: 10px;
+  border: 1.5px solid var(--border-sm); border-radius: var(--r-md); background: var(--surface-card-alt);
+}
+.deworm-wizard-product-thumb { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: var(--svc-deworm-bg); }
+.deworm-wizard-product-thumb-fallback { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; background: var(--svc-deworm-bg); color: var(--svc-deworm); display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.deworm-wizard-product-name { font-weight: 700; font-size: 13.5px; color: var(--charcoal); line-height: 1.3; }
+.deworm-wizard-product-link { font-size: 11.5px; color: var(--svc-deworm); font-weight: 600; cursor: pointer; margin-top: 2px; display: inline-block; }
+.deworm-wizard-product-link:hover { text-decoration: underline; }
+.deworm-wizard-price-box {
+  margin-top: 14px; padding: 14px 16px; border-radius: var(--r-md);
+  background: var(--svc-deworm-bg); border: 1px solid var(--svc-deworm-border);
+}
+.deworm-wizard-price-box-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; }
+.deworm-wizard-price-box-value { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 800; color: var(--svc-deworm); margin-top: 2px; }
+
+.deworm-wizard-next-banner {
+  display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 14px 16px;
+  border-radius: var(--r-md); background: var(--svc-deworm-bg); border: 1px solid var(--svc-deworm-border);
+}
+.deworm-wizard-next-banner-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--svc-deworm-bg); color: var(--svc-deworm); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.deworm-wizard-next-banner-title { font-weight: 700; font-size: 13.5px; color: var(--charcoal); }
+.deworm-wizard-next-banner-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; line-height: 1.35; }
+
+.deworm-wizard-total-box {
+  padding: 16px; border-radius: var(--r-md); background: var(--svc-deworm-bg); border: 1px solid var(--svc-deworm-border);
+  text-align: center; margin-bottom: 16px;
+}
+.deworm-wizard-total-box-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; }
+.deworm-wizard-total-box-value { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 800; color: var(--svc-deworm); margin-top: 3px; }
+
+.deworm-wizard-pay-section-title { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 10px; }
+.deworm-wizard-pay-option {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px;
+  border: 1.5px solid var(--border-sm); border-radius: var(--r-md); cursor: pointer;
+  transition: all .18s; margin-bottom: 9px; background: var(--surface-card-alt);
+}
+.deworm-wizard-pay-option:hover { border-color: var(--svc-deworm); }
+.deworm-wizard-pay-option.checked { border-color: var(--svc-deworm); background: var(--svc-deworm-bg); }
+.deworm-wizard-pay-option input[type="radio"] { accent-color: var(--svc-deworm); width: 16px; height: 16px; flex-shrink: 0; }
+.deworm-wizard-pay-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--svc-deworm-bg); color: var(--svc-deworm); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.deworm-wizard-pay-body { flex: 1; min-width: 0; }
+.deworm-wizard-pay-title { font-weight: 700; font-size: 13.5px; color: var(--charcoal); line-height: 1.3; }
+.deworm-wizard-pay-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; line-height: 1.35; }
+.deworm-wizard-pay-option > i.fa-chevron-right { color: var(--stone); font-size: 12px; flex-shrink: 0; }
+
+.deworm-wizard-pay-alias {
+  display: none; margin: -3px 0 9px 46px; padding: 9px 12px;
+  border-radius: var(--r-sm); background: var(--svc-deworm-bg); border: 1px dashed var(--svc-deworm-border);
+}
+.deworm-wizard-pay-alias.show { display: flex; align-items: center; gap: 8px; }
+.deworm-wizard-pay-alias i { color: var(--svc-deworm); font-size: 12px; flex-shrink: 0; }
+.deworm-wizard-pay-alias-label { font-size: 11px; color: var(--stone); font-weight: 600; flex-shrink: 0; }
+.deworm-wizard-pay-alias-value { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--charcoal); word-break: break-all; }
+.deworm-wizard-pay-alias-copy { margin-left: auto; background: none; border: none; color: var(--svc-deworm); cursor: pointer; font-size: 12px; flex-shrink: 0; padding: 2px 4px; }
+.deworm-wizard-pay-alias-copy:hover { opacity: .8; }
+
+/* Paso 6 — resumen previo a confirmar */
+.deworm-wizard-confirm-badge {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px;
+  border-radius: var(--r-md); background: var(--svc-deworm-bg); border: 1px solid var(--svc-deworm-border);
+}
+.deworm-wizard-confirm-badge-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--svc-deworm); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.deworm-wizard-confirm-badge-title { font-weight: 700; font-size: 13px; color: var(--charcoal); }
+.deworm-wizard-confirm-badge-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; }
+.deworm-wizard-summary-section-title { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; }
+.deworm-wizard-summary-section-title:first-child { margin-top: 0; }
+.deworm-wizard-pay-selected-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border-sm); border-radius: var(--r-md); background: var(--surface-card-alt);
+}
+.deworm-wizard-pay-selected-row .deworm-wizard-pay-icon { width: 30px; height: 30px; font-size: 12px; }
+
+/* Pantalla final — "Pedido confirmado" (Desparasitación). Mismas clases
+   .food-order-done-* que Alimentación (son genéricas, no llevan color
+   de marca propio salvo el círculo de check, que ya usa --sage-light/
+   --sage-solid vía CSS). Se sobreescribe SOLO el círculo del check acá,
+   con un selector más específico, para que quede violeta en vez de
+   verde cuando el wizard de Desparasitación termina. */
+#modal-wizard-deworm .food-order-done-check { background: var(--svc-deworm-bg); color: var(--svc-deworm); }
+
+/* ══════════════════════════════════
    SELECTOR VISUAL DE PRODUCTO DESPARASITARIO
    (Registro de Desparasitación → campo "Producto")
    Mismo patrón EXACTO que el selector de alimento de arriba
@@ -6634,23 +6729,86 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <div class="toast-container" id="toast-container"></div>
 
-<!-- ── MODAL DESPARASITARIOS ── -->
-<div class="modal-overlay" id="modal-add-deworm">
-  <div class="modal">
+<!-- ── WIZARD DESPARASITARIOS — pasos 1 a 6 ──
+     Mismo patrón EXACTO que #modal-wizard-food (Registro de
+     Alimentación): 6 pasos (Mascota y producto / Fechas / Info
+     adicional / Método de pago / Confirmación / Pago registrado),
+     usando las clases .wizard-* genéricas (compartidas con Alimentación
+     y con el wizard "Agregar Mascota") y las clases .deworm-wizard-*
+     nuevas (mismo rol que .food-wizard-*, ver CSS) para el color de
+     marca violeta.
+     A DIFERENCIA de Alimentación (que separa "Mascota y alimento" del
+     paso 1 y "Precio y porción" del paso 2), acá el paso 1 combina
+     mascota + producto + precio en un solo panel (no hay campo de
+     "porción/frecuencia" que justifique un paso propio en
+     Desparasitación), así que el wizard queda en 6 pasos igual pero
+     con contenido: 1) Mascota y producto, 2) Fechas, 3) Info adicional
+     (notas), 4) Método de pago, 5) Confirmación, 6) Pago registrado.
+     El editingDewormId sigue viviendo tal cual (ver JS): el wizard
+     también sirve para EDITAR un registro existente, no solo para
+     alta nueva -- en modo edición se salta el paso de pago (ver
+     dwGoStep) porque un registro ya cargado no vuelve a cobrarse.
+     IDs del picker de producto (#deworm-product, #deworm-price,
+     #deworm-picker-trigger, etc.) se mantienen LITERALES, sin
+     prefijo: son los mismos que ya lee/escribe
+     openDewormPicker/setDewormPickerValue/confirmDewormPickerSelection,
+     así que el picker existente (#deworm-picker-overlay, más abajo)
+     sigue funcionando sin ningún cambio. -->
+<div class="modal-overlay" id="modal-wizard-deworm">
+  <div class="modal" style="max-width:460px">
     <div class="modal-header">
-      <div class="modal-title modal-title--inter"><svg width="18" height="8" viewBox="0 0 44 20" style="transform:rotate(-45deg)" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 1h20a9 9 0 0 1 0 18H12z" fill="#F9A825"/><path d="M12 1a9 9 0 0 0 0 18h10V1z" fill="#E53935"/></svg> <span id="deworm-modal-title-text">Agregar Desparasitación</span></div>
-      <button class="modal-close" onclick="closeModal('modal-add-deworm')"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-title modal-title--inter"><svg width="18" height="8" viewBox="0 0 44 20" style="transform:rotate(-45deg)" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 1h20a9 9 0 0 1 0 18H12z" fill="#F9A825"/><path d="M12 1a9 9 0 0 0 0 18h10V1z" fill="#E53935"/></svg> <span id="dw-modal-title-text">Agregar Desparasitación</span></div>
+      <button class="modal-close" onclick="closeDewormWizard()"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <div class="modal-body">
-      <div class="form-row"><label>Mascota *</label><select class="form-control" id="deworm-dog"></select></div>
+
+    <div class="wizard-steps" id="dw-steps">
+      <div class="wizard-step" data-dwstep="1">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-paw"></i></div>
+        <div class="wizard-step-label">Mascota y producto</div>
+      </div>
+      <div class="wizard-step" data-dwstep="2">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-calendar-days"></i></div>
+        <div class="wizard-step-label">Fechas de aplicación</div>
+      </div>
+      <div class="wizard-step" data-dwstep="3">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-note-sticky"></i></div>
+        <div class="wizard-step-label">Información adicional</div>
+      </div>
+      <div class="wizard-step" data-dwstep="4">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-credit-card"></i></div>
+        <div class="wizard-step-label">Método de pago</div>
+      </div>
+      <div class="wizard-step" data-dwstep="5">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-check"></i></div>
+        <div class="wizard-step-label">Confirmación</div>
+      </div>
+      <div class="wizard-step" data-dwstep="6">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-receipt"></i></div>
+        <div class="wizard-step-label">Pago registrado</div>
+      </div>
+    </div>
+
+    <!-- Contenedor que se reemplaza entero por la pantalla de "Procesando
+         pago…" (dwMostrarAnimacionPago) y, cuando el pago resuelve, por
+         "Pedido registrado" (dwShowOrderDone). Mientras tanto contiene
+         los 6 paneles + la barra de navegación. -->
+    <div id="dw-body-wrap">
+
+    <!-- ── PASO 1 — Mascota y producto ── -->
+    <div class="wizard-panel" data-dwpanel="1">
+      <div class="form-row"><label>Mascota *</label><select class="form-control" id="deworm-dog" onchange="dwSyncDogSummary()"></select></div>
       <div class="form-row">
         <label>Producto *</label>
         <!-- Trigger visible: abre el selector (dropdown en desktop, bottom
-             sheet en mobile). Nunca se lee directo en saveDeworm/editDeworm:
-             el valor real vive en el input oculto #deworm-product de abajo,
-             que es el mismo id que ya usaban esas funciones, así que no
-             hace falta tocarlas. Mismo patrón exacto que #food-brand en el
-             modal de Registro de Alimentación. -->
+             sheet en mobile). El valor real vive en el input oculto
+             #deworm-product de abajo -- mismo id de siempre, así que
+             openDewormPicker/setDewormPickerValue no se tocan. -->
         <button type="button" class="deworm-picker-trigger" id="deworm-picker-trigger" onclick="openDewormPicker()">
           <span class="deworm-picker-trigger-label deworm-picker-trigger-placeholder" id="deworm-picker-trigger-label">Seleccionar producto</span>
           <i class="fa-solid fa-chevron-down"></i>
@@ -6664,54 +6822,194 @@ document.addEventListener('DOMContentLoaded', function () {
           <input class="form-control" id="deworm-product-manual" placeholder="Ej: Bravecto, NexGard, Milbemax…" oninput="syncDewormManualToHidden()" />
         </div>
       </div>
-      <!-- Precio del producto: SOLO LECTURA para el cliente. Mismo patrón
-           exacto que #food-price-row en el modal de Registro de
-           Alimentación. Se completa solo al elegir un producto del
-           catálogo (ver setDewormPickerValue), leyendo el precio que ya
-           viene resuelto en state.dewormCatalog (Apps Script: columna
-           "precios_desparasitarios"). El input visible está siempre
-           disabled -- nadie puede tipear ahí, ni admin ni cliente. El
-           valor numérico real vive en el hidden #deworm-price; no hace
-           falta que saveDeworm lo lea ni lo mande al backend, porque el
-           Apps Script (handleAddDesparasitario/handleUpdateDesparasitario)
-           ya resuelve su propio precio_registro_de_desparasitacion vía
-           resolveCatalogPrecioDesparasitario(product) de forma
-           independiente -- mismo patrón que #food-price, que tampoco se
-           envía en saveFood. Se oculta toda la fila cuando el producto no
-           tiene precio cargado en el catálogo (precio 0 o "Agregar
-           producto nuevo"), para no mostrar "$ 0". -->
-      <div class="form-row" id="deworm-price-row" style="display:none">
-        <label>Precio del producto</label>
-        <input class="form-control" id="deworm-price-display" disabled placeholder="—" />
-        <input type="hidden" id="deworm-price" value="0" />
+      <!-- Tarjeta con el producto ya elegido: se completa sola apenas se
+           confirma una selección en el picker (ver dwRenderProductCard,
+           llamada desde setDewormPickerValue). -->
+      <div class="deworm-wizard-product-card" id="dw-product-card" style="display:none">
+        <img class="deworm-wizard-product-thumb" id="dw-product-thumb" src="" alt="" style="display:none" />
+        <div class="deworm-wizard-product-thumb-fallback" id="dw-product-thumb-fallback"><i class="fa-solid fa-shield-heart"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="deworm-wizard-product-name" id="dw-product-name">—</div>
+          <span class="deworm-wizard-product-link" onclick="openDewormPicker()">Ver detalles del producto</span>
+        </div>
       </div>
-      <!-- Campo "Descripción / Dosis" ELIMINADO a propósito: era un campo de
-           texto libre aparte del producto elegido en el picker, y al
-           tipear ahí la misma dosis que ya venía en el nombre del producto
-           (ej. producto "Bravecto de 4,5 a 10 kg (3 meses)" + descripción
-           "Bravecto 4,5 a 10kg (3 meses)") el resultado quedaba duplicado
-           en la tabla ("Bravecto de 4,5 a 10 kg (3 meses) — Bravecto 4,5 a
-           10kg (3 meses)"), porque saveDeworm concatenaba
-           product + ' — ' + desc sin más. El producto elegido en el picker
-           ya trae su propia dosis/descripción en el nombre (ver catálogo
-           de Desparasitarios), así que este campo era redundante. Se
-           quita el input y, más abajo en el JS, saveDeworm/editDeworm/
-           duplicateDeworm dejan de leer/enviar/repartir "desc" — ver
-           comentarios ahí. -->
-      <div class="form-row-2">
-        <div class="form-row"><label>Última aplicación</label><input class="form-control" id="deworm-last" type="date" /></div>
-        <div class="form-row"><label>Próxima aplicación</label><input class="form-control" id="deworm-next" type="date" /></div>
+      <!-- Precio del producto: SOLO LECTURA para el cliente. Se completa
+           solo al elegir un producto del catálogo, leyendo el precio ya
+           resuelto en state.dewormCatalog. El valor numérico real vive
+           en el hidden #deworm-price; no hace falta que dwSubmitPayment
+           lo mande al backend para el registro en sí, porque Apps
+           Script (handleAddDesparasitario) resuelve su propio
+           precio_registro_de_desparasitacion de forma independiente --
+           acá se usa solo para calcular el Total a pagar del paso 4. -->
+      <div class="deworm-wizard-price-box" id="dw-price-box-1" style="display:none">
+        <div class="deworm-wizard-price-box-label">Precio del producto</div>
+        <div class="deworm-wizard-price-box-value" id="dw-price-box-value-1">$ 0</div>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modal-add-deworm')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveDeworm()">Guardar</button>
+
+    <!-- ── PASO 2 — Fechas de aplicación ── -->
+    <div class="wizard-panel" data-dwpanel="2">
+      <div class="form-row">
+        <label>Mascota</label>
+        <div class="deworm-wizard-product-card" style="margin-top:0">
+          <img class="deworm-wizard-product-thumb" id="dw-p2-dog-thumb" src="" alt="" style="display:none" />
+          <div class="deworm-wizard-product-thumb-fallback" id="dw-p2-dog-icon"><i class="fa-solid fa-paw"></i></div>
+          <div class="deworm-wizard-product-name" id="dw-p2-dog-name">—</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>Producto</label>
+        <div class="deworm-wizard-product-card" style="margin-top:0">
+          <img class="deworm-wizard-product-thumb" id="dw-p2-thumb" src="" alt="" style="display:none" />
+          <div class="deworm-wizard-product-thumb-fallback" id="dw-p2-thumb-fallback"><i class="fa-solid fa-shield-heart"></i></div>
+          <div class="deworm-wizard-product-name" id="dw-p2-name">—</div>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-row"><label>Última aplicación *</label><input class="form-control" id="deworm-last" type="date" onchange="dwRenderNextBanner()" /></div>
+        <div class="form-row"><label>Próxima aplicación *</label><input class="form-control" id="deworm-next" type="date" onchange="dwRenderNextBanner()" /></div>
+      </div>
+      <div class="deworm-wizard-next-banner" id="dw-next-banner" style="display:none">
+        <div class="deworm-wizard-next-banner-icon"><i class="fa-solid fa-bell"></i></div>
+        <div>
+          <div class="deworm-wizard-next-banner-title" id="dw-next-banner-title">—</div>
+          <div class="deworm-wizard-next-banner-sub">Te avisaremos 7 días antes de la próxima aplicación.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 3 — Información adicional (notas, opcional) ── -->
+    <div class="wizard-panel" data-dwpanel="3">
+      <div class="form-row">
+        <label>Notas (opcional)</label>
+        <textarea class="form-control" id="dw-notes" rows="4" maxlength="250" placeholder="Ej: Sin reacciones, se aplicó correctamente, etc." oninput="dwUpdateNotesCount()"></textarea>
+        <div class="deworm-wizard-notes-count" id="dw-notes-count" style="text-align:right;font-size:11px;color:var(--mist);margin-top:4px">0/250</div>
+      </div>
+      <div class="deworm-wizard-next-banner">
+        <div class="deworm-wizard-next-banner-icon"><i class="fa-solid fa-lightbulb"></i></div>
+        <div>
+          <div class="deworm-wizard-next-banner-title">Consejo</div>
+          <div class="deworm-wizard-next-banner-sub">Aplicá el producto sobre la piel seca y entre los omóplatos de tu mascota.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 4 — Método de pago ──
+         Alias de Mercado Pago / Transferencia: aparecen debajo de cada
+         opción de pago, solo cuando esa opción está tildada (ver
+         dwSelectPayment). Mismos 3 métodos y mismos alias que
+         Alimentación (FOOD_WIZARD_PAYMENT_METHODS): son alias del
+         negocio, no de la sección, así que se reutiliza la misma
+         constante en vez de duplicarla. -->
+    <div class="wizard-panel" data-dwpanel="4">
+      <div class="deworm-wizard-total-box">
+        <div class="deworm-wizard-total-box-label">Total a pagar</div>
+        <div class="deworm-wizard-total-box-value" id="dw-total-value">$ 0</div>
+      </div>
+      <div class="deworm-wizard-pay-section-title">Elegí tu método de pago</div>
+      <div id="dw-pay-list"></div>
+
+      <!-- ── FORM DE TARJETA — Mercado Pago (Checkout API / cardForm) ──
+           Mismo patrón exacto que #mp-card-form (Alimentación), pero con
+           ids propios (dw-mp-card-form / dw-form-checkout__*): el SDK de
+           Mercado Pago no permite montar dos cardForm distintos sobre el
+           mismo set de ids -- si Alimentación y Desparasitación
+           compartieran ids, abrir un wizard después del otro (sin
+           recargar la página) rompería el que se montó primero. -->
+      <form id="dw-mp-card-form" style="display:none; margin-top:16px">
+        <div class="form-row">
+          <label>Número de tarjeta *</label>
+          <div class="form-control" id="dw-form-checkout__cardNumber"></div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Vencimiento *</label>
+            <div class="form-control" id="dw-form-checkout__expirationDate"></div>
+          </div>
+          <div class="form-row">
+            <label>Código de seguridad *</label>
+            <div class="form-control" id="dw-form-checkout__securityCode"></div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Nombre del titular *</label>
+          <input class="form-control" id="dw-form-checkout__cardholderName" type="text" placeholder="Como figura en la tarjeta" />
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Tipo de documento *</label>
+            <select class="form-control" id="dw-form-checkout__identificationType"></select>
+          </div>
+          <div class="form-row">
+            <label>Número de documento *</label>
+            <input class="form-control" id="dw-form-checkout__identificationNumber" type="text" inputmode="numeric" placeholder="Sin puntos" />
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row">
+            <label>Banco emisor *</label>
+            <select class="form-control" id="dw-form-checkout__issuer"></select>
+          </div>
+          <div class="form-row">
+            <label>Cuotas *</label>
+            <select class="form-control" id="dw-form-checkout__installments"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Email *</label>
+          <input class="form-control" id="dw-form-checkout__cardholderEmail" type="email" placeholder="tu@email.com" />
+        </div>
+        <!-- Sin <button type="submit">: el submit lo dispara dwGoStep desde
+             el botón "Confirmar pedido" del wizard (ver dwSubmitPayment). -->
+      </form>
+    </div>
+
+    <!-- ── PASO 5 — Confirmación (resumen antes de confirmar) ── -->
+    <div class="wizard-panel" data-dwpanel="5">
+      <div class="deworm-wizard-confirm-badge">
+        <div class="deworm-wizard-confirm-badge-icon"><i class="fa-solid fa-shield-halved"></i></div>
+        <div>
+          <div class="deworm-wizard-confirm-badge-title">Revisá tu pedido</div>
+          <div class="deworm-wizard-confirm-badge-sub">Verificá que toda la información esté correcta antes de confirmar.</div>
+        </div>
+      </div>
+      <div class="deworm-wizard-summary-section-title">Resumen de la compra</div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Mascota</span><span class="wizard-summary-value" id="dw-sum-dog">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Producto</span><span class="wizard-summary-value" id="dw-sum-product">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Última aplicación</span><span class="wizard-summary-value" id="dw-sum-last">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Próxima aplicación</span><span class="wizard-summary-value" id="dw-sum-next">—</span></div>
+      <div class="wizard-summary-row"><span class="wizard-summary-label">Notas</span><span class="wizard-summary-value" id="dw-sum-notes">Sin notas</span></div>
+      <div class="deworm-wizard-summary-section-title">Método de pago</div>
+      <div class="deworm-wizard-pay-selected-row">
+        <div class="deworm-wizard-pay-icon" id="dw-sum-pay-icon"><i class="fa-solid fa-credit-card"></i></div>
+        <div style="flex:1;min-width:0">
+          <div class="food-wizard-pay-title" id="dw-sum-pay-name">—</div>
+          <div class="food-wizard-pay-sub" id="dw-sum-pay-alias" style="display:none">—</div>
+        </div>
+      </div>
+      <!-- No mostramos precios: mismo criterio de discreción que pidió el
+           negocio en Alimentación -- se coordina el cobro/entrega por
+           fuera en vez de exponer montos en la pantalla de resumen. -->
+      <div class="deworm-wizard-next-banner" style="margin-top:16px">
+        <div class="deworm-wizard-next-banner-icon"><i class="fa-solid fa-lock"></i></div>
+        <div>
+          <div class="deworm-wizard-next-banner-title">No mostramos precios</div>
+          <div class="deworm-wizard-next-banner-sub">Nos comunicaremos para coordinar el pago y la entrega.</div>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /#dw-body-wrap -->
+
+    <div class="wizard-nav" id="dw-nav">
+      <button class="btn btn-secondary" id="dw-btn-back" onclick="dwGoStep(-1)">Atrás</button>
+      <button class="btn btn-primary" id="dw-btn-next" onclick="dwGoStep(1)">Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i></button>
     </div>
   </div>
 </div>
 
 <!-- ── SELECTOR VISUAL DE PRODUCTO DESPARASITARIO (dropdown desktop / bottom sheet mobile) ──
-     Vive fuera de #modal-add-deworm a propósito: en mobile es un bottom
+     Vive fuera de #modal-wizard-deworm a propósito: en mobile es un bottom
      sheet que se apila ARRIBA del modal padre (z-index superior), y en
      desktop se posiciona con position:fixed calculado desde el trigger,
      lo cual es más simple si no está anidado dentro del overflow:auto
@@ -9070,93 +9368,229 @@ function hideFoodSuccess() {
   clearTimeout(foodSuccessTimer);
 }
 
-/* ── DESPARASITARIOS ── */
+/* ── DESPARASITARIOS ──
+   openDewormModal() se mantiene con este nombre (no se renombra a
+   openDewormWizard) porque es el que ya invocan los dos botones "+
+   Agregar" existentes (ver renderModuleDesparasitarios) — cambiar el
+   nombre obligaría a tocar esos onclick también, sin necesidad. Lo que
+   cambia es SU CONTENIDO: ahora prepara y abre el wizard de 6 pasos
+   (#modal-wizard-deworm) en vez del modal simple de antes.
+   saveDeworm() DESAPARECE como punto de guardado de alta nueva: ese rol
+   lo cumple ahora dwSubmitPayment() → dwCompleteOrderAfterPayment(),
+   que recién guarda el registro después de que el pago resuelve (mismo
+   criterio exacto que fwSubmitPayment/fwCompleteOrderAfterPayment en
+   Alimentación). editDeworm() SÍ sigue guardando directo (sin pasar por
+   pago): un registro que ya se pagó una vez no vuelve a cobrarse solo
+   por corregir una fecha o el producto, así que edición usa su propio
+   camino corto, dwSaveEdit(). */
 function openDewormModal() {
+  editingDewormId = null;
+  dwCurrentStep = 1;
+  dwSelectedPaymentKey = null;
+  // Mismo motivo que fwMountedCardForm en openFoodWizard: cualquier
+  // cardForm de una apertura anterior quedó sobre nodos por reemplazar,
+  // así que se descarta la referencia sin desmontar.
+  dwMountedCardForm = null;
+
+  const wrap = document.getElementById('dw-body-wrap');
+  if (wrap) {
+    if (dwBodyWrapOriginalHtml === null) dwBodyWrapOriginalHtml = wrap.innerHTML;
+    else wrap.innerHTML = dwBodyWrapOriginalHtml;
+  }
+  const steps = document.getElementById('dw-steps');
+  const nav = document.getElementById('dw-nav');
+  if (steps) steps.style.display = '';
+  if (nav) nav.style.display = '';
+
   let dogsToShow = state.dogs;
   if (!isAdmin()) {
     dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
   }
   document.getElementById('deworm-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
-  // Reset fields ('deworm-desc' ya no existe, ver comentario junto al
-  // campo eliminado en el HTML del modal)
-  ['deworm-product','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
-  setDewormPickerValue(''); // limpia también el trigger visual y la fila manual, no solo el hidden #deworm-product
-  // openDewormModal() es el punto de entrada para ALTA nueva (botón
-  // "+ Agregar"). editDeworm() (ver más abajo) es quien abre este mismo
-  // modal para EDITAR, y ahí sí se setea editingDewormId junto con el
-  // título/botón en modo edición. Por eso acá, cada vez que se entra por
-  // este camino, hay que devolver todo a su estado de alta nueva —si no,
-  // reabrir "+ Agregar" después de haber editado un registro seguiría
-  // pensando que se está editando ese registro viejo.
-  editingDewormId = null;
-  document.getElementById('deworm-modal-title-text').textContent = 'Agregar Desparasitación';
-  document.querySelector('#modal-add-deworm .btn-primary').textContent = 'Guardar';
-  openModal('modal-add-deworm');
+
+  ['deworm-last','deworm-next'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const notesEl = document.getElementById('dw-notes'); if (notesEl) notesEl.value = '';
+  dwUpdateNotesCount();
+  const banner = document.getElementById('dw-next-banner'); if (banner) banner.style.display = 'none';
+  setDewormPickerValue(''); // limpia trigger + fila manual + fila de precio + tarjetas de resumen del wizard
+  dwSyncDogSummary();
+
+  document.getElementById('dw-modal-title-text').textContent = 'Agregar Desparasitación';
+  dwRenderPaymentList();
+  dwRenderStep();
+  openModal('modal-wizard-deworm');
 }
 
-async function saveDeworm() {
+function closeDewormWizard() { closeModal('modal-wizard-deworm'); }
+
+// Sincroniza la mascota elegida en el paso 1 hacia la tarjeta de
+// resumen del paso 2: nombre + foto. Mismo patrón exacto que
+// fwSyncDogSummary (Alimentación).
+function dwSyncDogSummary() {
+  const sel = document.getElementById('deworm-dog');
+  const opt = sel && sel.options[sel.selectedIndex];
+  const nameEl = document.getElementById('dw-p2-dog-name');
+  if (nameEl) nameEl.textContent = opt ? opt.textContent : '—';
+
+  const dog = opt ? getDog(isNaN(opt.value) ? opt.value : Number(opt.value)) : null;
+  const thumb = document.getElementById('dw-p2-dog-thumb');
+  const fallback = document.getElementById('dw-p2-dog-icon');
+  if (dog && dog.photo) {
+    if (thumb) {
+      thumb.src = dog.photo;
+      thumb.alt = dog.name || '';
+      thumb.style.objectPosition = photoPosition(dog);
+      thumb.style.display = '';
+      thumb.onerror = function () { this.style.display = 'none'; if (fallback) fallback.style.display = 'flex'; };
+    }
+    if (fallback) fallback.style.display = 'none';
+  } else {
+    if (thumb) thumb.style.display = 'none';
+    if (fallback) fallback.style.display = 'flex';
+  }
+}
+
+// Repinta la tarjeta de producto elegido en los pasos 1 y 2, y la caja
+// de precio (pasos 1/4), a partir del match del catálogo (o null si es
+// un producto tipeado a mano). Llamada desde setDewormPickerValue
+// (ver más abajo) cada vez que el producto elegido cambia, así que se
+// mantiene sincronizada sin importar por qué camino se terminó de
+// elegir (catálogo, edición, o entrada manual).
+function dwRenderProductCard(match, productName) {
+  const hasProduct = !!(productName && productName.trim());
+  const card1 = document.getElementById('dw-product-card');
+  if (card1) card1.style.display = hasProduct ? 'flex' : 'none';
+  const thumb1 = document.getElementById('dw-product-thumb');
+  const thumbFallback1 = document.getElementById('dw-product-thumb-fallback');
+  const name1 = document.getElementById('dw-product-name');
+  if (name1) name1.textContent = productName || '—';
+  if (match && match.foto) {
+    if (thumb1) { thumb1.src = match.foto; thumb1.style.display = ''; thumb1.onerror = function () { this.style.display = 'none'; if (thumbFallback1) thumbFallback1.style.display = 'flex'; }; }
+    if (thumbFallback1) thumbFallback1.style.display = 'none';
+  } else {
+    if (thumb1) thumb1.style.display = 'none';
+    if (thumbFallback1) thumbFallback1.style.display = 'flex';
+  }
+
+  const p2Thumb = document.getElementById('dw-p2-thumb');
+  const p2ThumbFallback = document.getElementById('dw-p2-thumb-fallback');
+  const p2Name = document.getElementById('dw-p2-name');
+  if (p2Name) p2Name.textContent = productName || '—';
+  if (match && match.foto) {
+    if (p2Thumb) { p2Thumb.src = match.foto; p2Thumb.style.display = ''; p2Thumb.onerror = function () { this.style.display = 'none'; if (p2ThumbFallback) p2ThumbFallback.style.display = 'flex'; }; }
+    if (p2ThumbFallback) p2ThumbFallback.style.display = 'none';
+  } else {
+    if (p2Thumb) p2Thumb.style.display = 'none';
+    if (p2ThumbFallback) p2ThumbFallback.style.display = 'flex';
+  }
+
+  const price = (match && match.precio > 0) ? match.precio : 0;
+  const priceBox1 = document.getElementById('dw-price-box-1');
+  if (priceBox1) {
+    priceBox1.style.display = price > 0 ? 'block' : 'none';
+    const val1 = document.getElementById('dw-price-box-value-1');
+    if (val1) val1.textContent = formatCLP(price);
+  }
+  dwRenderPaymentList(); // el total a pagar (paso 4) depende del precio del producto
+}
+
+function dwUpdateNotesCount() {
+  const el = document.getElementById('dw-notes');
+  const counter = document.getElementById('dw-notes-count');
+  if (el && counter) counter.textContent = (el.value || '').length + '/250';
+}
+
+// "Te avisaremos 7 días antes…" del paso 2 (mismo rol que
+// fwRenderNextBanner en Alimentación, adaptado al texto de recordatorio
+// de Desparasitación en vez de "En X días"). Usa la fecha de "Próxima
+// aplicación" para decidir si mostrar el banner.
+function dwRenderNextBanner() {
+  const banner = document.getElementById('dw-next-banner');
+  const titleEl = document.getElementById('dw-next-banner-title');
+  if (!banner || !titleEl) return;
+  const nextVal = document.getElementById('deworm-next').value;
+  if (!nextVal) { banner.style.display = 'none'; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const nextDate = new Date(nextVal + 'T00:00:00');
+  const diffDays = Math.round((nextDate - today) / 86400000);
+  if (isNaN(diffDays)) { banner.style.display = 'none'; return; }
+  if (diffDays > 0) titleEl.textContent = `Próxima aplicación en ${diffDays} día${diffDays === 1 ? '' : 's'}`;
+  else if (diffDays === 0) titleEl.textContent = 'La próxima aplicación es hoy';
+  else titleEl.textContent = `Próxima aplicación hace ${Math.abs(diffDays)} día${Math.abs(diffDays) === 1 ? '' : 's'}`;
+  banner.style.display = 'flex';
+}
+
+async function editDeworm(id) {
+  const h = state.health.find(x => x.id === id);
+  if (!h) return;
+  editingDewormId = id;
+  dwCurrentStep = 1;
+  dwSelectedPaymentKey = null;
+  dwMountedCardForm = null;
+
+  const wrap = document.getElementById('dw-body-wrap');
+  if (wrap) {
+    if (dwBodyWrapOriginalHtml === null) dwBodyWrapOriginalHtml = wrap.innerHTML;
+    else wrap.innerHTML = dwBodyWrapOriginalHtml;
+  }
+  const steps = document.getElementById('dw-steps');
+  const nav = document.getElementById('dw-nav');
+  if (steps) steps.style.display = '';
+  if (nav) nav.style.display = '';
+
+  let dogsToShow = state.dogs;
+  if (!isAdmin()) dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  document.getElementById('deworm-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}"${d.id===h.dogId?' selected':''}>${d.name} (${d.owner})</option>`).join('');
+  // Ya no hace falta separar h.desc en dos partes (product/desc): desde
+  // que se eliminó el campo "Descripción / Dosis", el registro guarda
+  // h.desc = h.type = el nombre del producto directamente, sin " — "
+  // concatenado. Para registros VIEJOS que sí tengan el separador " — "
+  // (guardados antes de ese cambio), se toma solo lo que hay antes del
+  // primer " — " para no reintroducir la descripción vieja en el picker.
+  const productoPuro = String(h.desc || h.type || '').split(' — ')[0];
+  await ensureDewormCatalogLoaded();
+  setDewormPickerValue(productoPuro);
+  document.getElementById('deworm-last').value = h.last || '';
+  document.getElementById('deworm-next').value = h.next || '';
+  const notesEl = document.getElementById('dw-notes'); if (notesEl) notesEl.value = h.notes || '';
+  dwUpdateNotesCount();
+  dwRenderNextBanner();
+  dwSyncDogSummary();
+
+  document.getElementById('dw-modal-title-text').textContent = 'Editar Desparasitación';
+  dwRenderStep();
+  openModal('modal-wizard-deworm');
+}
+
+// Guarda una edición existente. A diferencia del alta nueva (que pasa
+// por dwSubmitPayment → método de pago → dwCompleteOrderAfterPayment),
+// una edición NO vuelve a cobrar nada: el pago ya se hizo la primera
+// vez que se dio de alta el registro. dwGoStep salta directo del paso 3
+// (notas) al 5 (confirmación) cuando editingDewormId está seteado (ver
+// dwGoStep), y este es el botón "Confirmar pedido" de ESE resumen en
+// modo edición.
+async function dwSaveEdit() {
   const dogId   = parseInt(document.getElementById('deworm-dog').value);
   const product = document.getElementById('deworm-product').value.trim();
   const last    = document.getElementById('deworm-last').value;
   const next    = document.getElementById('deworm-next').value;
+  const notes   = (document.getElementById('dw-notes').value || '').trim();
   if (!dogId || !product) { showToast('Completá la mascota y el producto', 'error'); return; }
-  // "desc" eliminado: antes se armaba fullDesc = product + ' — ' + desc a
-  // partir de un campo de texto libre aparte, lo que producía duplicados
-  // cuando alguien tipeaba ahí la misma dosis que ya traía el nombre del
-  // producto (ver comentario junto al campo eliminado en el HTML). Ahora
-  // h.desc guarda directamente el nombre del producto, sin concatenar
-  // nada extra — la tabla y el resto del código ya toleran esto (si
-  // desc === type, no lo duplica; ver render de la columna "Producto").
-  const wasEditing = !!editingDewormId;
-  let newId = null;
-  let recordId = null;
-  if (editingDewormId) {
-    const h = state.health.find(x => x.id === editingDewormId);
-    if (h) Object.assign(h, { dogId, type: product, category: 'Desparasitación', desc: product, last, next });
-    recordId = editingDewormId;
-  } else {
-    // El id se genera ACÁ, antes de guardar nada, y es el mismo valor que
-    // se manda más abajo al Apps Script como columna "Id" de la hoja
-    // "Desparasitarios". Es lo que le permite a deleteDeworm(), después,
-    // decirle a la planilla "borrá la fila con este Id" sin ambigüedad
-    // (mismo patrón que saveFood/genFoodId más arriba).
-    newId = genDewormId();
-    recordId = newId;
-    state.health.push({ id: newId, dogId, type: product, category: 'Desparasitación', desc: product, last, next });
-  }
+  if (!last || !next) { showToast('Completá ambas fechas de aplicación', 'error'); return; }
+
+  const h = state.health.find(x => x.id === editingDewormId);
+  if (h) Object.assign(h, { dogId, type: product, category: 'Desparasitación', desc: product, last, next, notes });
+  const recordId = editingDewormId;
   editingDewormId = null;
   saveHealthToLS();
-  ['deworm-product','deworm-last','deworm-next'].forEach(id => { document.getElementById(id).value = ''; });
-  document.getElementById('deworm-modal-title-text').textContent = 'Agregar Desparasitación';
-  document.querySelector('#modal-add-deworm .btn-primary').textContent = 'Guardar';
-  closeModal('modal-add-deworm');
+  closeDewormWizard();
   if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
   refreshNotifBell();
-  showToast(wasEditing ? 'Cambios guardados' : 'Desparasitación guardada', 'success');
-  // Enviar a Google Sheets para que el registro se vea en todas las
-  // computadoras, no solo en la que lo cargó (localStorage es por navegador).
-  // FIX: antes esto solo corría en alta nueva (if (!wasEditing)) y la
-  // edición quedaba solo en memoria/localStorage, así que al recargar
-  // (loadHealthFoodHomeCareFromSheet trae de nuevo los datos de la hoja)
-  // el cambio se perdía. Ahora se sincroniza siempre: updateDesparasitario
-  // cuando wasEditing es true (pisa la fila existente por Id), addDesparasitario
-  // cuando es alta nueva.
+  showToast('Cambios guardados', 'success');
   try {
     const dog = getDog(dogId);
-    // FIX (mismo bug que en saveHomeCare/saveFood): se mandaba
-    // currentUser.email en vez de dog.mail, así que al sincronizar
-    // matchDogByNombreMail() no encontraba la mascota (comparaba el
-    // mail del admin contra el mail real del dueño) y la fila se
-    // descartaba en silencio de state.health.
-    const action = wasEditing ? 'updateDesparasitario' : 'addDesparasitario';
-    // "&desc=" eliminado del request: ya no existe un campo de descripción
-    // separado (ver comentarios más arriba). El Apps Script v19 ya no
-    // necesita p.desc para nada relevante -- ver handleAddDesparasitario/
-    // handleUpdateDesparasitario, que ahora resuelven el precio contra
-    // p.product directamente y guardan "descripcion" = mismo valor que
-    // "producto" solo para no romper esa columna vieja de la hoja.
     const url = APPS_SCRIPT_URL
-      + '?action=' + action
+      + '?action=updateDesparasitario'
       + '&id=' + encodeURIComponent(recordId)
       + '&name=' + encodeURIComponent(dog.name || '')
       + '&mail=' + encodeURIComponent(dog.mail || '')
@@ -9169,49 +9603,19 @@ async function saveDeworm() {
       const errMsg = (Array.isArray(res) && res[0] && res[0].error) ? res[0].error : 'la planilla no confirmó el guardado';
       addLiveLog('[WARN] No se pudo sincronizar Desparasitario con la planilla: ' + errMsg, 'err');
     }
-    notifyAdmin('desparasitario', wasEditing ? 'modificacion' : 'alta', dog.name || '', product);
+    notifyAdmin('desparasitario', 'modificacion', dog.name || '', product);
   } catch (e) {
     addLiveLog('[WARN] Desparasitación guardada solo local (sin conexión a planilla): ' + e.message, 'err');
   }
 }
 
-async function editDeworm(id) {
-  const h = state.health.find(x => x.id === id);
-  if (!h) return;
-  editingDewormId = id;
-  let dogsToShow = state.dogs;
-  if (!isAdmin()) dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
-  document.getElementById('deworm-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}"${d.id===h.dogId?' selected':''}>${d.name} (${d.owner})</option>`).join('');
-  // Ya no hace falta separar h.desc en dos partes (product/desc): desde
-  // que se eliminó el campo "Descripción / Dosis", saveDeworm guarda
-  // h.desc = h.type = el nombre del producto directamente, sin " — "
-  // concatenado. Para registros VIEJOS que sí tengan el separador " — "
-  // (guardados antes de este cambio), se toma solo lo que hay antes del
-  // primer " — " para no reintroducir la descripción vieja en el picker.
-  const productoPuro = String(h.desc || h.type || '').split(' — ')[0];
-  // Se precarga el catálogo ANTES de fijar el valor (a diferencia de
-  // openDewormPicker, que lo hace perezoso) para que, si el usuario
-  // entra directo a "Editar" sin haber abierto el picker antes en esta
-  // sesión, la miniatura del producto ya elegido aparezca de entrada en
-  // el trigger, en vez de quedar sin foto hasta la primera apertura.
-  await ensureDewormCatalogLoaded();
-  // setDewormPickerValue (no solo .value=) para que el trigger muestre el
-  // nombre y la miniatura correctos de entrada, en vez de quedar en
-  // "Seleccionar producto" hasta que el usuario reabra el picker.
-  setDewormPickerValue(productoPuro);
-  document.getElementById('deworm-last').value    = h.last || '';
-  document.getElementById('deworm-next').value    = h.next || '';
-  document.getElementById('deworm-modal-title-text').textContent = 'Editar Desparasitación';
-  document.querySelector('#modal-add-deworm .btn-primary').textContent = 'Guardar cambios';
-  openModal('modal-add-deworm');
-}
-
 async function duplicateDeworm(id) {
   const h = state.health.find(x => x.id === id);
   if (!h) return;
-  // FIX: antes solo se empujaba a state.health + localStorage (saveHealthToLS),
-  // sin llamar nunca al Apps Script, así que la copia desaparecía al
-  // recargar. Ahora se manda addDesparasitario igual que un alta nueva.
+  // Se sigue duplicando directo (sin pasar por el wizard de pago),
+  // mismo criterio que editDeworm: es una copia de un registro que ya
+  // se pagó una vez, no una compra nueva -- no tiene sentido volver a
+  // cobrarla.
   const newId = genDewormId();
   const copy = { ...h, id: newId };
   state.health.push(copy);
@@ -9221,10 +9625,6 @@ async function duplicateDeworm(id) {
   showToast('Registro duplicado', 'success');
   try {
     const dog = getDog(copy.dogId);
-    // Igual que en editDeworm: ya no hace falta separar copy.desc en
-    // product/desc, salvo para registros viejos que todavía tengan el
-    // separador " — " de antes de este cambio (ver comentario en
-    // editDeworm).
     const product = String(copy.desc || copy.type || '').split(' — ')[0];
     const url = APPS_SCRIPT_URL
       + '?action=addDesparasitario'
@@ -12177,6 +12577,497 @@ function fwShowOrderDone({ dog, brand, price, method, orderNumber, when, comprob
 }
 
 /* ══════════════════════════════════
+   WIZARD "REGISTRO DE DESPARASITACIÓN" — pasos 1 a 6
+   Mismo patrón EXACTO que el bloque fw* de arriba (Alimentación):
+   estado del wizard, render de pasos, lista de métodos de pago,
+   montaje del cardForm de Mercado Pago, validación por paso, submit de
+   pago y pantalla final. Se clona con nombres propios (dw*) en vez de
+   generalizar fw* con un parámetro de sección -- mismo criterio que ya
+   usa este archivo en el backend (ver resolveCatalogPrecioDesparasitario
+   en el Apps Script): tocar el código de Alimentación, que ya funciona
+   en producción, para "generalizarlo" arriesga romperlo sin necesidad.
+
+   DIFERENCIA DE FONDO con Alimentación: mostrarComprobante() (más abajo
+   en el archivo) llama SIEMPRE a fwCompleteOrderAfterPayment(), fijo
+   por nombre -- no es genérico. Si dwSubmitPayment() reutilizara
+   fwPagarEnEfectivo/fwPagarPorTransferencia/fwHandleMercadoPagoSubmit
+   tal cual, el pago se cobraría bien pero el registro terminaría
+   guardándose como una compra de Alimentación, no de Desparasitación.
+   Por eso todo el circuito de pago (dwPagarEnEfectivo/
+   dwPagarPorTransferencia/dwHandleMercadoPagoSubmit/
+   dwMostrarComprobante/dwMostrarAnimacionPago/dwMostrarErrorPago) se
+   clona con nombres propios también, en vez de compartir el de
+   Alimentación -- ver el bloque "PAGO — DESPARASITACIÓN" más abajo,
+   junto a fwPagarEnEfectivo/fwPagarPorTransferencia al final del
+   archivo. */
+let dwCurrentStep = 1;
+const DW_TOTAL_STEPS = 6;
+let dwSelectedPaymentKey = null; // 'mp' | 'transfer' | 'cash'
+let dwMountedCardForm = null;
+let dwBodyWrapOriginalHtml = null;
+let isMountingDwCardForm = false;
+
+// Sin catálogo propio de métodos de pago: se reutiliza
+// FOOD_WIZARD_PAYMENT_METHODS (mismos 3 métodos, mismos alias) porque
+// son alias del NEGOCIO (Patas y Bigotes), no de la sección de
+// Alimentación -- duplicar esa constante solo para cambiarle el nombre
+// generaría dos lugares para mantener el mismo alias sincronizado.
+
+function dwRenderPaymentList() {
+  const totalEl = document.getElementById('dw-total-value');
+  if (totalEl) {
+    const price = Number(document.getElementById('deworm-price') ? document.getElementById('deworm-price').value : 0) || 0;
+    totalEl.textContent = formatCLP(price);
+  }
+  const listEl = document.getElementById('dw-pay-list');
+  if (!listEl) return;
+  listEl.innerHTML = FOOD_WIZARD_PAYMENT_METHODS.map(m => {
+    const checked = dwSelectedPaymentKey === m.key;
+    const aliasHtml = m.alias ? `
+      <div class="deworm-wizard-pay-alias${checked ? ' show' : ''}" id="dw-pay-alias-${m.key}">
+        <i class="fa-solid fa-at"></i>
+        <span class="food-wizard-pay-alias-label">${escapeHtml(m.aliasLabel)}:</span>
+        <span class="food-wizard-pay-alias-value">${escapeHtml(m.alias)}</span>
+        <button type="button" class="deworm-wizard-pay-alias-copy" title="Copiar alias" onclick="event.stopPropagation(); dwCopyAlias('${m.key}')"><i class="fa-regular fa-copy"></i></button>
+      </div>` : '';
+    return `
+      <label class="deworm-wizard-pay-option${checked ? ' checked' : ''}" onclick="dwSelectPayment('${m.key}')">
+        <input type="radio" name="dw-pay" value="${m.key}" ${checked ? 'checked' : ''} onclick="event.stopPropagation()" onchange="dwSelectPayment('${m.key}')" />
+        <div class="deworm-wizard-pay-icon"><i class="fa-solid ${m.icon}"></i></div>
+        <div class="deworm-wizard-pay-body">
+          <div class="deworm-wizard-pay-title">${escapeHtml(m.title)}</div>
+          <div class="deworm-wizard-pay-sub">${escapeHtml(m.sub)}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </label>
+      ${aliasHtml}`;
+  }).join('');
+
+  const mpForm = document.getElementById('dw-mp-card-form');
+  if (mpForm) mpForm.style.display = (dwSelectedPaymentKey === 'mp') ? '' : 'none';
+}
+
+function dwSelectPayment(key) {
+  const wasMp = dwSelectedPaymentKey === 'mp';
+  dwSelectedPaymentKey = key;
+  dwRenderPaymentList();
+
+  if (key === 'mp') {
+    requestAnimationFrame(() => dwMountMercadoPagoCardForm());
+  } else if (wasMp) {
+    dwUnmountMercadoPagoCardForm();
+  }
+}
+
+function dwCardFormMountReady() {
+  const mpFormEl = document.getElementById('dw-mp-card-form');
+  if (!mpFormEl || mpFormEl.offsetParent === null) return false;
+  const cardNumEl = document.getElementById('dw-form-checkout__cardNumber');
+  return !!(cardNumEl && cardNumEl.getBoundingClientRect().width > 4);
+}
+
+// Mismo criterio v27 que fwMountMercadoPagoCardForm: UN SOLO intento de
+// montaje real (setTimeout 500ms, no un loop de reintentos) -- llamar a
+// mp.cardForm() en ráfaga sobre el mismo form deja al SDK con más de un
+// ciclo de inicialización compitiendo y ninguno llega a completarse.
+function dwMountMercadoPagoCardForm() {
+  if (dwMountedCardForm || isMountingDwCardForm) return;
+  isMountingDwCardForm = true;
+
+  setTimeout(() => {
+    var mpInstance = fwGetMercadoPago();
+    if (!mpInstance) {
+      isMountingDwCardForm = false;
+      showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
+      return;
+    }
+    if (!dwCardFormMountReady()) {
+      isMountingDwCardForm = false;
+      return;
+    }
+    try {
+      dwMountedCardForm = mpInstance.cardForm({
+        amount: '100', // placeholder: dwSubmitPayment resuelve el monto real al confirmar
+        autoMount: true,
+        form: {
+          id: 'dw-mp-card-form',
+          cardNumber: { id: 'dw-form-checkout__cardNumber' },
+          expirationDate: { id: 'dw-form-checkout__expirationDate' },
+          securityCode: { id: 'dw-form-checkout__securityCode' },
+          cardholderName: { id: 'dw-form-checkout__cardholderName' },
+          issuer: { id: 'dw-form-checkout__issuer' },
+          installments: { id: 'dw-form-checkout__installments' },
+          identificationType: { id: 'dw-form-checkout__identificationType' },
+          identificationNumber: { id: 'dw-form-checkout__identificationNumber' },
+          cardholderEmail: { id: 'dw-form-checkout__cardholderEmail' },
+        },
+        callbacks: {
+          onFormMounted: error => {
+            isMountingDwCardForm = false;
+            if (error) {
+              console.error('[MercadoPago] dwMountMercadoPagoCardForm: onFormMounted devolvió error. Detalle:', error);
+              showToast('No se pudo cargar el formulario de tarjeta.', 'error');
+              dwMountedCardForm = null;
+            }
+          },
+          onSubmit: dwHandleMercadoPagoSubmit
+        }
+      });
+    } catch (err) {
+      isMountingDwCardForm = false;
+      console.error(err);
+      showToast('No se pudo iniciar Mercado Pago.', 'error');
+    }
+  }, 500);
+}
+
+function dwUnmountMercadoPagoCardForm() {
+  isMountingDwCardForm = false;
+  if (dwMountedCardForm && typeof dwMountedCardForm.unmount === 'function') {
+    try { dwMountedCardForm.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes */ }
+  }
+  dwMountedCardForm = null;
+}
+
+async function dwHandleMercadoPagoSubmit(event) {
+  event.preventDefault();
+  if (!dwMountedCardForm) { dwMostrarErrorPago('El formulario de tarjeta no está listo. Volvé a intentar.'); return; }
+  const o = dwPendingOrder;
+  if (!o) { dwMostrarErrorPago('No se pudo recuperar el pedido. Volvé a intentar.'); return; }
+
+  const formData = dwMountedCardForm.getCardFormData();
+  const descripcion = 'Patas y Bigotes · ' + o.product + ' · ' + (o.dog.name || '');
+  const mail = (o.dog.mail || currentUser.email || '').toLowerCase();
+  const referencia = o.newId;
+
+  dwMostrarAnimacionPago();
+
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'crearPagoMercadoPago',
+        token: formData.token,
+        paymentMethodId: formData.paymentMethodId,
+        installments: formData.installments,
+        issuerId: formData.issuerId,
+        amount: o.price,
+        description: descripcion,
+        payerEmail: mail,
+        externalReference: referencia
+      })
+    });
+    const data = await resp.json();
+    if (data && data.ok) {
+      dwMostrarComprobante({
+        metodo: 'Mercado Pago',
+        estado: data.status === 'approved' ? 'Aprobado' : (data.status === 'in_process' ? 'En revisión' : 'Rechazado'),
+        id: data.paymentId,
+        monto: o.price
+      });
+    } else {
+      dwMostrarErrorPago((data && data.error) || 'El pago fue rechazado.');
+    }
+  } catch (err) {
+    console.error(err);
+    dwMostrarErrorPago('No se pudo conectar con Mercado Pago. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+function dwCopyAlias(key) {
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === key);
+  if (!method || !method.alias) return;
+  const text = method.alias;
+  const done = () => showToast('Alias copiado', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fwCopyAliasFallback(text, done));
+  } else {
+    fwCopyAliasFallback(text, done);
+  }
+}
+
+// Validación por paso. El paso 4 (método de pago) se salta la
+// validación de "elegir método" cuando se está editando un registro
+// existente -- ver dwGoStep, que directamente no pasa por el panel 4 en
+// modo edición.
+function dwValidateStep(step) {
+  if (step === 1) {
+    const dogOk = !!document.getElementById('deworm-dog').value;
+    const productOk = !!document.getElementById('deworm-product').value.trim();
+    if (!dogOk) { showToast('Elegí una mascota', 'error'); return false; }
+    if (!productOk) { showToast('Elegí un producto', 'error'); return false; }
+    return true;
+  }
+  if (step === 2) {
+    if (!document.getElementById('deworm-last').value) { showToast('Completá la fecha de última aplicación', 'error'); return false; }
+    if (!document.getElementById('deworm-next').value) { showToast('Completá la fecha de próxima aplicación', 'error'); return false; }
+    return true;
+  }
+  if (step === 4 && !editingDewormId) {
+    if (!dwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return false; }
+    return true;
+  }
+  return true;
+}
+
+// A diferencia de fwGoStep (siempre 6 pasos lineales), acá el paso 4
+// (Método de pago) se salta por completo cuando se está editando un
+// registro existente (editingDewormId seteado): un registro ya pagado
+// no vuelve a cobrarse solo por corregir una fecha o el producto. En
+// ese caso el paso 5 (Confirmación) muestra "Guardar cambios" en vez
+// de "Confirmar pedido" y llama a dwSaveEdit() en vez de
+// dwSubmitPayment() -- ver dwRenderStep.
+function dwGoStep(dir) {
+  if (dir > 0 && !dwValidateStep(dwCurrentStep)) return;
+  let next = dwCurrentStep + dir;
+  if (editingDewormId) {
+    if (dir > 0 && dwCurrentStep === 3) next = 5; // notas → confirmación, salteando método de pago
+    if (dir < 0 && dwCurrentStep === 5) next = 3; // confirmación → notas
+  }
+  if (next < 1) return;
+  if (next > DW_TOTAL_STEPS) {
+    if (editingDewormId) { dwSaveEdit(); return; }
+    dwSubmitPayment();
+    return;
+  }
+  dwCurrentStep = next;
+  if (dwCurrentStep === 2) dwSyncDogSummary();
+  if (dwCurrentStep === 5) dwRenderConfirmSummary();
+  dwRenderStep();
+}
+
+// Dispara la función de pago correspondiente al método elegido en el
+// paso 4. Mismo patrón exacto que fwSubmitPayment: bloquea el botón
+// mientras tanto para que un doble click no dispare dos pagos, y guarda
+// todo lo necesario en dwPendingOrder para que el registro se cree
+// recién cuando el pago resuelva.
+function dwSubmitPayment() {
+  if (!dwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return; }
+
+  const dogId = parseInt(document.getElementById('deworm-dog').value);
+  const dog = getDog(dogId);
+  const product = document.getElementById('deworm-product').value.trim();
+  const price = Number(document.getElementById('deworm-price').value) || 0;
+  if (!dog || !product) { showToast('Faltan datos del pedido', 'error'); return; }
+
+  dwPendingOrder = {
+    dogId, dog, product,
+    last: document.getElementById('deworm-last').value,
+    next: document.getElementById('deworm-next').value,
+    notes: (document.getElementById('dw-notes').value || '').trim(),
+    price,
+    method: FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === dwSelectedPaymentKey),
+    newId: genDewormId(),
+    orderNumber: dwGenOrderNumber()
+  };
+
+  const nextBtn = document.getElementById('dw-btn-next');
+  if (nextBtn) { nextBtn.disabled = true; nextBtn.dataset.origHtml = nextBtn.innerHTML; nextBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="font-size:11px;margin-right:4px"></i> Procesando…'; }
+
+  const descripcion = 'Patas y Bigotes · ' + product + ' · ' + (dog.name || '');
+  const mail = (dog.mail || currentUser.email || '').toLowerCase();
+  const referencia = dwPendingOrder.newId;
+
+  if (dwSelectedPaymentKey === 'mp') {
+    if (price <= 0) { showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error'); dwUnlockConfirmBtn(); return; }
+    if (!dwMountedCardForm) {
+      showToast('El formulario de tarjeta no cargó. Volvé a elegir Mercado Pago como método de pago.', 'error');
+      dwUnlockConfirmBtn();
+      return;
+    }
+    const form = document.getElementById('dw-mp-card-form');
+    if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+  } else if (dwSelectedPaymentKey === 'transfer') {
+    dwPagarPorTransferencia(price, descripcion, mail, referencia);
+  } else if (dwSelectedPaymentKey === 'cash') {
+    dwPagarEnEfectivo(price, descripcion, mail, referencia);
+  } else {
+    showToast('Método de pago no reconocido', 'error');
+    dwUnlockConfirmBtn();
+  }
+}
+
+function dwUnlockConfirmBtn() {
+  const nextBtn = document.getElementById('dw-btn-next');
+  if (nextBtn) { nextBtn.disabled = false; if (nextBtn.dataset.origHtml) nextBtn.innerHTML = nextBtn.dataset.origHtml; }
+}
+
+let dwPendingOrder = null; // seteado por dwSubmitPayment, leído por dwCompleteOrderAfterPayment
+
+function dwRenderStep() {
+  document.querySelectorAll('#dw-steps .wizard-step').forEach(el => {
+    const s = Number(el.dataset.dwstep);
+    // En modo edición, el paso 4 (Método de pago) no forma parte del
+    // recorrido: se lo pinta "hecho" en vez de "activo" para que la
+    // barra de pasos no muestre un paso vacío en medio del camino.
+    if (editingDewormId && s === 4) { el.classList.remove('active'); el.classList.add('done'); return; }
+    el.classList.toggle('active', s === dwCurrentStep);
+    el.classList.toggle('done', s < dwCurrentStep);
+  });
+  document.querySelectorAll('#modal-wizard-deworm .wizard-panel').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.dwpanel) === dwCurrentStep);
+  });
+  const backBtn = document.getElementById('dw-btn-back');
+  const nextBtn = document.getElementById('dw-btn-next');
+  if (backBtn) backBtn.style.visibility = dwCurrentStep === 1 ? 'hidden' : 'visible';
+  if (nextBtn) {
+    if (dwCurrentStep === DW_TOTAL_STEPS) {
+      nextBtn.innerHTML = editingDewormId
+        ? '<i class="fa-solid fa-check" style="font-size:11px;margin-right:4px"></i> Guardar cambios'
+        : '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
+    } else {
+      nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
+    }
+  }
+}
+
+// Arma el resumen de confirmación (paso 5) con todos los datos cargados
+// hasta ahora, incluido el método de pago elegido en el paso 4 (con su
+// alias, si corresponde). En modo edición no hay método de pago que
+// mostrar (no se pasó por el paso 4), así que esa fila queda oculta.
+function dwRenderConfirmSummary() {
+  const dogSel = document.getElementById('deworm-dog');
+  const dogOpt = dogSel && dogSel.options[dogSel.selectedIndex];
+  document.getElementById('dw-sum-dog').textContent = dogOpt ? dogOpt.textContent : '—';
+  document.getElementById('dw-sum-product').textContent = document.getElementById('deworm-product').value || '—';
+  document.getElementById('dw-sum-last').textContent = dwFormatDateDisplay(document.getElementById('deworm-last').value);
+  document.getElementById('dw-sum-next').textContent = dwFormatDateDisplay(document.getElementById('deworm-next').value);
+  document.getElementById('dw-sum-notes').textContent = (document.getElementById('dw-notes').value || '').trim() || 'Sin notas';
+
+  const payRow = document.querySelector('#modal-wizard-deworm .deworm-wizard-pay-selected-row');
+  const payTitle = document.querySelector('#modal-wizard-deworm .deworm-wizard-summary-section-title:last-of-type');
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === dwSelectedPaymentKey);
+  const iconEl = document.getElementById('dw-sum-pay-icon');
+  const nameEl = document.getElementById('dw-sum-pay-name');
+  const aliasEl = document.getElementById('dw-sum-pay-alias');
+  if (editingDewormId) {
+    if (payRow) payRow.style.display = 'none';
+    if (payTitle) payTitle.style.display = 'none';
+  } else {
+    if (payRow) payRow.style.display = '';
+    if (payTitle) payTitle.style.display = '';
+    if (method) {
+      if (iconEl) iconEl.innerHTML = `<i class="fa-solid ${method.icon}"></i>`;
+      if (nameEl) nameEl.textContent = method.title;
+      if (aliasEl) {
+        if (method.alias) { aliasEl.style.display = ''; aliasEl.textContent = `${method.aliasLabel}: ${method.alias}`; }
+        else { aliasEl.style.display = 'none'; }
+      }
+    }
+  }
+}
+
+function dwFormatDateDisplay(isoDate) {
+  if (!isoDate) return '—';
+  const d = new Date(isoDate + 'T00:00:00');
+  if (isNaN(d)) return isoDate;
+  return d.toLocaleDateString('es-AR');
+}
+
+// Guarda el pedido: reutiliza el mismo genDewormId()/state.health/
+// addDesparasitario que ya usaba el modal simple, así que el registro
+// queda en la tabla de Desparasitarios exactamente igual que uno
+// cargado por ese otro camino. Se llama únicamente desde
+// dwMostrarComprobante(), es decir, solo después de que el pago resolvió
+// -- si el pago es rechazado (dwMostrarErrorPago), esta función nunca se
+// llama y no se guarda ningún registro.
+async function dwCompleteOrderAfterPayment(comprobante) {
+  const o = dwPendingOrder;
+  if (!o) { addLiveLog('[WARN] dwCompleteOrderAfterPayment llamada sin dwPendingOrder', 'err'); return; }
+
+  state.health.push({ id: o.newId, dogId: o.dogId, type: o.product, category: 'Desparasitación', desc: o.product, last: o.last, next: o.next, notes: o.notes });
+  saveHealthToLS();
+
+  if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
+  refreshNotifBell();
+
+  dwShowOrderDone({ dog: o.dog, product: o.product, price: o.price, method: o.method, orderNumber: o.orderNumber, when: new Date(), comprobante });
+
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=addDesparasitario'
+      + '&id=' + encodeURIComponent(o.newId)
+      + '&name=' + encodeURIComponent(o.dog.name || '')
+      + '&mail=' + encodeURIComponent(o.dog.mail || '')
+      + '&product=' + encodeURIComponent(o.product)
+      + '&last=' + encodeURIComponent(o.last)
+      + '&next=' + encodeURIComponent(o.next)
+      + '&paymentMethod=' + encodeURIComponent(o.method.title)
+      + '&paymentAlias=' + encodeURIComponent(o.method.alias || '')
+      + '&paymentStatus=' + encodeURIComponent((comprobante && comprobante.estado) || '')
+      + '&paymentRef=' + encodeURIComponent((comprobante && comprobante.id) || '')
+      + '&orderNumber=' + encodeURIComponent(o.orderNumber);
+    const res = await fetchJSONP(url);
+    const confirmedOk = Array.isArray(res) && res[0] && res[0].ok === true;
+    if (!confirmedOk) {
+      addLiveLog('[WARN] No se pudo sincronizar el pedido de Desparasitación con la planilla', 'err');
+    }
+    notifyAdmin('desparasitario', 'alta', o.dog.name || '', 'Producto: ' + o.product + ' · Pago: ' + o.method.title + ' (' + ((comprobante && comprobante.estado) || '—') + ')');
+  } catch (e) {
+    addLiveLog('[WARN] Pedido guardado solo local (sin conexión a planilla): ' + e.message, 'err');
+  }
+
+  dwPendingOrder = null;
+}
+
+function dwGenOrderNumber() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `PB-DW-${y}-${rand}`;
+}
+
+// Reemplaza el contenido del modal (pasos + nav) por la pantalla final
+// "Pedido registrado" (paso 6 de la Imagen 1: "Recibí el comprobante").
+// Mismo patrón exacto que fwShowOrderDone, con textos propios de
+// Desparasitación.
+function dwShowOrderDone({ dog, product, price, method, orderNumber, when, comprobante }) {
+  const wrap = document.getElementById('dw-body-wrap');
+  const nav = document.getElementById('dw-nav');
+  const steps = document.getElementById('dw-steps');
+  if (steps) steps.style.display = 'none';
+  if (nav) nav.style.display = 'none';
+  document.getElementById('dw-modal-title-text').textContent = 'Pago registrado';
+  if (!wrap) return;
+  const dateStr = when.toLocaleDateString('es-AR') + ' · ' + when.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  const estado = (comprobante && comprobante.estado) || '';
+
+  let notaTexto;
+  if (estado === 'Aprobado') {
+    notaTexto = 'Tu pago fue aprobado y tu pedido quedó registrado.';
+  } else if (estado === 'En revisión') {
+    notaTexto = 'Tu pago quedó en revisión por Mercado Pago. Te avisamos apenas se confirme.';
+  } else if (comprobante && comprobante.alias) {
+    notaTexto = 'Tu pedido quedó registrado. Transferí a ' + comprobante.alias + ' para completar el pago; lo confirmamos en breve.';
+  } else {
+    notaTexto = 'Tu pedido quedó registrado. En breve nos pondremos en contacto para coordinar el cobro en persona.';
+  }
+
+  wrap.innerHTML = `
+    <div class="food-order-done">
+      <div class="food-order-done-check"><i class="fa-solid fa-check"></i></div>
+      <h3>¡Pedido registrado!</h3>
+      <p>Recibimos tu pedido correctamente.</p>
+      <div class="food-order-done-card">
+        <div class="food-order-done-row"><span class="fod-label">Mascota</span><span class="fod-value">${escapeHtml(dog.name || '—')}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Producto</span><span class="fod-value">${escapeHtml(product)}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Método de pago</span><span class="fod-value">${escapeHtml(method.title)}</span></div>
+        ${estado ? `<div class="food-order-done-row"><span class="fod-label">Estado del pago</span><span class="fod-value">${escapeHtml(estado)}</span></div>` : ''}
+        <div class="food-order-done-row"><span class="fod-label">Fecha</span><span class="fod-value">${escapeHtml(dateStr)}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">ID de pedido</span><span class="fod-value">${escapeHtml(orderNumber)}</span></div>
+      </div>
+      <div class="food-order-done-note">
+        <i class="fa-solid fa-circle-info"></i>
+        <span>${escapeHtml(notaTexto)}</span>
+      </div>
+      <div class="food-order-done-actions">
+        <button class="btn btn-secondary" onclick="closeDewormWizard()">Volver al inicio</button>
+        <button class="btn btn-primary" onclick="closeDewormWizard(); openDewormModal();">Ver mis pedidos</button>
+      </div>
+    </div>`;
+}
+
+/* ══════════════════════════════════
    SELECTOR VISUAL DE ALIMENTO
    Reemplaza el <input> de texto libre que tenía "Alimento" por un
    dropdown (desktop) / bottom sheet (mobile) con tarjetas de producto
@@ -12634,10 +13525,10 @@ function escapeHtml(str) {
    (columnas "Nombre_desparasitarios_segun_kink" / "Fotos_Desparasitarios",
    ver handleGetCatalogoDesparasitarios en el Apps Script) en vez del
    catálogo de "Alimentacion". El VALOR real sigue viviendo en el mismo
-   <input type="hidden" id="deworm-product"> de siempre: saveDeworm()/
+   <input type="hidden" id="deworm-product"> de siempre: dwSubmitPayment()/
    editDeworm()/duplicateDeworm() no se tocan, siguen leyendo/
    escribiendo ese id exactamente igual que cuando era un <input> de
-   texto visible (mismo id, ver el modal #modal-add-deworm).
+   texto visible (mismo id, ahora dentro del wizard #modal-wizard-deworm).
 ══════════════════════════════════ */
 let dewormPickerHoveredId = null;   // selección tentativa dentro del picker (aplicada recién al confirmar)
 let dewormPickerLoadPromise = null; // evita pedir el catálogo 2 veces si el usuario abre/cierra rápido
@@ -12749,6 +13640,15 @@ function setDewormPickerValue(productName) {
   // catálogo): la fila manual solo debe quedar visible cuando el
   // usuario explícitamente eligió "Agregar producto nuevo".
   closeDewormManualEntry(/*silent=*/true);
+
+  // Repinta las tarjetas de resumen del wizard (pasos 1 y 2) y el total
+  // a pagar (paso 4) cada vez que el producto elegido cambia. Mismo
+  // patrón exacto que setFoodPickerValue → fwRenderProductCards. Chequeo
+  // de existencia porque setDewormPickerValue también corre en
+  // contextos donde el wizard no está en el DOM (no debería pasar hoy,
+  // pero es la misma guarda defensiva que ya usan el resto de los
+  // document.getElementById de esta función).
+  if (typeof dwRenderProductCard === 'function') dwRenderProductCard(match, productName);
 }
 
 async function openDewormPicker() {
@@ -12781,7 +13681,7 @@ async function openDewormPicker() {
   // FIX v2: a diferencia de openFoodPicker() (donde el trigger #food-picker-trigger
   // ya tiene layout estable apenas se abre modal-add-food, porque el usuario tarda
   // más en localizar/clickear "Seleccionar alimento" de lo que dura la animación
-  // del modal), acá el modal-add-deworm puede todavía estar a mitad de su animación
+  // del modal), acá el modal-wizard-deworm puede todavía estar a mitad de su animación
   // de apertura (.modal { animation: modalScaleIn .32s } en desktop, ver el CSS) en
   // el momento en que se hace click en "Seleccionar producto". modalScaleIn anima
   // transform: scale(.9→1), así que el propio getBoundingClientRect() del trigger
@@ -13615,13 +14515,16 @@ async function deleteFood(id) {
 document.querySelectorAll('.modal-overlay').forEach(o => {
   // Los modales de Alimentación y Desparasitarios no se cierran al clickear
   // afuera del cuadro blanco (piden confirmación explícita con Cancelar/✕).
-  // modal-wizard-food se agrega a esta misma excepción: es un wizard de
-  // 6 pasos (mascota, alimento, precio, fechas, notas, pago) y un click
-  // afuera del cuadro -- muy fácil de hacer sin querer mientras se
-  // completa un form largo -- lo cerraba sin ningún aviso, perdiendo
-  // todo lo cargado hasta ese paso. Se cierra solo con la ✕
-  // (closeFoodWizard) o al confirmar el pedido.
-  if (o.id === 'modal-add-food' || o.id === 'modal-add-deworm' || o.id === 'modal-wizard-food') return;
+  // modal-wizard-food y modal-wizard-deworm se agregan a esta misma
+  // excepción: son wizards de 6 pasos y un click afuera del cuadro --
+  // muy fácil de hacer sin querer mientras se completa un form largo --
+  // lo cerraba sin ningún aviso, perdiendo todo lo cargado hasta ese
+  // paso. Se cierran solo con la ✕ (closeFoodWizard/closeDewormWizard)
+  // o al confirmar el pedido.
+  // FIX: 'modal-add-deworm' (id del modal simple viejo, reemplazado por
+  // el wizard) ya no existe en el HTML -- se actualiza a
+  // 'modal-wizard-deworm', el id real del nuevo modal.
+  if (o.id === 'modal-add-food' || o.id === 'modal-wizard-deworm' || o.id === 'modal-wizard-food') return;
   o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
 });
 
@@ -14266,6 +15169,101 @@ function mostrarErrorPago(mensaje) {
   showToast(mensaje || 'No se pudo procesar el pago. Probá de nuevo.', 'error');
   fwUnlockConfirmBtn();
   fwPendingOrder = null;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  PAGO — DESPARASITACIÓN
+//
+//  Clon exacto del bloque de arriba (fwPagarEnEfectivo/
+//  fwPagarPorTransferencia/mostrarAnimacionTransferencia/
+//  mostrarComprobante/mostrarErrorPago), pero terminando siempre en
+//  dwCompleteOrderAfterPayment() en vez de fwCompleteOrderAfterPayment().
+//  Ver el comentario grande al principio del bloque dw* (junto a
+//  dwCurrentStep) para el porqué de la duplicación: mostrarComprobante()
+//  llama a fwCompleteOrderAfterPayment() FIJO por nombre, así que
+//  reutilizarla tal cual desde Desparasitación guardaría el pedido en
+//  la sección equivocada.
+// ─────────────────────────────────────────────────────────────
+async function dwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaExterna) {
+  dwMostrarAnimacionPago();
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoEfectivo'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      dwMostrarComprobante({
+        metodo: 'Efectivo',
+        estado: 'Pendiente de cobro en persona',
+        id: data.comprobanteId,
+        monto: monto
+      });
+    } else {
+      dwMostrarErrorPago((data && data.error) || 'No se pudo registrar el pago en efectivo.');
+    }
+  } catch (err) {
+    console.error(err);
+    dwMostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+async function dwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
+  dwMostrarAnimacionPago();
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoTransferencia'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      dwMostrarComprobante({
+        metodo: 'Transferencia bancaria',
+        estado: 'Pendiente de verificación',
+        id: data.comprobanteId,
+        monto: monto,
+        alias: data.alias
+      });
+    } else {
+      dwMostrarErrorPago((data && data.error) || 'No se pudo registrar la transferencia.');
+    }
+  } catch (err) {
+    console.error(err);
+    dwMostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+function dwMostrarAnimacionPago() {
+  const wrap = document.getElementById('dw-body-wrap');
+  const nav = document.getElementById('dw-nav');
+  const steps = document.getElementById('dw-steps');
+  if (steps) steps.style.display = 'none';
+  if (nav) nav.style.display = 'none';
+  document.getElementById('dw-modal-title-text').textContent = 'Procesando pago…';
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="food-order-done">
+      <div class="food-order-done-check" style="background:transparent"><i class="fa-solid fa-spinner fa-spin" style="color:var(--svc-deworm)"></i></div>
+      <h3>Procesando tu pago</h3>
+      <p>No cierres esta ventana, puede tardar unos segundos…</p>
+    </div>`;
+}
+
+function dwMostrarComprobante({ metodo, estado, id, monto, fecha, alias }) {
+  dwCompleteOrderAfterPayment({ estado, id, monto, fecha, alias, metodo });
+  dwUnlockConfirmBtn();
+}
+
+function dwMostrarErrorPago(mensaje) {
+  showToast(mensaje || 'No se pudo procesar el pago. Probá de nuevo.', 'error');
+  dwUnlockConfirmBtn();
+  dwPendingOrder = null;
 }
 
 // FIX: exposición a window de funciones de login (switchLoginTab,
