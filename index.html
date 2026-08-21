@@ -2601,10 +2601,17 @@ html[data-font-size="large"] .toast-container {
 /* ══════════════════════════════════
    WIZARD "REGISTRO DE DESPARASITACIÓN" — pasos 1 a 6
    Mismo patrón EXACTO que .food-wizard-* de arriba (mismo layout, mismas
-   reglas, mismos nombres de propiedad), pero apuntando a la paleta
-   violeta de Desparasitarios (--svc-deworm / --svc-deworm-bg) en vez de
-   --sage-*, para que el wizard combine con el resto del módulo (header,
-   iconos, botón "+ Agregar") en vez de aparecer en verde ajeno.
+   reglas, mismos nombres de propiedad).
+   Precio del producto, total a pagar y opciones de método de pago
+   (.deworm-wizard-price-box*, .deworm-wizard-total-box*,
+   .deworm-wizard-pay-*, .deworm-wizard-pay-alias*) usan la paleta verde
+   --sage-* (igual que en Alimentación), a pedido explícito: se quiere
+   que estos pasos se vean idénticos a los de Alimentación en vez de
+   violeta. El resto del wizard (banner "próxima aplicación", badge de
+   confirmación paso 6, check final) se deja con la paleta violeta de
+   Desparasitarios (--svc-deworm / --svc-deworm-bg) para que siga
+   combinando con el header y los iconos del módulo (tarjeta de
+   servicio, sparklines, badges de listado).
    Se duplica en vez de generalizar .food-wizard-* con una variable de
    color: mismo criterio que ya usa este archivo en el backend
    (resolveCatalogPrecioDesparasitario se mantiene separada de
@@ -2623,10 +2630,10 @@ html[data-font-size="large"] .toast-container {
 .deworm-wizard-product-link:hover { text-decoration: underline; }
 .deworm-wizard-price-box {
   margin-top: 14px; padding: 14px 16px; border-radius: var(--r-md);
-  background: var(--svc-deworm-bg); border: 1px solid var(--svc-deworm-border);
+  background: var(--sage-xlight); border: 1px solid var(--sage-light);
 }
 .deworm-wizard-price-box-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; }
-.deworm-wizard-price-box-value { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 800; color: var(--svc-deworm); margin-top: 2px; }
+.deworm-wizard-price-box-value { font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 800; color: var(--sage-solid); margin-top: 2px; }
 
 .deworm-wizard-next-banner {
   display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 14px 16px;
@@ -2637,11 +2644,11 @@ html[data-font-size="large"] .toast-container {
 .deworm-wizard-next-banner-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; line-height: 1.35; }
 
 .deworm-wizard-total-box {
-  padding: 16px; border-radius: var(--r-md); background: var(--svc-deworm-bg); border: 1px solid var(--svc-deworm-border);
+  padding: 16px; border-radius: var(--r-md); background: var(--sage-xlight); border: 1px solid var(--sage-light);
   text-align: center; margin-bottom: 16px;
 }
 .deworm-wizard-total-box-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; }
-.deworm-wizard-total-box-value { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 800; color: var(--svc-deworm); margin-top: 3px; }
+.deworm-wizard-total-box-value { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 800; color: var(--sage-solid); margin-top: 3px; }
 
 .deworm-wizard-pay-section-title { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 10px; }
 .deworm-wizard-pay-option {
@@ -2649,10 +2656,10 @@ html[data-font-size="large"] .toast-container {
   border: 1.5px solid var(--border-sm); border-radius: var(--r-md); cursor: pointer;
   transition: all .18s; margin-bottom: 9px; background: var(--surface-card-alt);
 }
-.deworm-wizard-pay-option:hover { border-color: var(--svc-deworm); }
-.deworm-wizard-pay-option.checked { border-color: var(--svc-deworm); background: var(--svc-deworm-bg); }
-.deworm-wizard-pay-option input[type="radio"] { accent-color: var(--svc-deworm); width: 16px; height: 16px; flex-shrink: 0; }
-.deworm-wizard-pay-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--svc-deworm-bg); color: var(--svc-deworm); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.deworm-wizard-pay-option:hover { border-color: var(--sage-solid); }
+.deworm-wizard-pay-option.checked { border-color: var(--sage-solid); background: var(--sage-xlight); }
+.deworm-wizard-pay-option input[type="radio"] { accent-color: var(--sage-solid); width: 16px; height: 16px; flex-shrink: 0; }
+.deworm-wizard-pay-icon { width: 34px; height: 34px; border-radius: 9px; background: var(--sage-light); color: var(--sage-solid); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
 .deworm-wizard-pay-body { flex: 1; min-width: 0; }
 .deworm-wizard-pay-title { font-weight: 700; font-size: 13.5px; color: var(--charcoal); line-height: 1.3; }
 .deworm-wizard-pay-sub { font-size: 11.5px; color: var(--mist); margin-top: 1px; line-height: 1.35; }
@@ -2660,13 +2667,13 @@ html[data-font-size="large"] .toast-container {
 
 .deworm-wizard-pay-alias {
   display: none; margin: -3px 0 9px 46px; padding: 9px 12px;
-  border-radius: var(--r-sm); background: var(--svc-deworm-bg); border: 1px dashed var(--svc-deworm-border);
+  border-radius: var(--r-sm); background: var(--sage-tint); border: 1px dashed var(--sage-light);
 }
 .deworm-wizard-pay-alias.show { display: flex; align-items: center; gap: 8px; }
-.deworm-wizard-pay-alias i { color: var(--svc-deworm); font-size: 12px; flex-shrink: 0; }
+.deworm-wizard-pay-alias i { color: var(--sage-solid); font-size: 12px; flex-shrink: 0; }
 .deworm-wizard-pay-alias-label { font-size: 11px; color: var(--stone); font-weight: 600; flex-shrink: 0; }
 .deworm-wizard-pay-alias-value { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--charcoal); word-break: break-all; }
-.deworm-wizard-pay-alias-copy { margin-left: auto; background: none; border: none; color: var(--svc-deworm); cursor: pointer; font-size: 12px; flex-shrink: 0; padding: 2px 4px; }
+.deworm-wizard-pay-alias-copy { margin-left: auto; background: none; border: none; color: var(--sage-solid); cursor: pointer; font-size: 12px; flex-shrink: 0; padding: 2px 4px; }
 .deworm-wizard-pay-alias-copy:hover { opacity: .8; }
 
 /* Paso 6 — resumen previo a confirmar */
