@@ -40,12 +40,7 @@
 // recién la primera vez que hace falta de verdad (fwMountMercadoPagoCardForm,
 // paso 5 del wizard, cuando el usuario elige "Mercado Pago" como método).
 var mp = null;
-function fwGetMercadoPago() {
-  if (mp) return mp;
-  if (typeof MercadoPago === 'undefined') return null; // SDK todavía no cargó
-  mp = new MercadoPago('APP_USR-ac60b12d-ba85-46e7-8c28-1966f82592b3', { locale: 'es-AR' });
-  return mp;
-}
+
 </script>
 
 <script>
