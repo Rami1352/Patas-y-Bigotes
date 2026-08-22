@@ -2337,7 +2337,7 @@ html[data-font-size="large"] .toast-container {
 .modal-footer { padding: 14px 24px 22px; border-top: 1px solid var(--border-sm); display: flex; gap: 10px; justify-content: flex-end; position: sticky; bottom: 0; background: var(--white); }
 .form-row { margin-bottom: 14px; }
 .form-row label { display: block; font-size: 11px; font-weight: 700; color: var(--stone); margin-bottom: 7px; letter-spacing: .5px; text-transform: uppercase; }
-.form-control { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-sm); font-size: 14px; font-family: 'Inter', sans-serif; color: var(--charcoal); background: var(--white); transition: border .15s; outline: none; -webkit-appearance: none; }
+.form-control { width: 100%; min-height: 38px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: var(--r-sm); font-size: 14px; font-family: 'Inter', sans-serif; color: var(--charcoal); background: var(--white); transition: border .15s; outline: none; -webkit-appearance: none; box-sizing: border-box; }
 .form-control:focus { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(45,80,22,.08); }
 .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -12112,8 +12112,26 @@ function fwCardFormMountReady() {
 }
 
 function fwMountMercadoPagoCardForm() {
-  if (fwMountedCardForm || isMountingCardForm) return; // ya montado o ya montando, no duplicar
+  if (isMountingCardForm) return; // ya montando, no duplicar
   isMountingCardForm = true;
+
+  // FIX v28 (logs + unmount defensivo): si por cualquier motivo
+  // fwMountedCardForm quedó con una instancia previa viva (p.ej. el
+  // usuario reabrió el modal sin pasar por fwUnmountMercadoPagoCardForm,
+  // o un mount anterior quedó a medio resolver), se la desmonta ACÁ,
+  // de forma síncrona y defensiva, antes de intentar un mount nuevo.
+  // OJO: esto llama a .unmount() -- el método real del SDK para liberar
+  // el form -- y no toca el contenido de los <div>: mp.cardForm() hace
+  // su propio document.getElementById() al montar y reescribe esos
+  // contenedores de cero, así que vaciarlos a mano con innerHTML = ''
+  // no cambia nada de lo que el SDK encuentra un instante después; sí
+  // arriesga borrar nodos mientras el iframe anterior todavía los está
+  // usando, si el unmount no llegó a terminar.
+  if (fwMountedCardForm) {
+    console.log('[MercadoPago] fwMountMercadoPagoCardForm: había una instancia previa, desmontando antes de re-montar.');
+    try { fwMountedCardForm.unmount(); } catch (err) { console.warn('[MercadoPago] fwMountMercadoPagoCardForm: unmount previo falló (se continúa igual).', err); }
+    fwMountedCardForm = null;
+  }
 
   // Espera única de 500ms -- no un loop -- para dar tiempo real a que
   // termine la transición de apertura del modal. mp ya está disponible acá
@@ -12121,18 +12139,28 @@ function fwMountMercadoPagoCardForm() {
   // SDK externo con reintentos: si typeof MercadoPago sigue undefined
   // después de que sdk.mercadopago.com ya cargó en el <head>, es un
   // problema de red que no se arregla reintentando en bucle).
+  //
+  // mp SIGUE siendo el singleton de fwGetMercadoPago() (no se re-instancia
+  // acá): new MercadoPago(...) dispara sus propias llamadas de red de
+  // entrada (widgets?public_key=..., search?public_key=...), y recrearlo
+  // en cada mount reintroduce la carrera de requests que el fix v25 (ver
+  // comentario junto a fwGetMercadoPago, más arriba en el <head>) resolvió
+  // con esta misma inicialización perezosa y cacheada.
   setTimeout(() => {
+    console.log('[MercadoPago] fwMountMercadoPagoCardForm: intentando montar cardForm.');
     var mpInstance = fwGetMercadoPago();
     if (!mpInstance) {
       isMountingCardForm = false;
+      console.error('[MercadoPago] fwMountMercadoPagoCardForm: fwGetMercadoPago() devolvió null (SDK no cargó).');
       showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
       return;
     }
     if (!fwCardFormMountReady()) {
-      // El modal se cerró o nunca llegó a tener tamaño real: se aborta sin
-      // reintentar. Si el usuario vuelve a elegir "Mercado Pago",
-      // fwSelectPayment llama a esta función de nuevo desde cero.
+      // El modal se cerró o el contenedor #mp-card-form no existe: se
+      // aborta sin reintentar. Si el usuario vuelve a elegir "Mercado
+      // Pago", fwSelectPayment llama a esta función de nuevo desde cero.
       isMountingCardForm = false;
+      console.warn('[MercadoPago] fwMountMercadoPagoCardForm: #mp-card-form no está listo, se aborta el mount.');
       return;
     }
     try {
@@ -12158,14 +12186,22 @@ function fwMountMercadoPagoCardForm() {
               console.error('[MercadoPago] fwMountMercadoPagoCardForm: onFormMounted devolvió error. Detalle:', error);
               showToast('No se pudo cargar el formulario de tarjeta.', 'error');
               fwMountedCardForm = null;
+            } else {
+              console.log('[MercadoPago] fwMountMercadoPagoCardForm: onFormMounted OK, cardForm montado.');
             }
           },
-          onSubmit: fwHandleMercadoPagoSubmit
+          onFetching: resource => {
+            console.log('[MercadoPago] fwMountMercadoPagoCardForm: onFetching, resource =', resource);
+          },
+          onSubmit: event => {
+            console.log('[MercadoPago] fwMountMercadoPagoCardForm: onSubmit disparado.');
+            fwHandleMercadoPagoSubmit(event);
+          }
         }
       });
     } catch (err) {
       isMountingCardForm = false;
-      console.error(err);
+      console.error('[MercadoPago] fwMountMercadoPagoCardForm: excepción al llamar mp.cardForm().', err);
       showToast('No se pudo iniciar Mercado Pago.', 'error');
     }
   }, 500);
@@ -15290,5 +15326,3 @@ window.handleLoginAction = handleLoginAction;
 </script>
 </body>
 </html>
-
-
