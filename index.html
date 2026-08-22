@@ -12108,9 +12108,7 @@ var isMountingCardForm = false;
 
 function fwCardFormMountReady() {
   const mpFormEl = document.getElementById('mp-card-form');
-  if (!mpFormEl || mpFormEl.offsetParent === null) return false;
-  const cardNumEl = document.getElementById('form-checkout__cardNumber');
-  return !!(cardNumEl && cardNumEl.getBoundingClientRect().width > 4);
+  return !!mpFormEl;
 }
 
 function fwMountMercadoPagoCardForm() {
