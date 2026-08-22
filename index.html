@@ -12172,7 +12172,7 @@ function fwMountMercadoPagoCardForm() {
 }
 
 function fwUnmountMercadoPagoCardForm() {
-  // FIX v27: también resetea isMountingCardForm -- si el usuario cambia de
+  // FIX v2: también resetea isMountingCardForm -- si el usuario cambia de
   // método de pago mientras el setTimeout(500) de montaje todavía está
   // pendiente, sin esto isMountingCardForm quedaría trabado en true para
   // siempre y ningún futuro intento de montar volvería a dispararse.
@@ -12181,6 +12181,7 @@ function fwUnmountMercadoPagoCardForm() {
     try { fwMountedCardForm.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes: no hace falta hacer nada */ }
   }
   fwMountedCardForm = null;
+  mp = null; // <-- FIX: Destruye la instancia en memoria para destrabar el formulario
 }
 
 // Callback real de submit del form de tarjeta: separado de
