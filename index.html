@@ -12022,7 +12022,7 @@ function fwMountMercadoPagoPaymentBrick() {
     fwMountedPaymentBrick = null;
   }
 
-  setTimeout(() => {
+  setTimeout(async () => {
     console.log('[MercadoPago] fwMountMercadoPagoPaymentBrick: intentando montar Payment Brick.');
     var mpInstance = fwGetMercadoPago();
     if (!mpInstance) {
@@ -12079,13 +12079,50 @@ function fwMountMercadoPagoPaymentBrick() {
       orderNumber: fwGenOrderNumber()
     };
 
+    // Preferencia REAL creada del lado del backend, ANTES de montar el
+    // Brick: la opción "Mercado Pago" (dinero en cuenta / wallet)
+    // dentro del Payment Brick la necesita para poder ofrecerse -- sin
+    // preferenceId en initialization, el Brick no la dibuja aunque
+    // paymentMethods.mercadoPago esté en 'all' (ver doc oficial de MP,
+    // sección "mercadoPago" de paymentMethods). Si esta llamada falla
+    // (backend caído, sin MP_ACCESS_TOKEN configurado, etc.), el Brick
+    // igual se monta sin preferencia: tarjeta de crédito/débito siguen
+    // funcionando, solo se pierde la opción de wallet -- por eso el
+    // catch de abajo no aborta el mount entero, solo loguea y sigue sin
+    // preferenceId.
+    var preferenceId = '';
+    try {
+      const prefRes = await fetchJSONP(
+        APPS_SCRIPT_URL
+          + '?action=crearPreferenciaMP'
+          + '&amount=' + encodeURIComponent(price)
+          + '&description=' + encodeURIComponent('Patas y Bigotes · ' + brand + ' · ' + (dog.name || ''))
+          + '&payerEmail=' + encodeURIComponent(mail)
+          + '&externalReference=' + encodeURIComponent(fwPendingOrder.newId)
+      );
+      if (prefRes && prefRes.ok && prefRes.preferenceId) {
+        preferenceId = prefRes.preferenceId;
+      } else {
+        console.warn('[MercadoPago] fwMountMercadoPagoPaymentBrick: no se pudo crear la preferencia, se monta el Brick sin opción de wallet.', prefRes);
+      }
+    } catch (prefErr) {
+      console.warn('[MercadoPago] fwMountMercadoPagoPaymentBrick: excepción creando la preferencia, se monta el Brick sin opción de wallet.', prefErr);
+    }
+
     try {
       const bricksBuilder = mpInstance.bricks();
+      const initialization = {
+        amount: price,
+        payer: { email: mail }
+      };
+      // Solo se agrega si se consiguió de verdad -- un preferenceId
+      // vacío o inválido en initialization puede romper el mount
+      // entero, así que es mejor omitir la clave por completo que
+      // mandarla vacía.
+      if (preferenceId) initialization.preferenceId = preferenceId;
+
       const settings = {
-        initialization: {
-          amount: price,
-          payer: { email: mail }
-        },
+        initialization,
         customization: {
           visual: { style: { theme: 'default' } },
           // Falta este bloque = Brick se monta sin ningún método de pago
@@ -12657,7 +12694,7 @@ function dwMountMercadoPagoPaymentBrick() {
     dwMountedPaymentBrick = null;
   }
 
-  setTimeout(() => {
+  setTimeout(async () => {
     console.log('[MercadoPago] dwMountMercadoPagoPaymentBrick: intentando montar Payment Brick.');
     var mpInstance = fwGetMercadoPago();
     if (!mpInstance) {
@@ -12712,13 +12749,39 @@ function dwMountMercadoPagoPaymentBrick() {
       orderNumber: dwGenOrderNumber()
     };
 
+    // Mismo fix que fwMountMercadoPagoPaymentBrick: preferencia REAL
+    // creada del lado del backend antes de montar el Brick, necesaria
+    // para que la opción "Mercado Pago" (wallet) aparezca. Si falla,
+    // el Brick igual se monta sin ella -- tarjeta sigue funcionando.
+    var preferenceId = '';
+    try {
+      const prefRes = await fetchJSONP(
+        APPS_SCRIPT_URL
+          + '?action=crearPreferenciaMP'
+          + '&amount=' + encodeURIComponent(price)
+          + '&description=' + encodeURIComponent('Patas y Bigotes · ' + product + ' · ' + (dog.name || ''))
+          + '&payerEmail=' + encodeURIComponent(mail)
+          + '&externalReference=' + encodeURIComponent(dwPendingOrder.newId)
+      );
+      if (prefRes && prefRes.ok && prefRes.preferenceId) {
+        preferenceId = prefRes.preferenceId;
+      } else {
+        console.warn('[MercadoPago] dwMountMercadoPagoPaymentBrick: no se pudo crear la preferencia, se monta el Brick sin opción de wallet.', prefRes);
+      }
+    } catch (prefErr) {
+      console.warn('[MercadoPago] dwMountMercadoPagoPaymentBrick: excepción creando la preferencia, se monta el Brick sin opción de wallet.', prefErr);
+    }
+
     try {
       const bricksBuilder = mpInstance.bricks();
+      const initialization = {
+        amount: price,
+        payer: { email: mail }
+      };
+      if (preferenceId) initialization.preferenceId = preferenceId;
+
       const settings = {
-        initialization: {
-          amount: price,
-          payer: { email: mail }
-        },
+        initialization,
         customization: {
           visual: { style: { theme: 'default' } },
           // Mismo bug detectado y corregido en fwMountMercadoPagoPaymentBrick:
