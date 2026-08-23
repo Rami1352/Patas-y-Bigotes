@@ -24,6 +24,13 @@
   de que se ejecute cualquier función del wizard.
 ═══════════════════════════════════════════════════════════════ -->
 <script src="https://sdk.mercadopago.com/js/v2"></script>
+<!-- html2canvas: captura la pantalla "Pago registrado" (#fw-order-done /
+     #dw-order-done, ver fwShowOrderDone/dwShowOrderDone más abajo en el
+     JS) como imagen PNG para mandarla como comprobante por mail (ver
+     fwCapturarComprobante/dwCapturarComprobante). Se carga acá, junto al
+     SDK de MP, para que esté disponible desde el arranque sin depender
+     de que el wizard de pago se abra primero. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 // Reemplazar MI_PUBLIC_KEY por tu Public Key real
 // (la que empieza con APP_USR-..., NO el Access Token)
@@ -6872,6 +6879,30 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="deworm-wizard-price-box-label">Precio del producto</div>
         <div class="deworm-wizard-price-box-value" id="dw-price-box-value-1">$ 0</div>
       </div>
+      <!-- FIX: faltaba por completo. dw-price-box-1/dw-price-box-value-1
+           de arriba son solo la caja VISUAL (repintada por
+           dwRenderProductCard) -- nunca guardaban el valor en ningún
+           input. setDewormPickerValue (ver comentario junto a su
+           definición, más abajo en el JS) ya buscaba estos 3 ids
+           (deworm-price-row/deworm-price-display/deworm-price) desde
+           antes de este fix, pero como no existían en el DOM,
+           document.getElementById devolvía null y el guard
+           `if (priceRow && priceDisplay && priceHidden)` cortaba en
+           silencio: el precio nunca se guardaba, y en el paso 4
+           (Método de pago) Number(document.getElementById('deworm-price')...)
+           caía siempre a 0 -- de ahí "TOTAL A PAGAR $0" pese a que el
+           paso 1 sí mostraba el precio correcto en dw-price-box-1.
+           Mismo patrón exacto que food-price-row/food-price-display/
+           food-price en Alimentación (arriba en este mismo archivo,
+           paso 1 del wizard de comida): fila oculta con un input
+           readonly de solo visualización + el hidden real que
+           dwMountMercadoPagoPaymentBrick/dwSubmitPayment/
+           dwRenderPaymentList leen. -->
+      <div class="form-row" id="deworm-price-row" style="display:none">
+        <label>Precio del producto</label>
+        <input class="form-control" id="deworm-price-display" disabled placeholder="—" />
+        <input type="hidden" id="deworm-price" value="0" />
+      </div>
     </div>
 
     <!-- ── PASO 2 — Fechas de aplicación ── -->
@@ -12764,6 +12795,65 @@ function fwGenOrderNumber() {
   const y = now.getFullYear();
   const rand = Math.floor(1000 + Math.random() * 9000);
   return `PB-${y}-${rand}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  capturarComprobanteBase64 — captura con html2canvas el nodo que
+//  matchea `selector` (la tarjeta .food-order-done ya pintada por
+//  fwShowOrderDone/dwShowOrderDone, ver comentario junto a esas
+//  funciones) y devuelve su PNG en base64 SIN el prefijo
+//  "data:image/png;base64," (ese prefijo lo recorta acá mismo con
+//  split(',')[1], así que el backend -- ver enviarComprobantePago en
+//  el Apps Script -- recibe directamente el payload listo para
+//  Utilities.base64Decode, sin tener que lidiar con el prefijo del
+//  lado del servidor).
+//
+//  Genérica y compartida por Alimentación y Desparasitación (en vez
+//  de fwCapturarComprobante/dwCapturarComprobante separadas): no
+//  depende de nada específico de una sección, solo de un selector CSS
+//  que cada wizard le pasa. Devuelve '' (string vacío, NO null) si
+//  html2canvas no cargó (falla de red al SDK externo) o si el nodo
+//  todavía no está en el DOM en el momento de la llamada -- en
+//  cualquiera de los dos casos, el mail de comprobante igual se manda
+//  después, solo que sin imagen (ver enviarComprobantePago: nunca
+//  bloquea el aviso del pago por un problema de captura).
+//
+//  IMPORTANTE: se llama DESPUÉS de fwShowOrderDone/dwShowOrderDone
+//  (que reemplazan wrap.innerHTML de forma síncrona), así que el nodo
+//  ya está en el DOM cuando esta función corre -- no hace falta
+//  esperar un requestAnimationFrame extra para eso. Sí conviene un
+//  timeout corto (ver el setTimeout de abajo) porque el navegador
+//  necesita al menos un frame para terminar de pintar el innerHTML
+//  recién insertado antes de que html2canvas lo rasterice; sin esa
+//  espera mínima, la captura puede salir en blanco o a medio pintar.
+// ═══════════════════════════════════════════════════════════════
+function capturarComprobanteBase64(selector) {
+  return new Promise(resolve => {
+    if (typeof html2canvas !== 'function') {
+      console.warn('[Comprobante] html2canvas no cargó, se manda el mail sin imagen.');
+      resolve('');
+      return;
+    }
+    setTimeout(() => {
+      const el = document.querySelector(selector);
+      if (!el) {
+        console.warn('[Comprobante] No se encontró el nodo a capturar (' + selector + '), se manda el mail sin imagen.');
+        resolve('');
+        return;
+      }
+      html2canvas(el, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+        try {
+          resolve(canvas.toDataURL('image/png').split(',')[1] || '');
+        } catch (err) {
+          console.warn('[Comprobante] Error convirtiendo el canvas a base64, se manda el mail sin imagen.', err);
+          resolve('');
+        }
+      }).catch(err => {
+        console.warn('[Comprobante] html2canvas falló, se manda el mail sin imagen.', err);
+        resolve('');
+      });
+    }, 120);
+  });
 }
 
 // Reemplaza el contenido del modal (pasos + nav) por la pantalla final.
