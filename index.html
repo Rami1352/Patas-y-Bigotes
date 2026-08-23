@@ -12154,8 +12154,16 @@ function fwMountMercadoPagoPaymentBrick() {
           },
           onError: error => {
             isMountingCardForm = false;
-            console.error('[MercadoPago] fwMountMercadoPagoPaymentBrick: onError. Detalle:', error);
-            showToast('No se pudo cargar el formulario de tarjeta.', 'error');
+            // FIX: antes solo se logueaba el objeto `error` completo, que
+            // en consola aparece colapsado (hay que expandirlo a mano para
+            // ver el motivo real). Se desgrana acá mismo `.message`/`.cause`
+            // si el SDK los trae, para verlos directo en la consola sin
+            // tener que expandir nada.
+            console.error('[MercadoPago] fwMountMercadoPagoPaymentBrick: onError. Detalle completo:', error);
+            console.error('[MercadoPago] onError.message:', error && error.message);
+            console.error('[MercadoPago] onError.cause:', error && error.cause);
+            console.error('[MercadoPago] onError (JSON):', (() => { try { return JSON.stringify(error); } catch (e) { return '(no serializable)'; } })());
+            showToast('No se pudo cargar el formulario de tarjeta. Revisá la consola (F12) para el detalle exacto.', 'error');
           }
         }
       };
