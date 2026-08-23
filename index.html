@@ -12092,7 +12092,7 @@ function fwMountMercadoPagoPaymentBrick() {
     // preferenceId.
     var preferenceId = '';
     try {
-      const prefRes = await fetchJSONP(
+      const prefResRaw = await fetchJSONP(
         APPS_SCRIPT_URL
           + '?action=crearPreferenciaMP'
           + '&amount=' + encodeURIComponent(price)
@@ -12100,6 +12100,11 @@ function fwMountMercadoPagoPaymentBrick() {
           + '&payerEmail=' + encodeURIComponent(mail)
           + '&externalReference=' + encodeURIComponent(fwPendingOrder.newId)
       );
+      // handleCrearPreferenciaMP devuelve con returnJSONP([{...}], e),
+      // envuelto en array (mismo patrón que confirmarPagoTransferencia
+      // vía fetchJSONP) -- se desenvuelve acá, igual que ya hace
+      // fwPagarPorTransferencia con su propia respuesta.
+      const prefRes = Array.isArray(prefResRaw) ? prefResRaw[0] : prefResRaw;
       if (prefRes && prefRes.ok && prefRes.preferenceId) {
         preferenceId = prefRes.preferenceId;
       } else {
@@ -12755,7 +12760,7 @@ function dwMountMercadoPagoPaymentBrick() {
     // el Brick igual se monta sin ella -- tarjeta sigue funcionando.
     var preferenceId = '';
     try {
-      const prefRes = await fetchJSONP(
+      const prefResRaw = await fetchJSONP(
         APPS_SCRIPT_URL
           + '?action=crearPreferenciaMP'
           + '&amount=' + encodeURIComponent(price)
@@ -12763,6 +12768,8 @@ function dwMountMercadoPagoPaymentBrick() {
           + '&payerEmail=' + encodeURIComponent(mail)
           + '&externalReference=' + encodeURIComponent(dwPendingOrder.newId)
       );
+      // Mismo desenvuelto de array que fwMountMercadoPagoPaymentBrick.
+      const prefRes = Array.isArray(prefResRaw) ? prefResRaw[0] : prefResRaw;
       if (prefRes && prefRes.ok && prefRes.preferenceId) {
         preferenceId = prefRes.preferenceId;
       } else {
