@@ -5638,23 +5638,9 @@ var PYB_AUTH = (function () {
 <body>
 
 <!-- ════════════════════════════════
-     BOOT LOADER
-     Pantalla inicial mostrada por defecto MIENTRAS Firebase resuelve
-     si hay sesión guardada en localStorage. Ni login-screen ni #app
-     se muestran hasta que fwBootResolveSession() decida cuál de las
-     dos corresponde -- ver ese bloque más abajo, justo antes del
-     cierre de </body>.
-════════════════════════════════ -->
-<div id="boot-loader" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#f7f5f0;">
-  <i class="fa-solid fa-paw" style="font-size:34px;color:#6b8f71;opacity:0.85;"></i>
-  <div style="width:34px;height:34px;border:3px solid rgba(107,143,113,0.25);border-top-color:#6b8f71;border-radius:50%;animation:boot-spin 0.8s linear infinite;"></div>
-  <style>@keyframes boot-spin { to { transform: rotate(360deg); } }</style>
-</div>
-
-<!-- ════════════════════════════════
      LOGIN
 ════════════════════════════════ -->
-<div id="login-screen" class="hidden">
+<div id="login-screen">
   <div class="login-ambient" aria-hidden="true">
     <div class="login-orb login-orb-1"></div>
     <div class="login-orb login-orb-2"></div>
@@ -12479,21 +12465,6 @@ async function fwHandleMercadoPagoSubmit(formData) {
   const o = fwPendingOrder;
   if (!o) { mostrarErrorPago('No se pudo recuperar el pedido. Volvé a intentar.'); return; }
 
-  // FIX: el Payment Brick de Mercado Pago puede disparar onSubmit con
-  // formData null/sin token -- pasa cuando el usuario hace click en
-  // pagar mientras el Brick todavía está tokenizando la tarjeta (doble
-  // click, o click justo antes de que termine su propia validación
-  // interna). Sin este guard, formData.token de más abajo tiraba
-  // "TypeError: Cannot read properties of null (reading 'token')" ANTES
-  // de llegar al fetch -- por eso nunca salía ninguna request hacia
-  // crearPagoMercadoPago y el modal "Procesando tu pago" quedaba
-  // colgado para siempre, esperando una respuesta que nunca se pidió.
-  if (!formData || !formData.token) {
-    console.warn('[MercadoPago] fwHandleMercadoPagoSubmit: onSubmit disparó con formData inválido, se aborta sin llamar al backend.', formData);
-    mostrarErrorPago('El formulario de tarjeta no terminó de cargar. Esperá un segundo y volvé a intentar.');
-    return;
-  }
-
   const descripcion = 'Patas y Bigotes · ' + o.brand + ' · ' + (o.dog.name || '');
   const mail = (o.dog.mail || currentUser.email || '').toLowerCase();
   const referencia = o.newId;
@@ -15426,191 +15397,465 @@ function translateApp(lang) {
     if (!el.getAttribute('data-i18n-ph-original')) el.setAttribute('data-i18n-ph-original', originalPh);
     el.placeholder = (dict && dict[originalPh]) ? dict[originalPh] : originalPh;
   });
+
+  // <option> de selects: su texto es hijo directo pero SHOW_TEXT del body
+  // no siempre alcanza el contenido de <select> cerrados en todos los motores;
+  // se tratan aparte para asegurar consistencia.
+  document.querySelectorAll('option').forEach(el => {
+    if (el.closest(I18N_EXCLUDE_SELECTOR)) return;
+    if (el.closest('#lang-select')) return; // nombres de idioma: siempre en su propio idioma
+    const trimmed = el.textContent.trim();
+    if (!trimmed) return;
+    if (el.__i18nOriginal === undefined) el.__i18nOriginal = trimmed;
+    const original = el.__i18nOriginal;
+    el.textContent = (dict && dict[original]) ? dict[original] : original;
+  });
 }
-</script>
 
-<!-- ══════════════════════════════════════════════════════════════
-     BOOT — resuelve el spinner inicial (#boot-loader) contra el
-     estado real de sesión de Firebase.
-     ──────────────────────────────────────────────────────────────
-     FIX (bucle de carga infinito): el HTML original prometía en un
-     comentario una función `fwBootResolveSession()` que decidiría
-     entre #login-screen y #app y apagaría el spinner -- pero esa
-     función nunca llegó a existir en el archivo. Como consecuencia,
-     nada apagaba nunca #boot-loader: quedaba visible para siempre,
-     sin importar si Firebase respondía rápido, tardaba, se
-     desconectaba o tiraba una excepción. Este bloque reemplaza esa
-     pieza faltante con 3 garantías explícitas:
+function setLanguage(lang) {
+  try { localStorage.setItem(LS_LANGUAGE, lang); } catch(e) {}
+  translateApp(lang);
+  syncLanguageUI();
+  const labels = { es: 'Español', en: 'English', pt: 'Português' };
+  showToast(labels[lang], 'success');
+}
 
-     1) TIMEOUT DE SEGURIDAD (2.5s): si Firebase no contestó a
-        tiempo (SDK lento en cargar, red caída, config vacía), este
-        temporizador fuerza hideInitialLoader() igual y muestra el
-        login. No cancela ni interfiere con onAuthStateChanged: si
-        Firebase responde después, el listener igual actualiza la
-        UI con normalidad (login -> dashboard) cuando corresponda.
-     2) TRY/CATCH/FINALLY: tanto el arranque de PYB_AUTH.init() como
-        el primer callback de onAuthStateChanged están envueltos en
-        try/catch/finally, con hideInitialLoader() SIEMPRE en el
-        finally, así el spinner se apaga pase lo que pase (usuario
-        logueado, sin sesión, Firebase caído, o una excepción de JS
-        en el medio).
-     3) SIN RECARGAS EN BUCLE: no hay ningún window.location.reload()
-        en todo este bloque (ni en el resto del archivo). Un fallo
-        de auth nunca fuerza un refresh de página, solo cae al
-        estado "mostrar login".
-══════════════════════════════════════════════════════════════ -->
-<script>
-(function () {
-  // Evita que el timeout de seguridad y onAuthStateChanged compitan
-  // por resolver el boot dos veces (p. ej. mostrar login y luego,
-  // medio segundo después, "pisarlo" con el dashboard a mitad de
-  // transición). Solo la primera resolución hace efecto sobre el
-  // loader; las siguientes llamadas de auth se limitan a actualizar
-  // currentUser/UI con normalidad, sin volver a tocar el spinner.
-  var bootResolved = false;
+function syncLanguageUI() {
+  const sel = document.getElementById('lang-select');
+  if (sel) sel.value = getLanguagePref();
+}
 
-  // Oculta el spinner inicial y muestra #login-screen o #app según
-  // corresponda. Es la ÚNICA función responsable de apagar
-  // #boot-loader, y está pensada para poder llamarse más de una vez
-  // sin romper nada (solo la primera invocación tiene efecto real).
-  function hideInitialLoader(showDashboard) {
-    try {
-      var loader = document.getElementById('boot-loader');
-      if (loader) loader.style.display = 'none';
 
-      var loginScreen = document.getElementById('login-screen');
-      var appEl = document.getElementById('app');
-
-      if (showDashboard) {
-        if (loginScreen) loginScreen.classList.add('hidden');
-        if (appEl) { appEl.classList.add('visible'); appEl.style.display = ''; }
-      } else {
-        if (appEl) { appEl.classList.remove('visible'); appEl.style.display = 'none'; }
-        if (loginScreen) loginScreen.classList.remove('hidden');
-      }
-    } catch (err) {
-      // Si algo saliera mal ocultando/mostrando pantallas, al menos
-      // garantizamos que el spinner desaparezca del DOM a la fuerza
-      // para que la app nunca quede congelada en el loader.
-      console.warn('[BOOT] hideInitialLoader tuvo un problema, forzando ocultamiento del loader igual:', err);
-      var loaderFallback = document.getElementById('boot-loader');
-      if (loaderFallback) loaderFallback.style.display = 'none';
-    }
-  }
-  // Expuesta a window por si algún otro punto del código (o el
-  // propio botón de reintentar en #login-screen) necesita forzar
-  // el estado de loader manualmente.
-  window.hideInitialLoader = hideInitialLoader;
-
-  // Construye currentUser y renderiza el dashboard a partir de una
-  // sesión de Firebase ya autenticada. Reutiliza el mismo patrón que
-  // handleLoginAction() usa tras un login manual (buildSidebar +
-  // showView('dashboard')), para que ambos caminos terminen en el
-  // mismo estado de UI.
-  async function bootRenderDashboardFor(firebaseUser) {
-    var cuenta = await PYB_AUTH.miCuenta();
-    if (!cuenta) throw new Error('No se pudo verificar la cuenta con el servidor.');
-
-    currentUser = {
-      username:  firebaseUser.email ? firebaseUser.email.split('@')[0] : '',
-      email:     cuenta.email || firebaseUser.email || '',
-      clienteId: cuenta.clienteId || '',
-      role:      cuenta.isAdmin ? 'admin' : 'cliente',
-      label:     cuenta.isAdmin ? 'Administrador' : 'Cliente Portal',
-      initials:  (firebaseUser.email || '??').split('@')[0].substring(0, 2).toUpperCase(),
-      estado:    cuenta.estado || ''
-    };
-
-    var sidebarAvatar = document.getElementById('sidebar-avatar');
-    if (sidebarAvatar) sidebarAvatar.textContent = currentUser.initials;
-    var sidebarUsername = document.getElementById('sidebar-username');
-    if (sidebarUsername) sidebarUsername.textContent = currentUser.username || 'Cliente';
-    var sidebarRole = document.getElementById('sidebar-role');
-    if (sidebarRole) sidebarRole.textContent = currentUser.label;
-
-    if (typeof buildSidebar === 'function') buildSidebar();
-    if (typeof showView === 'function') showView('dashboard');
-    if (typeof runNotifCheck === 'function') runNotifCheck();
-  }
-
-  // 1) TIMEOUT DE SEGURIDAD: si en 2.5s nadie resolvió el boot
-  // todavía (Firebase lento, sin red, config vacía), forzamos login
-  // igual. onAuthStateChanged sigue activo y puede corregir la UI
-  // después si Firebase responde tarde.
-  document.addEventListener('DOMContentLoaded', function () {
-    setTimeout(function () {
-      if (bootResolved) return;
-      bootResolved = true;
-      console.warn('[BOOT] Firebase no respondió dentro de 2.5s, mostrando login por seguridad.');
-      hideInitialLoader(false);
-    }, 2500);
-  });
-
-  // 2) TRY/CATCH/FINALLY alrededor de la verificación de sesión y el
-  // renderizado. hideInitialLoader() vive en el finally para
-  // garantizar que el spinner se apague SIEMPRE.
-  document.addEventListener('DOMContentLoaded', function () {
-    try {
-      PYB_AUTH.init();
-    } catch (err) {
-      // Si init() explota de entrada (Firebase SDK no cargó, config
-      // rota, etc.), no dejamos el boot colgado: resolvemos a login.
-      console.warn('[BOOT] PYB_AUTH.init() falló:', err);
-      if (!bootResolved) { bootResolved = true; hideInitialLoader(false); }
-      return;
-    }
-
-    if (!PYB_AUTH.isConfigured()) {
-      // Firebase deshabilitado a propósito (FIREBASE_CONFIG vacío):
-      // no hay nada que esperar, vamos directo a login.
-      if (!bootResolved) { bootResolved = true; hideInitialLoader(false); }
-      return;
-    }
-
-    // onAuthStateChanged puede llamar a este callback varias veces a
-    // lo largo de la vida de la página (login, logout, refresh de
-    // token). Solo la PRIMERA invocación decide el estado del boot
-    // loader; las siguientes solo actualizan currentUser/UI.
-    PYB_AUTH.onChange(async function (firebaseUser) {
-      var isFirstResolution = !bootResolved;
-      // El finally es quien SIEMPRE apaga el loader, pero necesita
-      // saber si el dashboard se renderizó con éxito o no; para eso
-      // usa esta bandera en vez de reevaluar firebaseUser a ciegas.
-      // Reevaluar firebaseUser en el finally sería un bug: si
-      // bootRenderDashboardFor() falla (p.ej. miCuenta() cae por red),
-      // firebaseUser sigue siendo truthy y el finally terminaría
-      // mostrando igual el dashboard, pisando la caída a login que
-      // el catch ya había decidido correctamente.
-      var renderedOk = false;
-      try {
-        if (firebaseUser) {
-          await bootRenderDashboardFor(firebaseUser);
-          renderedOk = true;
-        } else if (!isFirstResolution) {
-          // Sesión cerrada después del arranque inicial (p. ej. logout
-          // en otra pestaña): volvemos a login sin recargar la página.
-          hideInitialLoader(false);
-        }
-      } catch (err) {
-        // Cualquier excepción durante la verificación de usuario o el
-        // renderizado (falla de red al pedir la cuenta, respuesta
-        // inesperada del backend, etc.) cae a login en vez de dejar
-        // la app colgada o a medio renderizar.
-        console.warn('[BOOT] Error verificando/renderizando la sesión de Firebase:', err);
-      } finally {
-        // GARANTÍA: pase lo que pase arriba (éxito, error, sesión
-        // nula), en la primera resolución el spinner se apaga acá,
-        // respetando el resultado real (renderedOk) en vez de
-        // volver a mirar firebaseUser.
-        if (isFirstResolution) {
-          bootResolved = true;
-          hideInitialLoader(renderedOk);
-        }
-      }
+/* ══════════════════════════════════
+   INIT
+══════════════════════════════════ */
+(function init() {
+  applyTheme(getAppearancePref(), false);
+  syncAppearanceUI();
+  applyFontSize(getFontSizePref());
+  syncFontSizeUI();
+  translateApp(getLanguagePref());
+  syncLanguageUI();
+  seedData();
+  addLiveLog('[INFO] Sistema iniciado. Conectando con Google Sheets…', 'ok');
+  loadFromGoogleSheets()
+    .then(() => {
+      addLiveLog('[OK] Planilla sincronizada. Listo para ingresar.', 'ok');
+      if (currentUser) { buildSidebar(); renderView(currentView); }
+    })
+    .catch(err => {
+      // Mostrar panel de diagnóstico solo si hay error de conexión
+      const panel = document.getElementById('diagnostics-panel');
+      if (panel) panel.style.display = 'block';
+      addLiveLog('[WARN] No se pudo conectar con Google Sheets: ' + err.message, 'err');
+      addLiveLog('[INFO] Usando datos locales. Podés iniciar sesión igualmente.', 'ok');
     });
-  });
 })();
 </script>
 
+<script>
+/* Drag & drop para el botón flotante de "Diagnóstico en vivo"
+   (#diagnostics-toggle-btn). Pedido: que se pueda arrastrar a cualquier
+   parte de la pantalla en vez de quedar fijo abajo a la izquierda.
+   No toca #diagnostics-panel (el panel de logs en sí), que sigue anclado
+   donde estaba (abajo a la derecha) de forma totalmente independiente.
+   Funciona con mouse (desktop) y touch (mobile); guarda la posición
+   elegida en localStorage para que persista entre recargas/sesiones. */
+(function () {
+  var btn = document.getElementById('diagnostics-toggle-btn');
+  if (!btn) return;
+
+  var STORAGE_KEY = 'diagnosticsBtnPos';
+  var MARGIN = 8; // separación mínima respecto a los bordes de la pantalla
+  var dragging = false;
+  var moved = false; // distingue "click" de "arrastre real"
+  var startX, startY, startLeft, startTop;
+
+  function clamp(val, min, max) { return Math.min(Math.max(val, min), max); }
+
+  function getNavExclusionBottom() {
+    var nav = document.querySelector('.mobile-nav');
+    if (!nav || window.getComputedStyle(nav).display === 'none') return 0;
+    return nav.offsetHeight + 6; // pequeño respiro extra sobre la barra
+  }
+
+  function applyPosition(left, top) {
+    var w = btn.offsetWidth || 40;
+    var h = btn.offsetHeight || 40;
+    left = clamp(left, MARGIN, window.innerWidth - w - MARGIN);
+    var maxTop = window.innerHeight - h - Math.max(MARGIN, getNavExclusionBottom());
+    top = clamp(top, MARGIN, maxTop);
+    btn.style.left = left + 'px';
+    btn.style.top = top + 'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+    return { left: left, top: top };
+  }
+
+  function savePosition(left, top) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ left: left, top: top }));
+    } catch (e) { /* localStorage no disponible: se pierde al recargar, sin romper nada */ }
+  }
+
+  function loadPosition() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return null;
+      var pos = JSON.parse(raw);
+      if (typeof pos.left === 'number' && typeof pos.top === 'number') return pos;
+    } catch (e) { /* ignorar y usar posición por defecto */ }
+    return null;
+  }
+
+  // Posición inicial: la guardada, o si es la primera vez, la misma
+  // esquina donde vivía antes (abajo a la izquierda) para no "saltar".
+  function setInitialPosition() {
+    var saved = loadPosition();
+    if (saved) {
+      applyPosition(saved.left, saved.top);
+    } else {
+      applyPosition(16, window.innerHeight - btn.offsetHeight - 24);
+    }
+  }
+
+  function getPoint(e) {
+    if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function onDragStart(e) {
+    dragging = true;
+    moved = false;
+    var p = getPoint(e);
+    startX = p.x;
+    startY = p.y;
+    var rect = btn.getBoundingClientRect();
+    startLeft = rect.left;
+    startTop = rect.top;
+    btn.style.cursor = 'grabbing';
+    btn.style.transition = 'none';
+  }
+
+  function onDragMove(e) {
+    if (!dragging) return;
+    var p = getPoint(e);
+    var dx = p.x - startX;
+    var dy = p.y - startY;
+    if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) moved = true;
+    if (moved) {
+      if (e.cancelable) e.preventDefault(); // evita hacer scroll de la página mientras se arrastra en mobile
+      applyPosition(startLeft + dx, startTop + dy);
+    }
+  }
+
+  function onDragEnd() {
+    if (!dragging) return;
+    dragging = false;
+    btn.style.cursor = 'grab';
+    if (moved) {
+      var rect = btn.getBoundingClientRect();
+      savePosition(rect.left, rect.top);
+    }
+  }
+
+  // Si hubo arrastre real, se cancela el click que dispara onclick
+  // (abrir/cerrar el panel), para que soltar el botón en un lugar nuevo
+  // no abra el panel de diagnóstico sin querer.
+  btn.addEventListener('click', function (e) {
+    if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
+  }, true);
+
+  btn.addEventListener('mousedown', onDragStart);
+  window.addEventListener('mousemove', onDragMove);
+  window.addEventListener('mouseup', onDragEnd);
+
+  btn.addEventListener('touchstart', onDragStart, { passive: true });
+  window.addEventListener('touchmove', onDragMove, { passive: false });
+  window.addEventListener('touchend', onDragEnd);
+  window.addEventListener('touchcancel', onDragEnd);
+
+  // Si la ventana cambia de tamaño (o se rota el celular), se reacomoda
+  // para que el botón no quede fuera de la pantalla.
+  window.addEventListener('resize', function () {
+    var rect = btn.getBoundingClientRect();
+    var pos = applyPosition(rect.left, rect.top);
+    savePosition(pos.left, pos.top);
+  });
+
+  setInitialPosition();
+})();
+</script>
+<!-- ═══════════════════════════════════════════════════════════════
+  Patas y Bigotes — snippet de frontend para el paso "Método de pago"
+  del wizard de Confirmación (ver Imagen 1, pasos 5 y 6).
+
+  v24: el <script src="sdk.mercadopago.com..."> y el `const mp = new
+  MercadoPago(...)` que vivían acá se movieron al <head> del
+  documento (ver el bloque comentado "FIX" justo después del <title>).
+  Motivo: fwMountMercadoPagoCardForm() se llama apenas el usuario
+  elige "Mercado Pago" en el paso 5 del wizard, mucho antes de que el
+  parser llegara a este punto del <body> — así que `mp` todavía no
+  existía cuando hacía falta, y el navegador tiraba "Uncaught
+  ReferenceError: MercadoPago is not defined". También se eliminó
+  WEBAPP_URL: no se usaba en ningún fetch real del archivo (el único
+  fetch de Mercado Pago, en fwHandleMercadoPagoSubmit, ya usaba
+  APPS_SCRIPT_URL correctamente); dejarla declarada sin uso era el
+  tipo de variable fantasma que conviene no reintroducir.
+═══════════════════════════════════════════════════════════════ -->
+
+<script>
+// ─────────────────────────────────────────────────────────────
+//  MERCADO PAGO (tarjeta o dinero en cuenta vía Checkout API)
+//  El montaje del cardForm y su callback onSubmit ya no viven acá:
+//  ver fwMountMercadoPagoCardForm() y fwHandleMercadoPagoSubmit() más
+//  arriba en el archivo, junto al resto de la lógica del wizard. Se
+//  movieron para poder montar el form apenas se elige Mercado Pago en
+//  el paso 5 (antes se montaba recién al confirmar el pedido, 4 pasos
+//  después, dejando los campos visibles pero sin poder escribir nada
+//  en ellos mientras tanto -- ver informe de bugs, punto 3).
+// ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+//  EFECTIVO / TRANSFERENCIA BANCARIA
+//
+//  FIX (ver informe de bugs, punto 4): las versiones anteriores de
+//  estas dos funciones (pagarEnEfectivo/pagarPorTransferencia) usaban
+//  fetch(WEBAPP_URL, {method:'POST', ...}) directo contra el Web App
+//  de Apps Script. Un POST así, sin mode/headers explícitos, puede
+//  fallar por CORS al pegar contra script.google.com (que redirige a
+//  script.googleusercontent.com) según el navegador -- y como esas
+//  funciones no tenían try/catch, un fetch() que tira TypeError
+//  dejaba la pantalla de "Procesando tu pago… no cierres esta
+//  ventana" trabada para siempre, sin ningún mensaje de error.
+//
+//  Se reemplazan acá por fwPagarEnEfectivo/fwPagarPorTransferencia,
+//  que usan fetchJSONP (mismo mecanismo GET + <script> que ya usan
+//  las otras ~19 llamadas al backend en este archivo, ver
+//  fetchJSONP más arriba) en vez de fetch()+POST: evita el problema
+//  de CORS de raíz porque nunca depende de que el navegador permita
+//  la petición cross-origin, y ya tiene su propio timeout (14s) y
+//  manejo de error incorporado.
+//
+//  Del lado del Apps Script, handleConfirmarPagoEfectivo y
+//  handleConfirmarPagoTransferencia tienen que devolver con
+//  returnJSONP(...) en vez de jsonOut(...) para que esto funcione
+//  (ver v23 del Apps Script).
+// ─────────────────────────────────────────────────────────────
+async function fwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaExterna) {
+  mostrarAnimacionTransferencia();
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoEfectivo'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      mostrarComprobante({
+        metodo: 'Efectivo',
+        estado: 'Pendiente de cobro en persona',
+        id: data.comprobanteId,
+        monto: monto
+      });
+    } else {
+      mostrarErrorPago((data && data.error) || 'No se pudo registrar el pago en efectivo.');
+    }
+  } catch (err) {
+    console.error(err);
+    mostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+async function fwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
+  mostrarAnimacionTransferencia();
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoTransferencia'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      mostrarComprobante({
+        metodo: 'Transferencia bancaria',
+        estado: 'Pendiente de verificación',
+        id: data.comprobanteId,
+        monto: monto,
+        alias: data.alias // se lo muestra al cliente para que transfiera
+      });
+    } else {
+      mostrarErrorPago((data && data.error) || 'No se pudo registrar la transferencia.');
+    }
+  } catch (err) {
+    console.error(err);
+    mostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  mostrarAnimacionTransferencia() / mostrarComprobante() /
+//  mostrarErrorPago() — UI de las 3 pantallas de resultado del pago.
+//  Reemplazan #fw-body-wrap con el mismo patrón que fwShowOrderDone
+//  (oculta #fw-steps/#fw-nav, reemplaza el contenido), en vez de un
+//  modal aparte, para quedarse dentro del mismo wizard que el cliente
+//  ya tiene abierto.
+//
+//  El nombre mostrarAnimacionTransferencia() se conserva tal cual lo
+//  pide pagarConMercadoPago/pagarEnEfectivo/pagarPorTransferencia
+//  (no se renombra a algo más genérico) aunque hoy se usa como
+//  pantalla de "procesando" para los 3 métodos, no solo transferencia.
+// ═══════════════════════════════════════════════════════════════
+function mostrarAnimacionTransferencia() {
+  const wrap = document.getElementById('fw-body-wrap');
+  const nav = document.getElementById('fw-nav');
+  const steps = document.getElementById('fw-steps');
+  if (steps) steps.style.display = 'none';
+  if (nav) nav.style.display = 'none';
+  document.getElementById('fw-modal-title-text').textContent = 'Procesando pago…';
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="food-order-done">
+      <div class="food-order-done-check" style="background:transparent"><i class="fa-solid fa-spinner fa-spin" style="color:var(--accent, #6C5CE7)"></i></div>
+      <h3>Procesando tu pago</h3>
+      <p>No cierres esta ventana, puede tardar unos segundos…</p>
+    </div>`;
+}
+
+// Estado del pago (Aprobado / En revisión / Pendiente / Rechazado) ya
+// resuelto y traducido por cada función de pago antes de llamar acá:
+// mostrarComprobante() solo lo muestra, no decide qué significa cada
+// status de Mercado Pago -- eso queda en pagarConMercadoPago.
+function mostrarComprobante({ metodo, estado, id, monto, fecha, alias }) {
+  fwCompleteOrderAfterPayment({ estado, id, monto, fecha, alias, metodo });
+  fwUnlockConfirmBtn();
+}
+
+// Pago rechazado / error de red / etc: a propósito NO llama a
+// fwCompleteOrderAfterPayment, así que el registro de Alimentación
+// nunca se guarda si el pago no se pudo procesar. Vuelve al paso 5
+// (método de pago) para que el cliente pueda reintentar o elegir otro
+// método, en vez de dejarlo trabado en una pantalla sin salida.
+function mostrarErrorPago(mensaje) {
+  showToast(mensaje || 'No se pudo procesar el pago. Probá de nuevo.', 'error');
+  fwUnlockConfirmBtn();
+  fwPendingOrder = null;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  PAGO — DESPARASITACIÓN
+//
+//  Clon exacto del bloque de arriba (fwPagarEnEfectivo/
+//  fwPagarPorTransferencia/mostrarAnimacionTransferencia/
+//  mostrarComprobante/mostrarErrorPago), pero terminando siempre en
+//  dwCompleteOrderAfterPayment() en vez de fwCompleteOrderAfterPayment().
+//  Ver el comentario grande al principio del bloque dw* (junto a
+//  dwCurrentStep) para el porqué de la duplicación: mostrarComprobante()
+//  llama a fwCompleteOrderAfterPayment() FIJO por nombre, así que
+//  reutilizarla tal cual desde Desparasitación guardaría el pedido en
+//  la sección equivocada.
+// ─────────────────────────────────────────────────────────────
+async function dwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaExterna) {
+  dwMostrarAnimacionPago();
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoEfectivo'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      dwMostrarComprobante({
+        metodo: 'Efectivo',
+        estado: 'Pendiente de cobro en persona',
+        id: data.comprobanteId,
+        monto: monto
+      });
+    } else {
+      dwMostrarErrorPago((data && data.error) || 'No se pudo registrar el pago en efectivo.');
+    }
+  } catch (err) {
+    console.error(err);
+    dwMostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+async function dwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
+  dwMostrarAnimacionPago();
+  try {
+    const url = APPS_SCRIPT_URL
+      + '?action=confirmarPagoTransferencia'
+      + '&amount=' + encodeURIComponent(monto)
+      + '&description=' + encodeURIComponent(descripcion)
+      + '&payerEmail=' + encodeURIComponent(mailComprador)
+      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      dwMostrarComprobante({
+        metodo: 'Transferencia bancaria',
+        estado: 'Pendiente de verificación',
+        id: data.comprobanteId,
+        monto: monto,
+        alias: data.alias
+      });
+    } else {
+      dwMostrarErrorPago((data && data.error) || 'No se pudo registrar la transferencia.');
+    }
+  } catch (err) {
+    console.error(err);
+    dwMostrarErrorPago('No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+  }
+}
+
+function dwMostrarAnimacionPago() {
+  const wrap = document.getElementById('dw-body-wrap');
+  const nav = document.getElementById('dw-nav');
+  const steps = document.getElementById('dw-steps');
+  if (steps) steps.style.display = 'none';
+  if (nav) nav.style.display = 'none';
+  document.getElementById('dw-modal-title-text').textContent = 'Procesando pago…';
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="food-order-done">
+      <div class="food-order-done-check" style="background:transparent"><i class="fa-solid fa-spinner fa-spin" style="color:var(--svc-deworm)"></i></div>
+      <h3>Procesando tu pago</h3>
+      <p>No cierres esta ventana, puede tardar unos segundos…</p>
+    </div>`;
+}
+
+function dwMostrarComprobante({ metodo, estado, id, monto, fecha, alias }) {
+  dwCompleteOrderAfterPayment({ estado, id, monto, fecha, alias, metodo });
+  dwUnlockConfirmBtn();
+}
+
+function dwMostrarErrorPago(mensaje) {
+  showToast(mensaje || 'No se pudo procesar el pago. Probá de nuevo.', 'error');
+  dwUnlockConfirmBtn();
+  dwPendingOrder = null;
+}
+
+// FIX: exposición a window de funciones de login (switchLoginTab,
+// togglePasswordVisibility, handleLoginAction). Antes esto vivía
+// arriba, cerca de la línea 5594, en un <script> que cerraba antes de
+// que estas tres funciones llegaran a definirse (viven en <script>
+// posteriores) -- eso tiraba "Uncaught ReferenceError: switchLoginTab
+// is not defined" y cortaba en seco el resto de aquel bloque. Se movió
+// acá, al final de todo, después de que ya corrieron todos los demás
+// <script> del documento y las tres funciones existen de verdad. Los
+// onclick inline del HTML (switchLoginTab, togglePasswordVisibility,
+// handleLoginAction en los botones de login/registro) siguen
+// funcionando igual porque siguen quedando colgadas de window antes de
+// que el usuario pueda hacer click en nada.
+window.switchLoginTab = switchLoginTab;
+window.togglePasswordVisibility = togglePasswordVisibility;
+window.handleLoginAction = handleLoginAction;
+</script>
 </body>
 </html>
