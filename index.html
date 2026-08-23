@@ -12087,7 +12087,19 @@ function fwMountMercadoPagoPaymentBrick() {
           payer: { email: mail }
         },
         customization: {
-          visual: { style: { theme: 'default' } }
+          visual: { style: { theme: 'default' } },
+          // Falta este bloque = Brick se monta sin ningún método de pago
+          // ofrecido en su UI interna. Resultado exacto de "No payment
+          // type was selected" (bad_request) al intentar pagar: el
+          // usuario nunca tuvo un payment_type_id que elegir porque el
+          // Brick no sabía qué habilitar. Ver Response tab de la request
+          // que falla (initialization?public_key=...): ese es el mensaje
+          // real, no genérico -- este bloque es la causa.
+          paymentMethods: {
+            creditCard: 'all',
+            debitCard: 'all',
+            mercadoPago: 'all'
+          }
         },
         callbacks: {
           onReady: () => {
@@ -12708,7 +12720,15 @@ function dwMountMercadoPagoPaymentBrick() {
           payer: { email: mail }
         },
         customization: {
-          visual: { style: { theme: 'default' } }
+          visual: { style: { theme: 'default' } },
+          // Mismo bug detectado y corregido en fwMountMercadoPagoPaymentBrick:
+          // sin paymentMethods el Brick no ofrece nada para elegir y
+          // MercadoPago rechaza con "No payment type was selected".
+          paymentMethods: {
+            creditCard: 'all',
+            debitCard: 'all',
+            mercadoPago: 'all'
+          }
         },
         callbacks: {
           onReady: () => {
