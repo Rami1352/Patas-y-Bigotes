@@ -6950,6 +6950,15 @@ document.addEventListener('DOMContentLoaded', function () {
            elegido (ver dwRenderPaymentList); el mount real pasa en
            dwSelectPayment. -->
       <div id="dw-paymentBrick_container" style="display:none; margin-top:16px"></div>
+
+      <!-- ── Panel de datos de transferencia bancaria ──
+           Faltaba por completo en este wizard (a diferencia de
+           Alimentación, que sí tiene #fw-transfer-panel): por eso,
+           al elegir "Transferencia bancaria" acá, no se desplegaba
+           ningún formulario. Mismo patrón exacto que
+           #fw-transfer-panel: vive siempre en el DOM y se
+           muestra/oculta y arma vía dwRenderTransferPanel(). -->
+      <div id="dw-transfer-panel" class="food-wizard-transfer-panel"></div>
     </div>
 
     <!-- ── PASO 5 — Confirmación (resumen antes de confirmar) ── -->
@@ -11859,10 +11868,10 @@ const FOOD_WIZARD_PAYMENT_METHODS = [
 // ═══════════════════════════════════════════════════════════════
 const FW_TRANSFER_ACCOUNT = {
   titular: 'Patas y Bigotes',
-  cbu: '0000003100012345678901',
+  cbu: '1500054100030064323154',
   banco: 'Banco Nación',
   tipoCuenta: 'Cuenta corriente en pesos',
-  whatsapp: '541112345678',
+  whatsapp: '5491136237690',
   email: 'pagos@patasybigotes.com.ar'
 };
 
@@ -12886,6 +12895,116 @@ function dwRenderPaymentList() {
 
   const mpForm = document.getElementById('dw-paymentBrick_container');
   if (mpForm) mpForm.style.display = (dwSelectedPaymentKey === 'mp') ? '' : 'none';
+
+  // Mismo patrón que el Brick de MP: el panel de datos de transferencia
+  // solo se pinta/muestra si ese es el método elegido (ver
+  // fwRenderPaymentList/fwRenderTransferPanel en Alimentación, del que
+  // esto es un clon). Faltaba esta llamada por completo, por eso el
+  // panel nunca aparecía en Desparasitarios.
+  dwRenderTransferPanel();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  dwRenderTransferPanel — clon exacto de fwRenderTransferPanel
+//  (Alimentación) para el panel de datos de transferencia bancaria
+//  (#dw-transfer-panel) del wizard de Desparasitarios. Faltaba por
+//  completo: el div #dw-transfer-panel no existía en el HTML y esta
+//  función tampoco, así que elegir "Transferencia bancaria" acá no
+//  desplegaba nada (a diferencia de Mercado Pago, que al menos
+//  mostraba el contenedor vacío del Brick).
+//
+//  Reutiliza FW_TRANSFER_ACCOUNT y FOOD_WIZARD_PAYMENT_METHODS, las
+//  mismas constantes que ya usa Alimentación: son datos del NEGOCIO
+//  (Patas y Bigotes), no de la sección, mismo criterio que ya
+//  documenta el comentario junto a FOOD_WIZARD_PAYMENT_METHODS.
+// ═══════════════════════════════════════════════════════════════
+function dwRenderTransferPanel() {
+  const panel = document.getElementById('dw-transfer-panel');
+  if (!panel) return;
+
+  const show = dwSelectedPaymentKey === 'transfer';
+  panel.classList.toggle('show', show);
+  if (!show) return; // no hace falta reconstruir el HTML si está oculto
+
+  const acc = FW_TRANSFER_ACCOUNT;
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'transfer');
+  const alias = (method && method.alias) || acc.alias || '';
+
+  const rows = [
+    { icon: 'fa-user',            label: 'Titular',       value: acc.titular,   copy: false },
+    { icon: 'fa-at',              label: 'Alias',         value: alias,         copy: true,  copyArg: 'alias' },
+    { icon: 'fa-hashtag',         label: 'CBU',           value: acc.cbu,       copy: true,  copyArg: 'cbu' },
+    { icon: 'fa-building-columns', label: 'Banco',        value: acc.banco,     copy: false },
+    { icon: 'fa-wallet',          label: 'Tipo de cuenta',value: acc.tipoCuenta,copy: false }
+  ];
+
+  const rowsHtml = rows.map(r => `
+    <div class="food-wizard-transfer-row">
+      <div class="food-wizard-transfer-row-icon"><i class="fa-solid ${r.icon}"></i></div>
+      <div class="food-wizard-transfer-row-body">
+        <div class="food-wizard-transfer-row-label">${escapeHtml(r.label)}</div>
+        <div class="food-wizard-transfer-row-value">${escapeHtml(r.value || '—')}</div>
+      </div>
+      ${r.copy ? `<button type="button" class="food-wizard-transfer-row-copy" title="Copiar ${escapeHtml(r.label)}" onclick="dwCopyTransferField('${r.copyArg}')"><i class="fa-regular fa-copy"></i></button>` : ''}
+    </div>`).join('');
+
+  const waNumber = String(acc.whatsapp || '').replace(/[^0-9]/g, '');
+  const waMsg = encodeURIComponent('Hola! Te envío el comprobante de mi transferencia a Patas y Bigotes.');
+  const waHref = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : '#';
+  const waPhoneDisplay = waNumber ? fwFormatPhoneDisplay(waNumber) : '—';
+
+  const mailSubject = encodeURIComponent('Comprobante de transferencia — Patas y Bigotes');
+  const mailHref = acc.email ? `mailto:${encodeURIComponent(acc.email)}?subject=${mailSubject}` : '#';
+
+  panel.innerHTML = `
+    <div class="food-wizard-transfer-panel-title">Datos para la transferencia</div>
+    <div class="food-wizard-transfer-panel-sub">Realizá la transferencia a la siguiente cuenta y enviá el comprobante.</div>
+    <div class="food-wizard-transfer-rows">${rowsHtml}</div>
+    <div class="food-wizard-transfer-important">
+      <div class="food-wizard-transfer-important-icon"><i class="fa-solid fa-circle-info"></i></div>
+      <div>
+        <div class="food-wizard-transfer-important-title">Importante</div>
+        <div class="food-wizard-transfer-important-sub">Una vez realizada la transferencia, enviá el comprobante para que podamos confirmar tu pedido.</div>
+      </div>
+    </div>
+    <div class="food-wizard-transfer-send-label">Enviar comprobante por</div>
+    <div class="food-wizard-transfer-send-options">
+      <a class="food-wizard-transfer-send-btn" href="${waHref}" target="_blank" rel="noopener">
+        <div class="food-wizard-transfer-send-icon"><i class="fa-brands fa-whatsapp"></i></div>
+        <div class="food-wizard-transfer-send-body">
+          <div class="food-wizard-transfer-send-title">WhatsApp</div>
+          <div class="food-wizard-transfer-send-sub">${escapeHtml(waPhoneDisplay)}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+      <a class="food-wizard-transfer-send-btn" href="${mailHref}">
+        <div class="food-wizard-transfer-send-icon"><i class="fa-solid fa-envelope"></i></div>
+        <div class="food-wizard-transfer-send-body">
+          <div class="food-wizard-transfer-send-title">Email</div>
+          <div class="food-wizard-transfer-send-sub">${escapeHtml(acc.email || '—')}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+    </div>`;
+}
+
+// Copia Alias o CBU de la cuenta de transferencia al portapapeles, para
+// el wizard de Desparasitarios. Clon de fwCopyTransferField (mismo
+// patrón defensivo clipboard/execCommand vía fwCopyAliasFallback,
+// reutilizada tal cual porque no depende de nada específico de
+// Alimentación).
+function dwCopyTransferField(field) {
+  const acc = FW_TRANSFER_ACCOUNT;
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'transfer');
+  const text = field === 'alias' ? ((method && method.alias) || acc.alias || '') : (acc.cbu || '');
+  if (!text) return;
+  const label = field === 'alias' ? 'Alias' : 'CBU';
+  const done = () => showToast(label + ' copiado', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fwCopyAliasFallback(text, done));
+  } else {
+    fwCopyAliasFallback(text, done);
+  }
 }
 
 function dwSelectPayment(key) {
