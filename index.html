@@ -6636,66 +6636,21 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="food-wizard-pay-section-title">Elegí tu método de pago</div>
       <div id="fw-pay-list"></div>
 
-      <!-- ── FORM DE TARJETA — Mercado Pago (Checkout API / cardForm) ──
-           Visible Y montado (mp.cardForm) apenas fwSelectedPaymentKey
-           pasa a 'mp' (ver fwSelectPayment/fwMountMercadoPagoCardForm):
-           antes se mostraba acá pero recién se montaba 4 pasos después,
-           al confirmar, así que los campos se veían pero no se podía
-           escribir nada en ellos -- ver informe de bugs, punto 3. IDs
-           EXACTOS que espera fwMountMercadoPagoCardForm / mp.cardForm():
-           no renombrar ninguno de estos ids, el SDK los busca por id
-           literal, no por name ni por posición.
-           El SDK tokeniza la tarjeta en el navegador del cliente -- el
-           número de tarjeta no pasa por tu servidor ni por Apps Script. -->
-      <form id="mp-card-form" style="display:none; margin-top:16px">
-        <div class="form-row">
-          <label>Número de tarjeta *</label>
-          <div class="form-control" id="form-checkout__cardNumber"></div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-row">
-            <label>Vencimiento *</label>
-            <div class="form-control" id="form-checkout__expirationDate"></div>
-          </div>
-          <div class="form-row">
-            <label>Código de seguridad *</label>
-            <div class="form-control" id="form-checkout__securityCode"></div>
-          </div>
-        </div>
-        <div class="form-row">
-          <label>Nombre del titular *</label>
-          <input class="form-control" id="form-checkout__cardholderName" type="text" placeholder="Como figura en la tarjeta" />
-        </div>
-        <div class="form-row-2">
-          <div class="form-row">
-            <label>Tipo de documento *</label>
-            <select class="form-control" id="form-checkout__identificationType"></select>
-          </div>
-          <div class="form-row">
-            <label>Número de documento *</label>
-            <input class="form-control" id="form-checkout__identificationNumber" type="text" inputmode="numeric" placeholder="Sin puntos" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-row">
-            <label>Banco emisor *</label>
-            <select class="form-control" id="form-checkout__issuer"></select>
-          </div>
-          <div class="form-row">
-            <label>Cuotas *</label>
-            <select class="form-control" id="form-checkout__installments"></select>
-          </div>
-        </div>
-        <div class="form-row">
-          <label>Email *</label>
-          <input class="form-control" id="form-checkout__cardholderEmail" type="email" placeholder="tu@email.com" />
-        </div>
-        <!-- Sin <button type="submit">: el submit lo dispara fwGoStep desde
-             el botón "Confirmar pedido" del wizard (ver fwSubmitPayment),
-             no un botón propio del form, para no duplicar la navegación
-             de pasos que ya maneja el wizard. -->
-      </form>
+      <!-- ── PAYMENT BRICK — Mercado Pago (Checkout Bricks) ──
+           MIGRADO desde cardForm/Checkout API: soporte de MP confirmó
+           fields_setup_failed (Secure Fields no insertaba el iframe pese
+           a onFormMounted OK, sin togear error en ningún callback
+           instrumentado -- ver historial de fixes v25-v29 más abajo,
+           junto a fwMountMercadoPagoPaymentBrick). El Brick dibuja TODA
+           su UI adentro de este único div: campos de tarjeta,
+           identificación, cuotas, banco emisor, Y su propio botón de
+           pago (no hay forma de separar el botón del resto). Por eso
+           "Confirmar pedido" se oculta cuando el método es 'mp' -- ver
+           fwRenderStep -- el botón real para pagar con tarjeta es el que
+           dibuja el Brick acá adentro. -->
+      <div id="paymentBrick_container" style="display:none; margin-top:16px"></div>
     </div>
+
 
     <!-- ── PASO 6 — Confirmación (resumen antes de confirmar) ── -->
     <div class="wizard-panel" data-fwpanel="6">
@@ -6916,59 +6871,20 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="deworm-wizard-pay-section-title">Elegí tu método de pago</div>
       <div id="dw-pay-list"></div>
 
-      <!-- ── FORM DE TARJETA — Mercado Pago (Checkout API / cardForm) ──
-           Mismo patrón exacto que #mp-card-form (Alimentación), pero con
-           ids propios (dw-mp-card-form / dw-form-checkout__*): el SDK de
-           Mercado Pago no permite montar dos cardForm distintos sobre el
-           mismo set de ids -- si Alimentación y Desparasitación
-           compartieran ids, abrir un wizard después del otro (sin
-           recargar la página) rompería el que se montó primero. -->
-      <form id="dw-mp-card-form" style="display:none; margin-top:16px">
-        <div class="form-row">
-          <label>Número de tarjeta *</label>
-          <div class="form-control" id="dw-form-checkout__cardNumber"></div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-row">
-            <label>Vencimiento *</label>
-            <div class="form-control" id="dw-form-checkout__expirationDate"></div>
-          </div>
-          <div class="form-row">
-            <label>Código de seguridad *</label>
-            <div class="form-control" id="dw-form-checkout__securityCode"></div>
-          </div>
-        </div>
-        <div class="form-row">
-          <label>Nombre del titular *</label>
-          <input class="form-control" id="dw-form-checkout__cardholderName" type="text" placeholder="Como figura en la tarjeta" />
-        </div>
-        <div class="form-row-2">
-          <div class="form-row">
-            <label>Tipo de documento *</label>
-            <select class="form-control" id="dw-form-checkout__identificationType"></select>
-          </div>
-          <div class="form-row">
-            <label>Número de documento *</label>
-            <input class="form-control" id="dw-form-checkout__identificationNumber" type="text" inputmode="numeric" placeholder="Sin puntos" />
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-row">
-            <label>Banco emisor *</label>
-            <select class="form-control" id="dw-form-checkout__issuer"></select>
-          </div>
-          <div class="form-row">
-            <label>Cuotas *</label>
-            <select class="form-control" id="dw-form-checkout__installments"></select>
-          </div>
-        </div>
-        <div class="form-row">
-          <label>Email *</label>
-          <input class="form-control" id="dw-form-checkout__cardholderEmail" type="email" placeholder="tu@email.com" />
-        </div>
-        <!-- Sin <button type="submit">: el submit lo dispara dwGoStep desde
-             el botón "Confirmar pedido" del wizard (ver dwSubmitPayment). -->
-      </form>
+      <!-- ── Payment Brick de Mercado Pago ──
+           MIGRADO desde cardForm (Checkout API) el <FECHA DE HOY>, mismo
+           motivo y mismo cambio que #paymentBrick_container en
+           Alimentación (fields_setup_failed sobre Secure Fields, ver
+           comentario junto a fwMountMercadoPagoPaymentBrick). Id propio
+           (dw-paymentBrick_container, no paymentBrick_container): el SDK
+           de Mercado Pago no permite montar dos Bricks distintos sobre el
+           mismo id de contenedor -- si Alimentación y Desparasitación
+           compartieran id, abrir un wizard después del otro (sin
+           recargar la página) rompería el que se montó primero. El
+           contenedor solo se muestra si Mercado Pago es el método
+           elegido (ver dwRenderPaymentList); el mount real pasa en
+           dwSelectPayment. -->
+      <div id="dw-paymentBrick_container" style="display:none; margin-top:16px"></div>
     </div>
 
     <!-- ── PASO 5 — Confirmación (resumen antes de confirmar) ── -->
@@ -9394,10 +9310,10 @@ function openDewormModal() {
   editingDewormId = null;
   dwCurrentStep = 1;
   dwSelectedPaymentKey = null;
-  // Mismo motivo que fwMountedCardForm en openFoodWizard: cualquier
-  // cardForm de una apertura anterior quedó sobre nodos por reemplazar,
+  // Mismo motivo que fwMountedPaymentBrick en openFoodWizard: cualquier
+  // Brick de una apertura anterior quedó sobre nodos por reemplazar,
   // así que se descarta la referencia sin desmontar.
-  dwMountedCardForm = null;
+  dwMountedPaymentBrick = null;
 
   const wrap = document.getElementById('dw-body-wrap');
   if (wrap) {
@@ -9533,7 +9449,7 @@ async function editDeworm(id) {
   editingDewormId = id;
   dwCurrentStep = 1;
   dwSelectedPaymentKey = null;
-  dwMountedCardForm = null;
+  dwMountedPaymentBrick = null;
 
   const wrap = document.getElementById('dw-body-wrap');
   if (wrap) {
@@ -11823,10 +11739,13 @@ let fwSelectedPaymentKey = null; // 'credit' | 'debit' | 'mp' | 'modo' | 'transf
 // escribir nada en ellos hasta 4 pasos después. Ahora se monta en el
 // momento en que se elige Mercado Pago (fwSelectPayment) y esta
 // variable guarda la instancia para poder desmontarla si el cliente
-// cambia a otro método o vuelve a abrir el wizard -- mp.cardForm()
-// tira error si se monta dos veces sobre los mismos ids sin desmontar
-// antes.
-let fwMountedCardForm = null;
+// cambia a otro método o vuelve a abrir el wizard.
+// NOTA: declarada acá arriba (antes de fwMountMercadoPagoPaymentBrick,
+// más abajo en el archivo) porque openFoodWizard, unas líneas después,
+// necesita poder resetearla al abrir el wizard -- var (no let/const) es
+// intencional para que quede accesible como global sin problema de
+// hoisting entre esta sección y la de más abajo.
+var fwMountedPaymentBrick = null;
 // fwShowOrderDone() reemplaza el innerHTML de #fw-body-wrap por la
 // pantalla final "Pedido confirmado", destruyendo los 6
 // wizard-panel originales. Se guarda una copia UNA sola vez (primer
@@ -11860,12 +11779,12 @@ function openFoodWizard() {
   fwCurrentStep = 1;
   fwSelectedPaymentKey = null;
   // El wrap se puede restaurar (o no) más abajo según venga de "Pedido
-  // confirmado"; en cualquier caso, cualquier cardForm montado en una
-  // apertura anterior quedó sobre nodos que ya no existen o están por
-  // ser reemplazados, así que se descarta la referencia sin llamar a
-  // .unmount() (llamarlo sobre nodos ya desconectados del DOM no hace
+  // confirmado"; en cualquier caso, cualquier Payment Brick montado en
+  // una apertura anterior quedó sobre nodos que ya no existen o están
+  // por ser reemplazados, así que se descarta la referencia sin llamar
+  // a .unmount() (llamarlo sobre nodos ya desconectados del DOM no hace
   // falta y puede tirar error).
-  fwMountedCardForm = null;
+  fwMountedPaymentBrick = null;
 
   const wrap = document.getElementById('fw-body-wrap');
   if (wrap) {
@@ -12036,11 +11955,10 @@ function fwRenderPaymentList() {
       ${aliasHtml}`;
   }).join('');
 
-  // El form de tarjeta de Mercado Pago solo se muestra si ese es el
-  // método elegido. No se hace mount/unmount del cardForm acá -- eso
-  // pasa recién al confirmar el pedido, en fwSubmitPayment -- esto
-  // solo controla si el bloque de inputs es visible o no.
-  const mpForm = document.getElementById('mp-card-form');
+  // El contenedor del Payment Brick de Mercado Pago solo se muestra si
+  // ese es el método elegido. El mount real pasa en fwSelectPayment,
+  // esto solo controla si el bloque es visible o no.
+  const mpForm = document.getElementById('paymentBrick_container');
   if (mpForm) mpForm.style.display = (fwSelectedPaymentKey === 'mp') ? '' : 'none';
 }
 
@@ -12048,201 +11966,181 @@ function fwSelectPayment(key) {
   const wasMp = fwSelectedPaymentKey === 'mp';
   fwSelectedPaymentKey = key;
   fwRenderPaymentList();
+  fwRenderStep(); // re-evalúa si "Confirmar pedido" debe ocultarse (ver fwRenderStep)
 
   if (key === 'mp') {
-    // Montar apenas se elige, no recién al confirmar: así los campos
-    // (número de tarjeta, vencimiento, etc.) quedan editables desde que
-    // se ven, en vez de mostrarse 4 pasos antes de que el SDK los
-    // conecte de verdad.
-    // FIX: fwRenderPaymentList() (línea de arriba) recién cambió
-    // mpForm.style.display de 'none' a '' -- el navegador todavía no
-    // pintó ese cambio en este mismo tick síncrono. mp.cardForm() con
-    // autoMount:true necesita que los divs #form-checkout__* ya sean
-    // visibles (offsetParent real) para poder inyectar sus iframes
-    // encima; si se llama en el mismo tick, el SDK puede fallar en
-    // silencio (sin togear onFormMounted con error) y los divs quedan
-    // vacíos y no editables, aunque ya se vean en pantalla. Se pasa a
-    // requestAnimationFrame para dar un frame de margen y montar recién
-    // cuando el display:'' ya se aplicó de verdad.
-    requestAnimationFrame(() => fwMountMercadoPagoCardForm());
+    // Montar apenas se elige, no recién al confirmar: así el Brick queda
+    // interactivo desde que se ve, en vez de mostrarse pasos antes de
+    // que el SDK lo conecte de verdad. Mismo motivo de
+    // requestAnimationFrame que tenía cardForm: fwRenderPaymentList()
+    // (línea de arriba) recién sacó el display:none del contenedor en
+    // este mismo tick síncrono, y el Brick necesita que el navegador ya
+    // haya pintado ese cambio antes de montar.
+    requestAnimationFrame(() => fwMountMercadoPagoPaymentBrick());
   } else if (wasMp) {
     // Se cambió de Mercado Pago a otro método: se desmonta para poder
-    // volver a montar limpio si el cliente elige Mercado Pago de nuevo
-    // (mp.cardForm() no permite montar dos veces sin desmontar antes).
-    fwUnmountMercadoPagoCardForm();
+    // volver a montar limpio si el cliente elige Mercado Pago de nuevo.
+    fwUnmountMercadoPagoPaymentBrick();
   }
 }
 
-// Monta el cardForm de Mercado Pago sobre #mp-card-form (ids fijos, ver
-// comentario en el HTML del form). Idempotente: si ya hay uno montado,
-// no vuelve a montar. El callback onSubmit queda definido acá mismo
-// (antes vivía en pagarConMercadoPago); fwSubmitPayment ahora solo
-// dispara el submit del form, no vuelve a llamar a mp.cardForm().
-// FIX v27: el fix v26 (reintentar mp.cardForm() cada 120ms si el iframe no
-// aparecía) resultó ser la causa de un problema nuevo y peor, confirmado en
-// producción vía pestaña Network: cada reintento disparaba su propia ronda
-// de requests a identification_types?public_key=... (¡16 requests
-// idénticos, ~190ms cada uno, en ráfaga!), y el error final pasó a ser
-// "Uncaught (in promise) Error: MercadoPago.js - CardForm is not mounted".
-// La Public Key ES válida (confirmado pegando
-// api.mercadopago.com/v1/payment_methods?public_key=... a mano: devuelve
-// la lista completa de medios de pago) -- el problema nunca fue la key ni
-// el ambiente ni CSS (pointerEvents/zIndex salieron 'auto', normales; el
-// contenedor SÍ tenía tamaño real, 402x22px, antes de montar).
-// La causa real: mp.cardForm() arranca un proceso ASÍNCRONO interno del
-// SDK (varias llamadas de red propias) que no es instantáneo. Llamarlo de
-// nuevo sobre el mismo id:'mp-card-form' antes de que ese proceso anterior
-// termine -- aunque se haya llamado candidate.unmount() en el medio -- dejaba
-// al SDK con más de un ciclo de inicialización compitiendo por el mismo
-// formulario, y ninguno llegaba a completarse nunca. El SDK no está pensado
-// para tolerar cardForm() en ráfaga sobre el mismo form.
-// Se vuelve a UN SOLO intento de montaje real (no un loop de reintentos):
-// se espera con setTimeout(500) -- tiempo real de sobra para que termine
-// cualquier transición CSS del modal -- y recién ahí se llama a
-// mp.cardForm() una única vez. Si en ese momento el contenedor sigue sin
-// tamaño real (caso borde: usuario cerró el modal en el medio), se aborta
-// sin reintentar, en vez de entrar en el mismo loop que causó el bug.
-// isMountingCardForm evita además que dos clicks rápidos en "Mercado
-// Pago" disparen dos llamadas a cardForm() en paralelo por otra vía.
-var isMountingCardForm = false;
+// Monta el Payment Brick de Mercado Pago sobre #paymentBrick_container.
+// MIGRADO desde cardForm (Checkout API) el <FECHA DE HOY>: soporte de MP
+// confirmó el síntoma como fields_setup_failed -- Secure Fields no
+// insertaba su iframe pese a onFormMounted OK, sin togear error en
+// ningún callback instrumentado (onFormMounted, onError) ni en Network
+// (search/widgets/identification_types siempre devolvían 200). Se probó
+// también con una Public Key de producción nueva confirmada activa:
+// mismo resultado. Historial previo de fixes sobre cardForm (v25-v29,
+// timing de mount, singleton de mp, logging) quedó comentado más abajo
+// para contexto, pero esa ruta ya no aplica: el Brick reemplaza por
+// completo el manejo manual de los contenedores de Secure Fields.
+//
+// A diferencia de cardForm, el Brick:
+// - Necesita amount y payer.email REALES en su inicialización, no un
+//   placeholder (cardForm usaba amount:'100' y resolvía el monto real
+//   recién en el submit). Acá se toman del estado ya cargado en pasos
+//   anteriores del wizard (fw-price, dog.mail/currentUser.email) en el
+//   momento del mount.
+// - Dibuja su propio botón de pago DENTRO de #paymentBrick_container:
+//   no hay un <button type="submit"> externo que disparar. Por eso
+//   fwSubmitPayment ya no tiene una rama 'mp' que haga requestSubmit()
+//   sobre ningún form -- el disparador real es el onSubmit del propio
+//   Brick, definido acá.
+var isMountingCardForm = false; // se sigue usando: evita doble mount si el usuario clickea Mercado Pago dos veces rápido
+// fwMountedPaymentBrick ya está declarada más arriba, junto a
+// FOOD_WIZARD_PAYMENT_METHODS -- openFoodWizard necesita poder
+// resetearla al abrir el wizard, así que vive antes en el archivo.
 
-function fwCardFormMountReady() {
-  const mpFormEl = document.getElementById('mp-card-form');
-  return !!mpFormEl;
-}
-
-function fwMountMercadoPagoCardForm() {
+function fwMountMercadoPagoPaymentBrick() {
   if (isMountingCardForm) return; // ya montando, no duplicar
   isMountingCardForm = true;
 
-  // FIX v28 (logs + unmount defensivo): si por cualquier motivo
-  // fwMountedCardForm quedó con una instancia previa viva (p.ej. el
-  // usuario reabrió el modal sin pasar por fwUnmountMercadoPagoCardForm,
-  // o un mount anterior quedó a medio resolver), se la desmonta ACÁ,
-  // de forma síncrona y defensiva, antes de intentar un mount nuevo.
-  // OJO: esto llama a .unmount() -- el método real del SDK para liberar
-  // el form -- y no toca el contenido de los <div>: mp.cardForm() hace
-  // su propio document.getElementById() al montar y reescribe esos
-  // contenedores de cero, así que vaciarlos a mano con innerHTML = ''
-  // no cambia nada de lo que el SDK encuentra un instante después; sí
-  // arriesga borrar nodos mientras el iframe anterior todavía los está
-  // usando, si el unmount no llegó a terminar.
-  if (fwMountedCardForm) {
-    console.log('[MercadoPago] fwMountMercadoPagoCardForm: había una instancia previa, desmontando antes de re-montar.');
-    try { fwMountedCardForm.unmount(); } catch (err) { console.warn('[MercadoPago] fwMountMercadoPagoCardForm: unmount previo falló (se continúa igual).', err); }
-    fwMountedCardForm = null;
+  if (fwMountedPaymentBrick) {
+    console.log('[MercadoPago] fwMountMercadoPagoPaymentBrick: había una instancia previa, desmontando antes de re-montar.');
+    try { fwMountedPaymentBrick.unmount(); } catch (err) { console.warn('[MercadoPago] fwMountMercadoPagoPaymentBrick: unmount previo falló (se continúa igual).', err); }
+    fwMountedPaymentBrick = null;
   }
 
-  // Espera única de 500ms -- no un loop -- para dar tiempo real a que
-  // termine la transición de apertura del modal. mp ya está disponible acá
-  // (fwGetMercadoPago se resuelve o falla de una, no hace falta esperar al
-  // SDK externo con reintentos: si typeof MercadoPago sigue undefined
-  // después de que sdk.mercadopago.com ya cargó en el <head>, es un
-  // problema de red que no se arregla reintentando en bucle).
-  //
-  // mp SIGUE siendo el singleton de fwGetMercadoPago() (no se re-instancia
-  // acá): new MercadoPago(...) dispara sus propias llamadas de red de
-  // entrada (widgets?public_key=..., search?public_key=...), y recrearlo
-  // en cada mount reintroduce la carrera de requests que el fix v25 (ver
-  // comentario junto a fwGetMercadoPago, más arriba en el <head>) resolvió
-  // con esta misma inicialización perezosa y cacheada.
   setTimeout(() => {
-    console.log('[MercadoPago] fwMountMercadoPagoCardForm: intentando montar cardForm.');
+    console.log('[MercadoPago] fwMountMercadoPagoPaymentBrick: intentando montar Payment Brick.');
     var mpInstance = fwGetMercadoPago();
     if (!mpInstance) {
       isMountingCardForm = false;
-      console.error('[MercadoPago] fwMountMercadoPagoCardForm: fwGetMercadoPago() devolvió null (SDK no cargó).');
+      console.error('[MercadoPago] fwMountMercadoPagoPaymentBrick: fwGetMercadoPago() devolvió null (SDK no cargó).');
       showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
       return;
     }
-    if (!fwCardFormMountReady()) {
-      // El modal se cerró o el contenedor #mp-card-form no existe: se
-      // aborta sin reintentar. Si el usuario vuelve a elegir "Mercado
-      // Pago", fwSelectPayment llama a esta función de nuevo desde cero.
+    const containerEl = document.getElementById('paymentBrick_container');
+    if (!containerEl) {
       isMountingCardForm = false;
-      console.warn('[MercadoPago] fwMountMercadoPagoCardForm: #mp-card-form no está listo, se aborta el mount.');
+      console.warn('[MercadoPago] fwMountMercadoPagoPaymentBrick: #paymentBrick_container no está listo, se aborta el mount.');
       return;
     }
+
+    // amount y payer.email reales, tomados del estado ya cargado en
+    // pasos anteriores del wizard -- no placeholder, el Brick los usa
+    // para inicializar de verdad, no solo para validar formato.
+    const price = Number(document.getElementById('fw-price').value) || 0;
+    const dogId = parseInt(document.getElementById('fw-dog').value);
+    const dog = getDog(dogId);
+    const brand = document.getElementById('fw-brand').value.trim();
+    const mail = ((dog && dog.mail) || currentUser.email || '').toLowerCase();
+
+    if (price <= 0) {
+      isMountingCardForm = false;
+      showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error');
+      return;
+    }
+    if (!dog || !brand) {
+      isMountingCardForm = false;
+      showToast('Faltan datos del pedido', 'error');
+      return;
+    }
+
+    // Arma fwPendingOrder ACÁ, en el mount, y no en fwSubmitPayment: a
+    // diferencia de cardForm (donde "Confirmar pedido" era el único
+    // disparador y armaba fwPendingOrder antes de disparar el submit),
+    // con el Brick el usuario paga directo desde el botón que el propio
+    // Brick dibuja -- fwSubmitPayment nunca se ejecuta para este método
+    // (ver fwRenderStep, fw-btn-next oculto en paso 6 cuando key==='mp').
+    // fwHandleMercadoPagoSubmit necesita fwPendingOrder ya armado cuando
+    // el Brick dispare su onSubmit, así que tiene que existir desde acá.
+    fwPendingOrder = {
+      dogId, dog, brand,
+      portion: parseFloat(document.getElementById('fw-portion').value) || 0,
+      freq: document.getElementById('fw-freq').value,
+      last: document.getElementById('fw-last').value,
+      next: document.getElementById('fw-next').value,
+      notes: document.getElementById('fw-notes').value.trim(),
+      price,
+      method: FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'mp'),
+      newId: genFoodId(),
+      orderNumber: fwGenOrderNumber()
+    };
+
     try {
-      fwMountedCardForm = mpInstance.cardForm({
-        amount: '100', // placeholder: fwSubmitPayment resuelve el monto real al confirmar; el SDK solo lo usa para validar formato acá
-        autoMount: true,
-        form: {
-          id: 'mp-card-form',
-          cardNumber: { id: 'form-checkout__cardNumber' },
-          expirationDate: { id: 'form-checkout__expirationDate' },
-          securityCode: { id: 'form-checkout__securityCode' },
-          cardholderName: { id: 'form-checkout__cardholderName' },
-          issuer: { id: 'form-checkout__issuer' },
-          installments: { id: 'form-checkout__installments' },
-          identificationType: { id: 'form-checkout__identificationType' },
-          identificationNumber: { id: 'form-checkout__identificationNumber' },
-          cardholderEmail: { id: 'form-checkout__cardholderEmail' },
+      const bricksBuilder = mpInstance.bricks();
+      const settings = {
+        initialization: {
+          amount: price,
+          payer: { email: mail }
+        },
+        customization: {
+          visual: { style: { theme: 'default' } }
         },
         callbacks: {
-          onFormMounted: error => {
+          onReady: () => {
             isMountingCardForm = false;
-            if (error) {
-              console.error('[MercadoPago] fwMountMercadoPagoCardForm: onFormMounted devolvió error. Detalle:', error);
-              showToast('No se pudo cargar el formulario de tarjeta.', 'error');
-              fwMountedCardForm = null;
-            } else {
-              console.log('[MercadoPago] fwMountMercadoPagoCardForm: onFormMounted OK, cardForm montado.');
-            }
+            console.log('[MercadoPago] fwMountMercadoPagoPaymentBrick: onReady, Brick montado.');
           },
-          onFetching: resource => {
-            console.log('[MercadoPago] fwMountMercadoPagoCardForm: onFetching, resource =', resource);
+          onSubmit: ({ selectedPaymentMethod, formData }) => {
+            console.log('[MercadoPago] fwMountMercadoPagoPaymentBrick: onSubmit disparado.', selectedPaymentMethod);
+            return fwHandleMercadoPagoSubmit(formData);
           },
-          onSubmit: event => {
-            console.log('[MercadoPago] fwMountMercadoPagoCardForm: onSubmit disparado.');
-            fwHandleMercadoPagoSubmit(event);
-          },
-          // Agregado a pedido de soporte de MP: fields_setup_failed (fallo
-          // al insertar el iframe de Secure Fields) puede NO togear
-          // onFormMounted a error ni aparecer como request fallida en
-          // Network -- solo lo reporta este callback. Sin onError acá, ese
-          // caso específico queda mudo pese a los otros console.log ya
-          // agregados.
           onError: error => {
             isMountingCardForm = false;
-            console.error('[MercadoPago] fwMountMercadoPagoCardForm: onError. Detalle:', error);
+            console.error('[MercadoPago] fwMountMercadoPagoPaymentBrick: onError. Detalle:', error);
             showToast('No se pudo cargar el formulario de tarjeta.', 'error');
           }
         }
+      };
+      bricksBuilder.create('payment', 'paymentBrick_container', settings).then(controller => {
+        fwMountedPaymentBrick = controller;
       });
     } catch (err) {
       isMountingCardForm = false;
-      console.error('[MercadoPago] fwMountMercadoPagoCardForm: excepción al llamar mp.cardForm().', err);
+      console.error('[MercadoPago] fwMountMercadoPagoPaymentBrick: excepción al crear el Brick.', err);
       showToast('No se pudo iniciar Mercado Pago.', 'error');
     }
   }, 500);
 }
 
-function fwUnmountMercadoPagoCardForm() {
-  // FIX v2: también resetea isMountingCardForm -- si el usuario cambia de
-  // método de pago mientras el setTimeout(500) de montaje todavía está
-  // pendiente, sin esto isMountingCardForm quedaría trabado en true para
-  // siempre y ningún futuro intento de montar volvería a dispararse.
+function fwUnmountMercadoPagoPaymentBrick() {
   isMountingCardForm = false;
-  if (fwMountedCardForm && typeof fwMountedCardForm.unmount === 'function') {
-    try { fwMountedCardForm.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes: no hace falta hacer nada */ }
+  if (fwMountedPaymentBrick && typeof fwMountedPaymentBrick.unmount === 'function') {
+    try { fwMountedPaymentBrick.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes: no hace falta hacer nada */ }
   }
-  fwMountedCardForm = null;
-  mp = null; // <-- FIX: Destruye la instancia en memoria para destrabar el formulario
+  fwMountedPaymentBrick = null;
+  // A diferencia de la versión anterior con cardForm, acá NO se resetea
+  // mp a null: mp sigue siendo el singleton de fwGetMercadoPago(), y
+  // recrearlo en cada unmount/mount reintroduce la carrera de requests
+  // de arranque (widgets?public_key=..., search?public_key=...) que el
+  // fix v25 (ver comentario junto a fwGetMercadoPago, en el <head>) fue
+  // escrito para eliminar.
 }
 
-// Callback real de submit del form de tarjeta: separado de
-// fwMountMercadoPagoCardForm para que fwSubmitPayment pueda referenciar
-// el monto/descripcion/mail/referencia vigentes de fwPendingOrder en el
-// momento del submit (el form se monta antes, en el paso 5, cuando esos
-// datos todavía no están armados).
-async function fwHandleMercadoPagoSubmit(event) {
-  event.preventDefault();
-  if (!fwMountedCardForm) { mostrarErrorPago('El formulario de tarjeta no está listo. Volvé a intentar.'); return; }
+// Callback real de submit del Payment Brick: recibe formData ya armado
+// por el propio Brick (token, paymentMethodId, installments, issuerId,
+// etc. -- mismo shape que devolvía cardForm.getCardFormData(), por eso
+// el resto de esta función no cambió respecto a la versión con
+// cardForm). Separado de fwMountMercadoPagoPaymentBrick para que
+// fwSubmitPayment/fwPendingOrder sigan siendo la fuente de verdad de
+// descripcion/referencia del pedido en el momento del submit real.
+async function fwHandleMercadoPagoSubmit(formData) {
   const o = fwPendingOrder;
   if (!o) { mostrarErrorPago('No se pudo recuperar el pedido. Volvé a intentar.'); return; }
 
-  const formData = fwMountedCardForm.getCardFormData();
   const descripcion = 'Patas y Bigotes · ' + o.brand + ' · ' + (o.dog.name || '');
   const mail = (o.dog.mail || currentUser.email || '').toLowerCase();
   const referencia = o.newId;
@@ -12403,23 +12301,14 @@ function fwSubmitPayment() {
   const referencia = fwPendingOrder.newId;
 
   if (fwSelectedPaymentKey === 'mp') {
-    if (price <= 0) { showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error'); fwUnlockConfirmBtn(); return; }
-    if (!fwMountedCardForm) {
-      // No debería pasar (se monta en fwSelectPayment al elegir
-      // Mercado Pago), pero por las dudas: sin esto el submit no hace
-      // nada y el botón queda trabado en "Procesando…" sin explicar
-      // por qué.
-      showToast('El formulario de tarjeta no cargó. Volvé a elegir Mercado Pago como método de pago.', 'error');
-      fwUnlockConfirmBtn();
-      return;
-    }
-    // El submit real y la llamada al backend viven en
-    // fwHandleMercadoPagoSubmit (callback onSubmit del cardForm,
-    // definido en fwMountMercadoPagoCardForm): acá solo se dispara el
-    // submit del form, ya que #mp-card-form no tiene su propio <button
-    // type="submit"> (el submit lo maneja el wizard, no el form solo).
-    const form = document.getElementById('mp-card-form');
-    if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+    // Con Payment Brick, el submit real lo dispara el propio botón que
+    // el Brick dibuja dentro de #paymentBrick_container (ver
+    // fwMountMercadoPagoPaymentBrick, callback onSubmit) -- fw-btn-next
+    // se oculta en el paso de confirmación cuando el método es 'mp' (ver
+    // fwRenderStep), así que esta rama no debería alcanzarse nunca en
+    // uso normal. Queda como guard defensivo, no como camino esperado.
+    console.warn('[MercadoPago] fwSubmitPayment: se alcanzó la rama mp pese a que fw-btn-next debería estar oculto para este método. El pago con tarjeta se confirma desde el botón del Payment Brick, no desde acá.');
+    fwUnlockConfirmBtn();
   } else if (fwSelectedPaymentKey === 'transfer') {
     fwPagarPorTransferencia(price, descripcion, mail, referencia);
   } else if (fwSelectedPaymentKey === 'cash') {
@@ -12450,13 +12339,24 @@ function fwRenderStep() {
   const nextBtn = document.getElementById('fw-btn-next');
   if (backBtn) backBtn.style.visibility = fwCurrentStep === 1 ? 'hidden' : 'visible';
   if (nextBtn) {
-    if (fwCurrentStep === FW_TOTAL_STEPS) {
+    // Con Payment Brick elegido, el pago con tarjeta se dispara desde el
+    // botón que el propio Brick dibuja dentro de #paymentBrick_container
+    // (paso 5), no hay forma de separarlo del resto de su UI. Por eso acá
+    // se oculta "Confirmar pedido" en el paso de confirmación (6) para
+    // ese método específico -- para transferencia y efectivo el flujo
+    // sigue igual que siempre, "Confirmar pedido" es el único disparador.
+    if (fwCurrentStep === FW_TOTAL_STEPS && fwSelectedPaymentKey === 'mp') {
+      nextBtn.style.display = 'none';
+    } else if (fwCurrentStep === FW_TOTAL_STEPS) {
+      nextBtn.style.display = '';
       nextBtn.innerHTML = '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
     } else if (fwCurrentStep === 4) {
       // Paso "Notas (opcional)": el texto del botón deja explícito que
       // se puede avanzar sin cargar nada, igual que dice el encabezado.
+      nextBtn.style.display = '';
       nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
     } else {
+      nextBtn.style.display = '';
       nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
     }
   }
@@ -12656,9 +12556,13 @@ function fwShowOrderDone({ dog, brand, price, method, orderNumber, when, comprob
 let dwCurrentStep = 1;
 const DW_TOTAL_STEPS = 6;
 let dwSelectedPaymentKey = null; // 'mp' | 'transfer' | 'cash'
-let dwMountedCardForm = null;
+// dwMountedPaymentBrick: instancia del Payment Brick montado sobre
+// #dw-paymentBrick_container (mismo rol que fwMountedPaymentBrick en
+// Alimentación). isMountingDwPaymentBrick evita doble mount si el
+// cliente clickea Mercado Pago dos veces rápido.
+let dwMountedPaymentBrick = null;
 let dwBodyWrapOriginalHtml = null;
-let isMountingDwCardForm = false;
+let isMountingDwPaymentBrick = false;
 
 // Sin catálogo propio de métodos de pago: se reutiliza
 // FOOD_WIZARD_PAYMENT_METHODS (mismos 3 métodos, mismos alias) porque
@@ -12696,7 +12600,7 @@ function dwRenderPaymentList() {
       ${aliasHtml}`;
   }).join('');
 
-  const mpForm = document.getElementById('dw-mp-card-form');
+  const mpForm = document.getElementById('dw-paymentBrick_container');
   if (mpForm) mpForm.style.display = (dwSelectedPaymentKey === 'mp') ? '' : 'none';
 }
 
@@ -12704,91 +12608,159 @@ function dwSelectPayment(key) {
   const wasMp = dwSelectedPaymentKey === 'mp';
   dwSelectedPaymentKey = key;
   dwRenderPaymentList();
+  dwRenderStep(); // re-evalúa si "Confirmar pedido" debe ocultarse (ver dwRenderStep)
 
   if (key === 'mp') {
-    requestAnimationFrame(() => dwMountMercadoPagoCardForm());
+    // Montar apenas se elige, no recién al confirmar -- mismo motivo de
+    // requestAnimationFrame que en fwSelectPayment: dwRenderPaymentList()
+    // (línea de arriba) recién sacó el display:none del contenedor en
+    // este mismo tick síncrono, y el Brick necesita que el navegador ya
+    // haya pintado ese cambio antes de montar.
+    requestAnimationFrame(() => dwMountMercadoPagoPaymentBrick());
   } else if (wasMp) {
-    dwUnmountMercadoPagoCardForm();
+    dwUnmountMercadoPagoPaymentBrick();
   }
 }
 
-function dwCardFormMountReady() {
-  const mpFormEl = document.getElementById('dw-mp-card-form');
-  if (!mpFormEl || mpFormEl.offsetParent === null) return false;
-  const cardNumEl = document.getElementById('dw-form-checkout__cardNumber');
-  return !!(cardNumEl && cardNumEl.getBoundingClientRect().width > 4);
-}
+// Monta el Payment Brick de Mercado Pago sobre #dw-paymentBrick_container.
+// MIGRADO desde cardForm (Checkout API) el <FECHA DE HOY>: mismo síntoma
+// (fields_setup_failed) y mismo fix que fwMountMercadoPagoPaymentBrick en
+// Alimentación -- ver ese comentario para el detalle completo del
+// diagnóstico. A diferencia de cardForm, el Brick necesita amount y
+// payer.email REALES en su inicialización, no un placeholder; acá se
+// toman del estado ya cargado en pasos anteriores del wizard
+// (deworm-price, dog.mail/currentUser.email) en el momento del mount.
+// Dibuja su propio botón de pago DENTRO de #dw-paymentBrick_container: no
+// hay un <button type="submit"> externo que disparar, por eso
+// dwSubmitPayment ya no tiene una rama 'mp' que haga requestSubmit()
+// sobre ningún form -- el disparador real es el onSubmit del propio
+// Brick, definido acá.
+function dwMountMercadoPagoPaymentBrick() {
+  if (isMountingDwPaymentBrick) return; // ya montando, no duplicar
+  isMountingDwPaymentBrick = true;
 
-// Mismo criterio v27 que fwMountMercadoPagoCardForm: UN SOLO intento de
-// montaje real (setTimeout 500ms, no un loop de reintentos) -- llamar a
-// mp.cardForm() en ráfaga sobre el mismo form deja al SDK con más de un
-// ciclo de inicialización compitiendo y ninguno llega a completarse.
-function dwMountMercadoPagoCardForm() {
-  if (dwMountedCardForm || isMountingDwCardForm) return;
-  isMountingDwCardForm = true;
+  if (dwMountedPaymentBrick) {
+    console.log('[MercadoPago] dwMountMercadoPagoPaymentBrick: había una instancia previa, desmontando antes de re-montar.');
+    try { dwMountedPaymentBrick.unmount(); } catch (err) { console.warn('[MercadoPago] dwMountMercadoPagoPaymentBrick: unmount previo falló (se continúa igual).', err); }
+    dwMountedPaymentBrick = null;
+  }
 
   setTimeout(() => {
+    console.log('[MercadoPago] dwMountMercadoPagoPaymentBrick: intentando montar Payment Brick.');
     var mpInstance = fwGetMercadoPago();
     if (!mpInstance) {
-      isMountingDwCardForm = false;
+      isMountingDwPaymentBrick = false;
+      console.error('[MercadoPago] dwMountMercadoPagoPaymentBrick: fwGetMercadoPago() devolvió null (SDK no cargó).');
       showToast('No se pudo cargar Mercado Pago. Revisá tu conexión.', 'error');
       return;
     }
-    if (!dwCardFormMountReady()) {
-      isMountingDwCardForm = false;
+    const containerEl = document.getElementById('dw-paymentBrick_container');
+    if (!containerEl) {
+      isMountingDwPaymentBrick = false;
+      console.warn('[MercadoPago] dwMountMercadoPagoPaymentBrick: #dw-paymentBrick_container no está listo, se aborta el mount.');
       return;
     }
+
+    // amount y payer.email reales, tomados del estado ya cargado en
+    // pasos anteriores del wizard -- no placeholder, el Brick los usa
+    // para inicializar de verdad, no solo para validar formato.
+    const price = Number(document.getElementById('deworm-price').value) || 0;
+    const dogId = parseInt(document.getElementById('deworm-dog').value);
+    const dog = getDog(dogId);
+    const product = document.getElementById('deworm-product').value.trim();
+    const mail = ((dog && dog.mail) || currentUser.email || '').toLowerCase();
+
+    if (price <= 0) {
+      isMountingDwPaymentBrick = false;
+      showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error');
+      return;
+    }
+    if (!dog || !product) {
+      isMountingDwPaymentBrick = false;
+      showToast('Faltan datos del pedido', 'error');
+      return;
+    }
+
+    // Arma dwPendingOrder ACÁ, en el mount, y no en dwSubmitPayment: a
+    // diferencia de cardForm (donde "Confirmar pedido" era el único
+    // disparador y armaba dwPendingOrder antes de disparar el submit),
+    // con el Brick el usuario paga directo desde el botón que el propio
+    // Brick dibuja -- dwSubmitPayment nunca se ejecuta para este método
+    // (ver dwRenderStep, dw-btn-next oculto en paso 5 cuando key==='mp').
+    // dwHandleMercadoPagoSubmit necesita dwPendingOrder ya armado cuando
+    // el Brick dispare su onSubmit, así que tiene que existir desde acá.
+    dwPendingOrder = {
+      dogId, dog, product,
+      last: document.getElementById('deworm-last').value,
+      next: document.getElementById('deworm-next').value,
+      notes: (document.getElementById('dw-notes').value || '').trim(),
+      price,
+      method: FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'mp'),
+      newId: genDewormId(),
+      orderNumber: dwGenOrderNumber()
+    };
+
     try {
-      dwMountedCardForm = mpInstance.cardForm({
-        amount: '100', // placeholder: dwSubmitPayment resuelve el monto real al confirmar
-        autoMount: true,
-        form: {
-          id: 'dw-mp-card-form',
-          cardNumber: { id: 'dw-form-checkout__cardNumber' },
-          expirationDate: { id: 'dw-form-checkout__expirationDate' },
-          securityCode: { id: 'dw-form-checkout__securityCode' },
-          cardholderName: { id: 'dw-form-checkout__cardholderName' },
-          issuer: { id: 'dw-form-checkout__issuer' },
-          installments: { id: 'dw-form-checkout__installments' },
-          identificationType: { id: 'dw-form-checkout__identificationType' },
-          identificationNumber: { id: 'dw-form-checkout__identificationNumber' },
-          cardholderEmail: { id: 'dw-form-checkout__cardholderEmail' },
+      const bricksBuilder = mpInstance.bricks();
+      const settings = {
+        initialization: {
+          amount: price,
+          payer: { email: mail }
+        },
+        customization: {
+          visual: { style: { theme: 'default' } }
         },
         callbacks: {
-          onFormMounted: error => {
-            isMountingDwCardForm = false;
-            if (error) {
-              console.error('[MercadoPago] dwMountMercadoPagoCardForm: onFormMounted devolvió error. Detalle:', error);
-              showToast('No se pudo cargar el formulario de tarjeta.', 'error');
-              dwMountedCardForm = null;
-            }
+          onReady: () => {
+            isMountingDwPaymentBrick = false;
+            console.log('[MercadoPago] dwMountMercadoPagoPaymentBrick: onReady, Brick montado.');
           },
-          onSubmit: dwHandleMercadoPagoSubmit
+          onSubmit: ({ selectedPaymentMethod, formData }) => {
+            console.log('[MercadoPago] dwMountMercadoPagoPaymentBrick: onSubmit disparado.', selectedPaymentMethod);
+            return dwHandleMercadoPagoSubmit(formData);
+          },
+          onError: error => {
+            isMountingDwPaymentBrick = false;
+            console.error('[MercadoPago] dwMountMercadoPagoPaymentBrick: onError. Detalle:', error);
+            showToast('No se pudo cargar el formulario de tarjeta.', 'error');
+          }
         }
+      };
+      bricksBuilder.create('payment', 'dw-paymentBrick_container', settings).then(controller => {
+        dwMountedPaymentBrick = controller;
       });
     } catch (err) {
-      isMountingDwCardForm = false;
-      console.error(err);
+      isMountingDwPaymentBrick = false;
+      console.error('[MercadoPago] dwMountMercadoPagoPaymentBrick: excepción al crear el Brick.', err);
       showToast('No se pudo iniciar Mercado Pago.', 'error');
     }
   }, 500);
 }
 
-function dwUnmountMercadoPagoCardForm() {
-  isMountingDwCardForm = false;
-  if (dwMountedCardForm && typeof dwMountedCardForm.unmount === 'function') {
-    try { dwMountedCardForm.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes */ }
+function dwUnmountMercadoPagoPaymentBrick() {
+  isMountingDwPaymentBrick = false;
+  if (dwMountedPaymentBrick && typeof dwMountedPaymentBrick.unmount === 'function') {
+    try { dwMountedPaymentBrick.unmount(); } catch (err) { /* ya desmontado o nodos inexistentes: no hace falta hacer nada */ }
   }
-  dwMountedCardForm = null;
+  dwMountedPaymentBrick = null;
+  // A diferencia de la versión anterior con cardForm, acá NO se resetea
+  // mp a null: mp sigue siendo el singleton de fwGetMercadoPago(), y
+  // recrearlo en cada unmount/mount reintroduce la carrera de requests
+  // de arranque que el fix v25 (ver comentario junto a fwGetMercadoPago,
+  // en el <head>) fue escrito para eliminar.
 }
 
-async function dwHandleMercadoPagoSubmit(event) {
-  event.preventDefault();
-  if (!dwMountedCardForm) { dwMostrarErrorPago('El formulario de tarjeta no está listo. Volvé a intentar.'); return; }
+// Callback real de submit del Payment Brick: recibe formData ya armado
+// por el propio Brick (token, paymentMethodId, installments, issuerId,
+// etc. -- mismo shape que devolvía cardForm.getCardFormData(), por eso
+// el resto de esta función no cambió respecto a la versión con
+// cardForm). Separado de dwMountMercadoPagoPaymentBrick para que
+// dwSubmitPayment/dwPendingOrder sigan siendo la fuente de verdad de
+// descripcion/referencia del pedido en el momento del submit real.
+async function dwHandleMercadoPagoSubmit(formData) {
   const o = dwPendingOrder;
   if (!o) { dwMostrarErrorPago('No se pudo recuperar el pedido. Volvé a intentar.'); return; }
 
-  const formData = dwMountedCardForm.getCardFormData();
   const descripcion = 'Patas y Bigotes · ' + o.product + ' · ' + (o.dog.name || '');
   const mail = (o.dog.mail || currentUser.email || '').toLowerCase();
   const referencia = o.newId;
@@ -12922,14 +12894,14 @@ function dwSubmitPayment() {
   const referencia = dwPendingOrder.newId;
 
   if (dwSelectedPaymentKey === 'mp') {
-    if (price <= 0) { showToast('El producto elegido no tiene precio cargado, no se puede cobrar con Mercado Pago', 'error'); dwUnlockConfirmBtn(); return; }
-    if (!dwMountedCardForm) {
-      showToast('El formulario de tarjeta no cargó. Volvé a elegir Mercado Pago como método de pago.', 'error');
-      dwUnlockConfirmBtn();
-      return;
-    }
-    const form = document.getElementById('dw-mp-card-form');
-    if (form) form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event('submit', { cancelable: true }));
+    // Con Payment Brick, el submit real lo dispara el propio botón que
+    // el Brick dibuja dentro de #dw-paymentBrick_container (ver
+    // dwMountMercadoPagoPaymentBrick, callback onSubmit) -- dw-btn-next
+    // se oculta en el paso de confirmación cuando el método es 'mp' (ver
+    // dwRenderStep), así que esta rama no debería alcanzarse nunca en
+    // uso normal. Queda como guard defensivo, no como camino esperado.
+    console.warn('[MercadoPago] dwSubmitPayment: se alcanzó la rama mp pese a que dw-btn-next debería estar oculto para este método. El pago con tarjeta se confirma desde el botón del Payment Brick, no desde acá.');
+    dwUnlockConfirmBtn();
   } else if (dwSelectedPaymentKey === 'transfer') {
     dwPagarPorTransferencia(price, descripcion, mail, referencia);
   } else if (dwSelectedPaymentKey === 'cash') {
@@ -12964,11 +12936,32 @@ function dwRenderStep() {
   const nextBtn = document.getElementById('dw-btn-next');
   if (backBtn) backBtn.style.visibility = dwCurrentStep === 1 ? 'hidden' : 'visible';
   if (nextBtn) {
-    if (dwCurrentStep === DW_TOTAL_STEPS) {
+    // NOTA: acá va el panel real de Confirmación (5), no DW_TOTAL_STEPS
+    // (6) -- DW_TOTAL_STEPS cuenta el indicador "Pago registrado" de la
+    // barra de progreso (data-dwstep="6"), que nunca tiene panel propio
+    // ni es un valor que dwCurrentStep llegue a tomar (ver dwGoStep:
+    // next > DW_TOTAL_STEPS dispara el pago sin pasar por dwCurrentStep
+    // = 6). Usar DW_TOTAL_STEPS acá es un bug preexistente, señalado al
+    // usuario aparte: con eso, el botón nunca mostraba "Confirmar
+    // pedido"/"Guardar cambios" en el panel 5, siempre quedaba en
+    // "Continuar". Se corrige acá porque el ocultamiento para MP (que
+    // sigue) depende de apuntar al panel correcto.
+    if (dwCurrentStep === 5 && dwSelectedPaymentKey === 'mp' && !editingDewormId) {
+      // Con Payment Brick elegido, el pago con tarjeta se dispara desde
+      // el botón que el propio Brick dibuja dentro de
+      // #dw-paymentBrick_container (paso 4), no hay forma de separarlo
+      // del resto de su UI. Por eso acá se oculta "Confirmar pedido" en
+      // el panel de confirmación (5) para ese método específico -- para
+      // transferencia y efectivo, y para modo edición (que nunca pasa
+      // por MP), el flujo sigue igual que siempre.
+      nextBtn.style.display = 'none';
+    } else if (dwCurrentStep === 5) {
+      nextBtn.style.display = '';
       nextBtn.innerHTML = editingDewormId
         ? '<i class="fa-solid fa-check" style="font-size:11px;margin-right:4px"></i> Guardar cambios'
         : '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
     } else {
+      nextBtn.style.display = '';
       nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
     }
   }
