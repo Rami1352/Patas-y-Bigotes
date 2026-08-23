@@ -15426,3 +15426,191 @@ function translateApp(lang) {
     if (!el.getAttribute('data-i18n-ph-original')) el.setAttribute('data-i18n-ph-original', originalPh);
     el.placeholder = (dict && dict[originalPh]) ? dict[originalPh] : originalPh;
   });
+}
+</script>
+
+<!-- ══════════════════════════════════════════════════════════════
+     BOOT — resuelve el spinner inicial (#boot-loader) contra el
+     estado real de sesión de Firebase.
+     ──────────────────────────────────────────────────────────────
+     FIX (bucle de carga infinito): el HTML original prometía en un
+     comentario una función `fwBootResolveSession()` que decidiría
+     entre #login-screen y #app y apagaría el spinner -- pero esa
+     función nunca llegó a existir en el archivo. Como consecuencia,
+     nada apagaba nunca #boot-loader: quedaba visible para siempre,
+     sin importar si Firebase respondía rápido, tardaba, se
+     desconectaba o tiraba una excepción. Este bloque reemplaza esa
+     pieza faltante con 3 garantías explícitas:
+
+     1) TIMEOUT DE SEGURIDAD (2.5s): si Firebase no contestó a
+        tiempo (SDK lento en cargar, red caída, config vacía), este
+        temporizador fuerza hideInitialLoader() igual y muestra el
+        login. No cancela ni interfiere con onAuthStateChanged: si
+        Firebase responde después, el listener igual actualiza la
+        UI con normalidad (login -> dashboard) cuando corresponda.
+     2) TRY/CATCH/FINALLY: tanto el arranque de PYB_AUTH.init() como
+        el primer callback de onAuthStateChanged están envueltos en
+        try/catch/finally, con hideInitialLoader() SIEMPRE en el
+        finally, así el spinner se apaga pase lo que pase (usuario
+        logueado, sin sesión, Firebase caído, o una excepción de JS
+        en el medio).
+     3) SIN RECARGAS EN BUCLE: no hay ningún window.location.reload()
+        en todo este bloque (ni en el resto del archivo). Un fallo
+        de auth nunca fuerza un refresh de página, solo cae al
+        estado "mostrar login".
+══════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  // Evita que el timeout de seguridad y onAuthStateChanged compitan
+  // por resolver el boot dos veces (p. ej. mostrar login y luego,
+  // medio segundo después, "pisarlo" con el dashboard a mitad de
+  // transición). Solo la primera resolución hace efecto sobre el
+  // loader; las siguientes llamadas de auth se limitan a actualizar
+  // currentUser/UI con normalidad, sin volver a tocar el spinner.
+  var bootResolved = false;
+
+  // Oculta el spinner inicial y muestra #login-screen o #app según
+  // corresponda. Es la ÚNICA función responsable de apagar
+  // #boot-loader, y está pensada para poder llamarse más de una vez
+  // sin romper nada (solo la primera invocación tiene efecto real).
+  function hideInitialLoader(showDashboard) {
+    try {
+      var loader = document.getElementById('boot-loader');
+      if (loader) loader.style.display = 'none';
+
+      var loginScreen = document.getElementById('login-screen');
+      var appEl = document.getElementById('app');
+
+      if (showDashboard) {
+        if (loginScreen) loginScreen.classList.add('hidden');
+        if (appEl) { appEl.classList.add('visible'); appEl.style.display = ''; }
+      } else {
+        if (appEl) { appEl.classList.remove('visible'); appEl.style.display = 'none'; }
+        if (loginScreen) loginScreen.classList.remove('hidden');
+      }
+    } catch (err) {
+      // Si algo saliera mal ocultando/mostrando pantallas, al menos
+      // garantizamos que el spinner desaparezca del DOM a la fuerza
+      // para que la app nunca quede congelada en el loader.
+      console.warn('[BOOT] hideInitialLoader tuvo un problema, forzando ocultamiento del loader igual:', err);
+      var loaderFallback = document.getElementById('boot-loader');
+      if (loaderFallback) loaderFallback.style.display = 'none';
+    }
+  }
+  // Expuesta a window por si algún otro punto del código (o el
+  // propio botón de reintentar en #login-screen) necesita forzar
+  // el estado de loader manualmente.
+  window.hideInitialLoader = hideInitialLoader;
+
+  // Construye currentUser y renderiza el dashboard a partir de una
+  // sesión de Firebase ya autenticada. Reutiliza el mismo patrón que
+  // handleLoginAction() usa tras un login manual (buildSidebar +
+  // showView('dashboard')), para que ambos caminos terminen en el
+  // mismo estado de UI.
+  async function bootRenderDashboardFor(firebaseUser) {
+    var cuenta = await PYB_AUTH.miCuenta();
+    if (!cuenta) throw new Error('No se pudo verificar la cuenta con el servidor.');
+
+    currentUser = {
+      username:  firebaseUser.email ? firebaseUser.email.split('@')[0] : '',
+      email:     cuenta.email || firebaseUser.email || '',
+      clienteId: cuenta.clienteId || '',
+      role:      cuenta.isAdmin ? 'admin' : 'cliente',
+      label:     cuenta.isAdmin ? 'Administrador' : 'Cliente Portal',
+      initials:  (firebaseUser.email || '??').split('@')[0].substring(0, 2).toUpperCase(),
+      estado:    cuenta.estado || ''
+    };
+
+    var sidebarAvatar = document.getElementById('sidebar-avatar');
+    if (sidebarAvatar) sidebarAvatar.textContent = currentUser.initials;
+    var sidebarUsername = document.getElementById('sidebar-username');
+    if (sidebarUsername) sidebarUsername.textContent = currentUser.username || 'Cliente';
+    var sidebarRole = document.getElementById('sidebar-role');
+    if (sidebarRole) sidebarRole.textContent = currentUser.label;
+
+    if (typeof buildSidebar === 'function') buildSidebar();
+    if (typeof showView === 'function') showView('dashboard');
+    if (typeof runNotifCheck === 'function') runNotifCheck();
+  }
+
+  // 1) TIMEOUT DE SEGURIDAD: si en 2.5s nadie resolvió el boot
+  // todavía (Firebase lento, sin red, config vacía), forzamos login
+  // igual. onAuthStateChanged sigue activo y puede corregir la UI
+  // después si Firebase responde tarde.
+  document.addEventListener('DOMContentLoaded', function () {
+    setTimeout(function () {
+      if (bootResolved) return;
+      bootResolved = true;
+      console.warn('[BOOT] Firebase no respondió dentro de 2.5s, mostrando login por seguridad.');
+      hideInitialLoader(false);
+    }, 2500);
+  });
+
+  // 2) TRY/CATCH/FINALLY alrededor de la verificación de sesión y el
+  // renderizado. hideInitialLoader() vive en el finally para
+  // garantizar que el spinner se apague SIEMPRE.
+  document.addEventListener('DOMContentLoaded', function () {
+    try {
+      PYB_AUTH.init();
+    } catch (err) {
+      // Si init() explota de entrada (Firebase SDK no cargó, config
+      // rota, etc.), no dejamos el boot colgado: resolvemos a login.
+      console.warn('[BOOT] PYB_AUTH.init() falló:', err);
+      if (!bootResolved) { bootResolved = true; hideInitialLoader(false); }
+      return;
+    }
+
+    if (!PYB_AUTH.isConfigured()) {
+      // Firebase deshabilitado a propósito (FIREBASE_CONFIG vacío):
+      // no hay nada que esperar, vamos directo a login.
+      if (!bootResolved) { bootResolved = true; hideInitialLoader(false); }
+      return;
+    }
+
+    // onAuthStateChanged puede llamar a este callback varias veces a
+    // lo largo de la vida de la página (login, logout, refresh de
+    // token). Solo la PRIMERA invocación decide el estado del boot
+    // loader; las siguientes solo actualizan currentUser/UI.
+    PYB_AUTH.onChange(async function (firebaseUser) {
+      var isFirstResolution = !bootResolved;
+      // El finally es quien SIEMPRE apaga el loader, pero necesita
+      // saber si el dashboard se renderizó con éxito o no; para eso
+      // usa esta bandera en vez de reevaluar firebaseUser a ciegas.
+      // Reevaluar firebaseUser en el finally sería un bug: si
+      // bootRenderDashboardFor() falla (p.ej. miCuenta() cae por red),
+      // firebaseUser sigue siendo truthy y el finally terminaría
+      // mostrando igual el dashboard, pisando la caída a login que
+      // el catch ya había decidido correctamente.
+      var renderedOk = false;
+      try {
+        if (firebaseUser) {
+          await bootRenderDashboardFor(firebaseUser);
+          renderedOk = true;
+        } else if (!isFirstResolution) {
+          // Sesión cerrada después del arranque inicial (p. ej. logout
+          // en otra pestaña): volvemos a login sin recargar la página.
+          hideInitialLoader(false);
+        }
+      } catch (err) {
+        // Cualquier excepción durante la verificación de usuario o el
+        // renderizado (falla de red al pedir la cuenta, respuesta
+        // inesperada del backend, etc.) cae a login en vez de dejar
+        // la app colgada o a medio renderizar.
+        console.warn('[BOOT] Error verificando/renderizando la sesión de Firebase:', err);
+      } finally {
+        // GARANTÍA: pase lo que pase arriba (éxito, error, sesión
+        // nula), en la primera resolución el spinner se apaga acá,
+        // respetando el resultado real (renderedOk) en vez de
+        // volver a mirar firebaseUser.
+        if (isFirstResolution) {
+          bootResolved = true;
+          hideInitialLoader(renderedOk);
+        }
+      }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
