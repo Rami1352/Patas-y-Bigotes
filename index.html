@@ -43,7 +43,7 @@ var mp = null;
 function fwGetMercadoPago() {
   if (mp) return mp;
   if (typeof MercadoPago === 'undefined') return null;
-  mp = new MercadoPago('APP_USR-99bd9c38-dfde-411c-9c22-30d08a03e4fd', { locale: 'es-AR' });
+  mp = new MercadoPago('APP_USR-ac60b12d-ba85-46e7-8c28-1966f82592b3', { locale: 'es-AR' });
   return mp;
 }
 </script>
@@ -12196,6 +12196,17 @@ function fwMountMercadoPagoCardForm() {
           onSubmit: event => {
             console.log('[MercadoPago] fwMountMercadoPagoCardForm: onSubmit disparado.');
             fwHandleMercadoPagoSubmit(event);
+          },
+          // Agregado a pedido de soporte de MP: fields_setup_failed (fallo
+          // al insertar el iframe de Secure Fields) puede NO togear
+          // onFormMounted a error ni aparecer como request fallida en
+          // Network -- solo lo reporta este callback. Sin onError acá, ese
+          // caso específico queda mudo pese a los otros console.log ya
+          // agregados.
+          onError: error => {
+            isMountingCardForm = false;
+            console.error('[MercadoPago] fwMountMercadoPagoCardForm: onError. Detalle:', error);
+            showToast('No se pudo cargar el formulario de tarjeta.', 'error');
           }
         }
       });
