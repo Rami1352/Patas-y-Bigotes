@@ -2552,6 +2552,58 @@ html[data-font-size="large"] .toast-container {
 .food-wizard-pay-alias-copy { margin-left: auto; background: none; border: none; color: var(--sage-solid); cursor: pointer; font-size: 12px; flex-shrink: 0; padding: 2px 4px; }
 .food-wizard-pay-alias-copy:hover { color: var(--sage-solid-hover); }
 
+/* ═══════════════════════════════════════════════════════════════
+   Bloque de datos de Transferencia bancaria — se despliega debajo de
+   la opción "Transferencia bancaria" cuando el cliente la elige,
+   mismo lugar/patrón que #paymentBrick_container para Mercado Pago
+   (mismo margin-top, misma tarjeta contenedora, mismo ancho). NO
+   reemplaza food-wizard-pay-alias (ese sigue mostrando el alias corto
+   arriba, pegado al radio); este bloque es el panel completo con
+   Titular/Alias/CBU/Banco/Tipo de cuenta + aviso + botones de envío
+   de comprobante, todo dentro de la MISMA tarjeta/modal del wizard
+   (no un modal aparte). ═══════════════════════════════════════════ */
+.food-wizard-transfer-panel {
+  display: none; margin-top: 12px; padding: 16px;
+  border-radius: var(--r-md); background: var(--surface-card-alt);
+  border: 1px solid var(--border-sm);
+}
+.food-wizard-transfer-panel.show { display: block; }
+.food-wizard-transfer-panel-title { font-weight: 700; font-size: 13.5px; color: var(--charcoal); }
+.food-wizard-transfer-panel-sub { font-size: 11.5px; color: var(--mist); margin-top: 2px; margin-bottom: 14px; line-height: 1.35; }
+.food-wizard-transfer-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.food-wizard-transfer-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+  border-radius: var(--r-sm); background: var(--sage-tint);
+}
+.food-wizard-transfer-row-icon { width: 26px; height: 26px; border-radius: 7px; background: var(--sage-light); color: var(--sage-solid); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+.food-wizard-transfer-row-body { flex: 1; min-width: 0; }
+.food-wizard-transfer-row-label { font-size: 10.5px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .4px; }
+.food-wizard-transfer-row-value { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700; color: var(--charcoal); margin-top: 1px; word-break: break-word; }
+.food-wizard-transfer-row-copy { background: none; border: none; color: var(--sage-solid); cursor: pointer; font-size: 13px; flex-shrink: 0; padding: 4px 6px; }
+.food-wizard-transfer-row-copy:hover { color: var(--sage-solid-hover); }
+
+.food-wizard-transfer-important {
+  display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; padding: 12px 13px;
+  border-radius: var(--r-md); background: var(--amber-xlight); border: 1px solid var(--amber-light);
+}
+.food-wizard-transfer-important-icon { width: 26px; height: 26px; border-radius: 50%; background: var(--amber-light); color: var(--amber); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+.food-wizard-transfer-important-title { font-weight: 700; font-size: 12.5px; color: var(--charcoal); }
+.food-wizard-transfer-important-sub { font-size: 11.5px; color: var(--stone); margin-top: 2px; line-height: 1.4; }
+
+.food-wizard-transfer-send-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 9px; }
+.food-wizard-transfer-send-options { display: flex; flex-direction: column; gap: 8px; }
+.food-wizard-transfer-send-btn {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1.5px solid var(--border-sm); border-radius: var(--r-md); background: var(--surface-card-alt);
+  text-decoration: none; transition: all .18s; cursor: pointer;
+}
+.food-wizard-transfer-send-btn:hover { border-color: var(--sage); background: var(--sage-xlight); }
+.food-wizard-transfer-send-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--sage-light); color: var(--sage-solid); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.food-wizard-transfer-send-body { flex: 1; min-width: 0; }
+.food-wizard-transfer-send-title { font-weight: 700; font-size: 13px; color: var(--charcoal); line-height: 1.3; }
+.food-wizard-transfer-send-sub { font-size: 11px; color: var(--mist); margin-top: 1px; line-height: 1.3; }
+.food-wizard-transfer-send-btn > i.fa-chevron-right { color: var(--stone); font-size: 11px; flex-shrink: 0; }
+
 /* Paso 6 — resumen previo a confirmar */
 .food-wizard-confirm-badge {
   display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px;
@@ -6649,6 +6701,19 @@ document.addEventListener('DOMContentLoaded', function () {
            fwRenderStep -- el botón real para pagar con tarjeta es el que
            dibuja el Brick acá adentro. -->
       <div id="paymentBrick_container" style="display:none; margin-top:16px"></div>
+
+      <!-- ── PANEL DE TRANSFERENCIA BANCARIA ──
+           Se muestra/oculta con fwRenderTransferPanel() (misma lógica
+           que ya controla #paymentBrick_container: display none/show
+           según fwSelectedPaymentKey). NO tiene botón de "Confirmar
+           transferencia" a propósito: el pago no se puede verificar
+           automáticamente en este paso, así que el disparador sigue
+           siendo el mismo botón "Continuar"/"Confirmar pedido" del pie
+           del wizard (fw-btn-next), como con Efectivo. El contenido
+           interno lo arma fwRenderTransferPanel() vía innerHTML, en
+           vez de hardcodear los valores acá, para que
+           FW_TRANSFER_ACCOUNT sea la única fuente de verdad. -->
+      <div id="fw-transfer-panel" class="food-wizard-transfer-panel"></div>
     </div>
 
 
@@ -11774,6 +11839,33 @@ const FOOD_WIZARD_PAYMENT_METHODS = [
   { key: 'cash',     icon: 'fa-money-bill-wave',     title: 'Efectivo',               sub: 'Coordinamos el cobro en persona' },
 ];
 
+// ═══════════════════════════════════════════════════════════════
+//  FW_TRANSFER_ACCOUNT — datos completos de la cuenta para
+//  transferencia bancaria, mostrados en el panel que se despliega
+//  debajo de "Transferencia bancaria" (fwRenderTransferPanel). El
+//  alias acá TIENE que coincidir con
+//  FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'transfer').alias
+//  (el mismo que ya se mostraba antes de este cambio, y con
+//  TRANSFERENCIA_ALIAS en Propiedades del Script del backend) -- no se
+//  duplica la fuente de verdad del alias corto, fwRenderTransferPanel
+//  lo toma de FOOD_WIZARD_PAYMENT_METHODS; acá solo se agregan los
+//  datos que faltaban (titular, CBU, banco, tipo de cuenta) que el
+//  backend no maneja (confirmarPagoTransferencia no los necesita, son
+//  puramente informativos para que el cliente transfiera).
+//
+//  whatsapp: solo dígitos con código de país, sin '+' ni espacios (se
+//  arma el link wa.me a partir de esto). email: casilla que recibe los
+//  comprobantes.
+// ═══════════════════════════════════════════════════════════════
+const FW_TRANSFER_ACCOUNT = {
+  titular: 'Patas y Bigotes',
+  cbu: '0000003100012345678901',
+  banco: 'Banco Nación',
+  tipoCuenta: 'Cuenta corriente en pesos',
+  whatsapp: '541112345678',
+  email: 'pagos@patasybigotes.com.ar'
+};
+
 function openFoodWizard() {
   editingFoodId = null;
   fwCurrentStep = 1;
@@ -11960,6 +12052,136 @@ function fwRenderPaymentList() {
   // esto solo controla si el bloque es visible o no.
   const mpForm = document.getElementById('paymentBrick_container');
   if (mpForm) mpForm.style.display = (fwSelectedPaymentKey === 'mp') ? '' : 'none';
+
+  // Mismo patrón que el Brick de MP: el panel de datos de transferencia
+  // solo se pinta/muestra si ese es el método elegido. fwRenderTransferPanel
+  // arma el innerHTML (idempotente, se puede llamar de más sin problema)
+  // y controla la clase .show que lo despliega.
+  fwRenderTransferPanel();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  fwRenderTransferPanel — arma y muestra/oculta el panel de datos de
+//  transferencia bancaria (#fw-transfer-panel), debajo de la opción
+//  "Transferencia bancaria" del paso 5. Mismo patrón que
+//  fwMountMercadoPagoPaymentBrick/#paymentBrick_container: el panel
+//  vive SIEMPRE en el DOM (dentro del mismo panel/tarjeta del wizard,
+//  no un modal aparte) y solo se despliega con la clase .show cuando
+//  fwSelectedPaymentKey === 'transfer'.
+//
+//  A diferencia del Brick de MP, este panel es 100% estático (no
+//  monta ningún SDK ni depende de red), así que se puede llamar las
+//  veces que haga falta sin costo: reconstruye el innerHTML completo
+//  cada vez, tomando titular/CBU/banco/tipo de cuenta de
+//  FW_TRANSFER_ACCOUNT y el alias de FOOD_WIZARD_PAYMENT_METHODS
+//  (misma fuente que ya usaba el alias corto de arriba, para no
+//  duplicarla).
+//
+//  NO incluye ningún botón de "Confirmar transferencia": el pago acá
+//  no se puede verificar automáticamente (a diferencia de Mercado
+//  Pago), así que el disparador para avanzar sigue siendo el mismo
+//  "Continuar"/"Confirmar pedido" del pie del wizard (fw-btn-next),
+//  igual que con Efectivo -- fwSubmitPayment ya tiene la rama
+//  'transfer' que llama a fwPagarPorTransferencia, eso no cambia.
+// ═══════════════════════════════════════════════════════════════
+function fwRenderTransferPanel() {
+  const panel = document.getElementById('fw-transfer-panel');
+  if (!panel) return;
+
+  const show = fwSelectedPaymentKey === 'transfer';
+  panel.classList.toggle('show', show);
+  if (!show) return; // no hace falta reconstruir el HTML si está oculto
+
+  const acc = FW_TRANSFER_ACCOUNT;
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'transfer');
+  const alias = (method && method.alias) || acc.alias || '';
+
+  const rows = [
+    { icon: 'fa-user',            label: 'Titular',       value: acc.titular,   copy: false },
+    { icon: 'fa-at',              label: 'Alias',         value: alias,         copy: true,  copyArg: 'alias' },
+    { icon: 'fa-hashtag',         label: 'CBU',           value: acc.cbu,       copy: true,  copyArg: 'cbu' },
+    { icon: 'fa-building-columns', label: 'Banco',        value: acc.banco,     copy: false },
+    { icon: 'fa-wallet',          label: 'Tipo de cuenta',value: acc.tipoCuenta,copy: false }
+  ];
+
+  const rowsHtml = rows.map(r => `
+    <div class="food-wizard-transfer-row">
+      <div class="food-wizard-transfer-row-icon"><i class="fa-solid ${r.icon}"></i></div>
+      <div class="food-wizard-transfer-row-body">
+        <div class="food-wizard-transfer-row-label">${escapeHtml(r.label)}</div>
+        <div class="food-wizard-transfer-row-value">${escapeHtml(r.value || '—')}</div>
+      </div>
+      ${r.copy ? `<button type="button" class="food-wizard-transfer-row-copy" title="Copiar ${escapeHtml(r.label)}" onclick="fwCopyTransferField('${r.copyArg}')"><i class="fa-regular fa-copy"></i></button>` : ''}
+    </div>`).join('');
+
+  const waNumber = String(acc.whatsapp || '').replace(/[^0-9]/g, '');
+  const waMsg = encodeURIComponent('Hola! Te envío el comprobante de mi transferencia a Patas y Bigotes.');
+  const waHref = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : '#';
+  const waPhoneDisplay = waNumber ? fwFormatPhoneDisplay(waNumber) : '—';
+
+  const mailSubject = encodeURIComponent('Comprobante de transferencia — Patas y Bigotes');
+  const mailHref = acc.email ? `mailto:${encodeURIComponent(acc.email)}?subject=${mailSubject}` : '#';
+
+  panel.innerHTML = `
+    <div class="food-wizard-transfer-panel-title">Datos para la transferencia</div>
+    <div class="food-wizard-transfer-panel-sub">Realizá la transferencia a la siguiente cuenta y enviá el comprobante.</div>
+    <div class="food-wizard-transfer-rows">${rowsHtml}</div>
+    <div class="food-wizard-transfer-important">
+      <div class="food-wizard-transfer-important-icon"><i class="fa-solid fa-circle-info"></i></div>
+      <div>
+        <div class="food-wizard-transfer-important-title">Importante</div>
+        <div class="food-wizard-transfer-important-sub">Una vez realizada la transferencia, enviá el comprobante para que podamos confirmar tu pedido.</div>
+      </div>
+    </div>
+    <div class="food-wizard-transfer-send-label">Enviar comprobante por</div>
+    <div class="food-wizard-transfer-send-options">
+      <a class="food-wizard-transfer-send-btn" href="${waHref}" target="_blank" rel="noopener">
+        <div class="food-wizard-transfer-send-icon"><i class="fa-brands fa-whatsapp"></i></div>
+        <div class="food-wizard-transfer-send-body">
+          <div class="food-wizard-transfer-send-title">WhatsApp</div>
+          <div class="food-wizard-transfer-send-sub">${escapeHtml(waPhoneDisplay)}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+      <a class="food-wizard-transfer-send-btn" href="${mailHref}">
+        <div class="food-wizard-transfer-send-icon"><i class="fa-solid fa-envelope"></i></div>
+        <div class="food-wizard-transfer-send-body">
+          <div class="food-wizard-transfer-send-title">Email</div>
+          <div class="food-wizard-transfer-send-sub">${escapeHtml(acc.email || '—')}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right"></i>
+      </a>
+    </div>`;
+}
+
+// Formatea un número tipo "541112345678" como "+54 11 1234-5678" para
+// mostrar en el botón de WhatsApp. Puramente cosmético, no afecta el
+// href real (que sigue usando el número plano). Si el formato no
+// calza con el patrón esperado (código país 54 + área + línea), se
+// devuelve con un '+' adelante nomás, sin forzar guiones.
+function fwFormatPhoneDisplay(digitsOnly) {
+  const d = String(digitsOnly || '');
+  const m = d.match(/^54(\d{2,4})(\d{4})(\d{4})$/);
+  if (m) return `+54 ${m[1]} ${m[2]}-${m[3]}`;
+  return d ? '+' + d : '—';
+}
+
+// Copia Alias o CBU de la cuenta de transferencia al portapapeles.
+// Mismo patrón defensivo que fwCopyAlias/fwCopyAliasFallback (más
+// abajo en el archivo): navigator.clipboard con fallback a
+// execCommand para navegadores/contextos sin permiso de clipboard.
+function fwCopyTransferField(field) {
+  const acc = FW_TRANSFER_ACCOUNT;
+  const method = FOOD_WIZARD_PAYMENT_METHODS.find(m => m.key === 'transfer');
+  const text = field === 'alias' ? ((method && method.alias) || acc.alias || '') : (acc.cbu || '');
+  if (!text) return;
+  const label = field === 'alias' ? 'Alias' : 'CBU';
+  const done = () => showToast(label + ' copiado', 'success');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fwCopyAliasFallback(text, done));
+  } else {
+    fwCopyAliasFallback(text, done);
+  }
 }
 
 function fwSelectPayment(key) {
