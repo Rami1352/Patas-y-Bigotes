@@ -2376,11 +2376,12 @@ html[data-font-size="large"] .toast-container {
 }
 /* Precio dentro del trigger cerrado (ver Imagen 1): chip chico a la
    derecha del nombre, antes de la flecha. Solo aparece si el producto
-   elegido tiene precio > 0 en el catálogo (setFoodPickerValue lo arma). */
-.food-picker-trigger-price {
-  font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
-  color: var(--sage-solid); flex-shrink: 0; white-space: nowrap;
-}
+   elegido tiene precio > 0 en el catálogo (setFoodPickerValue lo arma).
+   OCULTO a pedido: no se muestran precios al usuario final. El nodo
+   se sigue creando en JS (setFoodPickerValue) para no tocar esa
+   lógica; acá solo se lo oculta visualmente, así se puede reactivar
+   sin reconstruir nada. */
+.food-picker-trigger-price { display: none; }
 
 /* Overlay propio del picker: en mobile actúa de fondo oscuro detrás
    del bottom sheet; en desktop queda transparente (el dropdown se
@@ -2463,11 +2464,10 @@ html[data-font-size="large"] .toast-container {
 /* Precio debajo del nombre en cada tarjeta de la lista (ver Imagen 1,
    panel "1. Selector de alimento con precio"). Solo se agrega cuando
    p.precio > 0; si el producto no tiene precio cargado en la planilla
-   todavía, la tarjeta se ve igual que antes (sin esta línea). */
-.food-picker-option-price {
-  font-family: 'Fira Code', monospace; font-size: 12.5px; font-weight: 600;
-  color: var(--sage-solid); margin-top: 2px;
-}
+   todavía, la tarjeta se ve igual que antes (sin esta línea). OCULTO
+   a pedido: no se muestran precios al usuario final (mismo criterio
+   que .food-picker-trigger-price). */
+.food-picker-option-price { display: none; }
 .food-picker-option-check {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; color: var(--white); font-size: 11px;
@@ -6688,7 +6688,13 @@ document.addEventListener('DOMContentLoaded', function () {
          Alias de Mercado Pago / MODO: aparecen debajo de cada opción de
          pago, solo cuando esa opción está tildada (ver fwSelectPayment). -->
     <div class="wizard-panel" data-fwpanel="5">
-      <div class="food-wizard-total-box">
+      <!-- Caja "Total a pagar" oculta a pedido: no se muestran precios
+           al usuario final mientras Mercado Pago esté desactivado. Se
+           deja display:none (no se borra el bloque) para poder
+           reactivarla sin reconstruir nada; fw-total-value sigue
+           recibiendo el textContent en fwRenderPaymentList como antes,
+           simplemente no es visible. -->
+      <div class="food-wizard-total-box" style="display:none">
         <div class="food-wizard-total-box-label">Total a pagar</div>
         <div class="food-wizard-total-box-value" id="fw-total-value">$ 0</div>
       </div>
@@ -6721,6 +6727,14 @@ document.addEventListener('DOMContentLoaded', function () {
            vez de hardcodear los valores acá, para que
            FW_TRANSFER_ACCOUNT sea la única fuente de verdad. -->
       <div id="fw-transfer-panel" class="food-wizard-transfer-panel"></div>
+
+      <!-- ── PANEL DE EFECTIVO ──
+           Mismo patrón que #fw-transfer-panel: vive siempre en el DOM y
+           se muestra/oculta con fwRenderCashPanel() según
+           fwSelectedPaymentKey === 'cash'. Sin botón de confirmación:
+           el disparador para avanzar sigue siendo "Continuar"/"Confirmar
+           pedido" del pie del wizard, igual que Transferencia. -->
+      <div id="fw-cash-panel" class="food-wizard-transfer-panel"></div>
     </div>
 
 
@@ -6960,7 +6974,11 @@ document.addEventListener('DOMContentLoaded', function () {
          negocio, no de la sección, así que se reutiliza la misma
          constante en vez de duplicarla. -->
     <div class="wizard-panel" data-dwpanel="4">
-      <div class="deworm-wizard-total-box">
+      <!-- Caja "Total a pagar" oculta a pedido, mismo criterio que
+           #fw-total-value en Alimentación: no mostrar precios al
+           usuario final. dw-total-value sigue actualizándose en
+           dwRenderPaymentList, solo que no es visible. -->
+      <div class="deworm-wizard-total-box" style="display:none">
         <div class="deworm-wizard-total-box-label">Total a pagar</div>
         <div class="deworm-wizard-total-box-value" id="dw-total-value">$ 0</div>
       </div>
@@ -6990,6 +7008,12 @@ document.addEventListener('DOMContentLoaded', function () {
            #fw-transfer-panel: vive siempre en el DOM y se
            muestra/oculta y arma vía dwRenderTransferPanel(). -->
       <div id="dw-transfer-panel" class="food-wizard-transfer-panel"></div>
+
+      <!-- ── PANEL DE EFECTIVO ──
+           Mismo patrón que #dw-transfer-panel / #fw-cash-panel en
+           Alimentación: vive siempre en el DOM y se muestra/oculta con
+           dwRenderCashPanel() según dwSelectedPaymentKey === 'cash'. -->
+      <div id="dw-cash-panel" class="food-wizard-transfer-panel"></div>
     </div>
 
     <!-- ── PASO 5 — Confirmación (resumen antes de confirmar) ── -->
@@ -11860,6 +11884,30 @@ var fwMountedPaymentBrick = null;
 // existirían en el DOM.
 let fwBodyWrapOriginalHtml = null;
 
+// ═══════════════════════════════════════════════════════════════
+//  ENABLE_MERCADOPAGO — feature flag temporal (ver pedido del
+//  <FECHA DE HOY>). En false: Mercado Pago se filtra de
+//  FOOD_WIZARD_PAYMENT_METHODS más abajo y por lo tanto desaparece de
+//  TODA la UI (selector de método, alias, resumen, confirmación) en
+//  ambos wizards -- ninguna otra función se toca, todas ya leen de
+//  ese mismo array como única fuente de verdad (fwRenderPaymentList/
+//  dwRenderPaymentList, fwSelectPayment/dwSelectPayment,
+//  fwShowOrderDone/dwShowOrderDone, etc.).
+//
+//  El código de Mercado Pago (SDK, fwGetMercadoPago, Payment Bricks,
+//  fwMountMercadoPagoPaymentBrick/dwMountMercadoPagoPaymentBrick,
+//  fwHandleMercadoPagoSubmit/dwHandleMercadoPagoSubmit, la entrada
+//  'mp' del array de abajo) queda intacto y sin usar: con la opción
+//  filtrada del selector, ninguna de esas funciones llega a
+//  invocarse desde la UI (fwSelectPayment/dwSelectPayment solo
+//  reciben 'key' de un <label onclick="...('mp')"> que ya no se
+//  pinta). No hace falta un guard aparte en esas funciones.
+//
+//  Para reactivar Mercado Pago en el futuro: cambiar esta constante a
+//  true. Nada más requiere modificación.
+// ═══════════════════════════════════════════════════════════════
+const ENABLE_MERCADOPAGO = false;
+
 // Catálogo de métodos de pago del paso 5. Solo 3 métodos habilitados:
 // Mercado Pago, Transferencia bancaria y Efectivo. "Tarjeta de
 // crédito/débito" (que en realidad se cobraba vía Mercado Pago) y
@@ -11873,11 +11921,19 @@ let fwBodyWrapOriginalHtml = null;
 // cliente ve el mismo alias acá y en el comprobante final que devuelve
 // confirmarPagoTransferencia -- no hace falta esperar a confirmar el
 // pago para saber a dónde transferir.
+//
+// ENABLE_MERCADOPAGO=false: se arma el catálogo completo (con 'mp',
+// código intacto para el futuro) y recién acá se filtra la entrada
+// 'mp' antes de exponerlo como FOOD_WIZARD_PAYMENT_METHODS -- el resto
+// del archivo (fwRenderPaymentList, dwRenderPaymentList, fwSelectPayment,
+// dwSelectPayment, fwShowOrderDone, dwShowOrderDone, etc.) no sabe ni
+// necesita saber que se filtró nada, simplemente itera sobre el array
+// que le llega.
 const FOOD_WIZARD_PAYMENT_METHODS = [
   { key: 'mp',       icon: 'fa-handshake',           title: 'Mercado Pago',           sub: 'Tarjeta o dinero en cuenta', alias: 'digo.papa.onza.mp', aliasLabel: 'Alias Mercado Pago' },
   { key: 'transfer', icon: 'fa-building-columns',    title: 'Transferencia bancaria', sub: 'Desde tu Homebanking', alias: 'Fuego.asado.vino', aliasLabel: 'Alias para transferir' },
   { key: 'cash',     icon: 'fa-money-bill-wave',     title: 'Efectivo',               sub: 'Coordinamos el cobro en persona' },
-];
+].filter(m => ENABLE_MERCADOPAGO || m.key !== 'mp');
 
 // ═══════════════════════════════════════════════════════════════
 //  FW_TRANSFER_ACCOUNT — datos completos de la cuenta para
@@ -12098,6 +12154,29 @@ function fwRenderPaymentList() {
   // arma el innerHTML (idempotente, se puede llamar de más sin problema)
   // y controla la clase .show que lo despliega.
   fwRenderTransferPanel();
+
+  // Mismo patrón que fwRenderTransferPanel, para la opción "Efectivo".
+  fwRenderCashPanel();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  fwRenderCashPanel — arma y muestra/oculta el panel de "Efectivo"
+//  (#fw-cash-panel), debajo de la opción "Efectivo" del paso 5. Mismo
+//  patrón que fwRenderTransferPanel: vive siempre en el DOM y solo se
+//  despliega con la clase .show cuando fwSelectedPaymentKey === 'cash'.
+//  100% estático (no monta SDK ni depende de red).
+// ═══════════════════════════════════════════════════════════════
+function fwRenderCashPanel() {
+  const panel = document.getElementById('fw-cash-panel');
+  if (!panel) return;
+
+  const show = fwSelectedPaymentKey === 'cash';
+  panel.classList.toggle('show', show);
+  if (!show) return; // no hace falta reconstruir el HTML si está oculto
+
+  panel.innerHTML = `
+    <div class="food-wizard-transfer-panel-title">Pago en efectivo</div>
+    <div class="food-wizard-transfer-panel-sub">El pago se realizará al recibir tu pedido.</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -12991,7 +13070,32 @@ function dwRenderPaymentList() {
   // fwRenderPaymentList/fwRenderTransferPanel en Alimentación, del que
   // esto es un clon). Faltaba esta llamada por completo, por eso el
   // panel nunca aparecía en Desparasitarios.
+  //
+  // Mismo comentario aplica a dwRenderCashPanel() (clon de
+  // fwRenderCashPanel) para la opción "Efectivo", agregada junto con
+  // #dw-cash-panel.
   dwRenderTransferPanel();
+  dwRenderCashPanel();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  dwRenderCashPanel — clon exacto de fwRenderCashPanel (Alimentación)
+//  para el panel de "Efectivo" (#dw-cash-panel) del wizard de
+//  Desparasitarios. Mismo patrón que dwRenderTransferPanel: vive
+//  siempre en el DOM y se muestra/oculta según
+//  dwSelectedPaymentKey === 'cash'.
+// ═══════════════════════════════════════════════════════════════
+function dwRenderCashPanel() {
+  const panel = document.getElementById('dw-cash-panel');
+  if (!panel) return;
+
+  const show = dwSelectedPaymentKey === 'cash';
+  panel.classList.toggle('show', show);
+  if (!show) return;
+
+  panel.innerHTML = `
+    <div class="food-wizard-transfer-panel-title">Pago en efectivo</div>
+    <div class="food-wizard-transfer-panel-sub">El pago se realizará al recibir tu pedido.</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -13626,6 +13730,7 @@ function dwShowOrderDone({ dog, product, price, method, orderNumber, when, compr
       <div class="food-order-done-card">
         <div class="food-order-done-row"><span class="fod-label">Mascota</span><span class="fod-value">${escapeHtml(dog.name || '—')}</span></div>
         <div class="food-order-done-row"><span class="fod-label">Producto</span><span class="fod-value">${escapeHtml(product)}</span></div>
+        <div class="food-order-done-row"><span class="fod-label">Precio</span><span class="fod-value">${price > 0 ? formatCLP(price) : '—'}</span></div>
         <div class="food-order-done-row"><span class="fod-label">Método de pago</span><span class="fod-value">${escapeHtml(method.title)}</span></div>
         ${estado ? `<div class="food-order-done-row"><span class="fod-label">Estado del pago</span><span class="fod-value">${escapeHtml(estado)}</span></div>` : ''}
         <div class="food-order-done-row"><span class="fod-label">Fecha</span><span class="fod-value">${escapeHtml(dateStr)}</span></div>
