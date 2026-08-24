@@ -13769,14 +13769,42 @@ let foodPickerLoadPromise = null; // evita pedir el catálogo 2 veces si el usua
 // prefijo por cada función intermedia.
 let activeFoodPickerPrefix = 'food';
 
-// Carga el catálogo UNA sola vez (caché en state.foodCatalog) y de forma
-// perezosa: recién la primera vez que se abre el picker, no en cada
-// carga de página, para no sumar una 4ta llamada a Apps Script en el
-// arranque (ver el escalonamiento de 250ms entre las 3 llamadas de
-// loadHealthFoodHomeCareFromSheet: agregar una más ahí reintroduciría el
-// mismo riesgo de timeout que ese escalonamiento existe para evitar).
+// Carga el catálogo de forma perezosa: recién la primera vez que se
+// abre el picker (o que alguna de las precargas en segundo plano lo
+// pide), no en cada carga de página, para no sumar una 4ta llamada a
+// Apps Script en el arranque (ver el escalonamiento de 250ms entre
+// las 3 llamadas de loadHealthFoodHomeCareFromSheet: agregar una más
+// ahí reintroduciría el mismo riesgo de timeout que ese escalonamiento
+// existe para evitar).
+//
+// FIX (precio "$ 0"/ausente en el selector de Alimentación): antes,
+// state.foodCatalog quedaba cacheado EN MEMORIA para siempre una vez
+// cargado una sola vez ("if (state.foodCatalog && state.foodCatalog.length)
+// return state.foodCatalog;", sin condición de vencimiento). El backend
+// (handleGetCatalogoAlimentos) siempre calculó bien el precio leyendo
+// la columna "precios_alimentos" — confirmado con Logger.log corriendo
+// la función directo en Apps Script — así que el problema no era la
+// planilla ni el script: era que, dentro de una misma pestaña ya
+// abierta, esta función jamás volvía a pedir el catálogo una vez que
+// lo había cargado una primera vez, aunque esa primera carga hubiera
+// quedado con foto/precio incompletos (por ejemplo, si esa carga
+// ocurrió contra una versión más vieja del Apps Script, antes de un
+// redeploy). Se agrega FOOD_CATALOG_TTL_MS: pasado ese tiempo desde la
+// última carga exitosa, la próxima llamada vuelve a pedir el catálogo
+// a Apps Script en vez de reusar el array viejo, así que los precios
+// de "precios_alimentos" se mantienen al día sin tener que cerrar y
+// reabrir la pestaña. No se agrega una llamada extra al arranque: el
+// primer ensureFoodCatalogLoaded() de la sesión sigue disparándose
+// recién cuando algo lo pide (mismo comportamiento perezoso de antes),
+// esto solo evita que esa carga, una vez hecha, se congele para
+// siempre dentro de la misma pestaña.
+var FOOD_CATALOG_TTL_MS = 2 * 60 * 1000; // 2 minutos
+var foodCatalogLoadedAt = 0;
+
 async function ensureFoodCatalogLoaded() {
-  if (state.foodCatalog && state.foodCatalog.length) return state.foodCatalog;
+  var isFresh = state.foodCatalog && state.foodCatalog.length &&
+    (Date.now() - foodCatalogLoadedAt) < FOOD_CATALOG_TTL_MS;
+  if (isFresh) return state.foodCatalog;
   if (foodPickerLoadPromise) return foodPickerLoadPromise;
   foodPickerLoadPromise = (async () => {
     try {
@@ -13789,13 +13817,22 @@ async function ensureFoodCatalogLoaded() {
         state.foodCatalog = rows
           .filter(r => r && r.nombre)
           .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim(), precio: Number(r.precio) || 0 }));
+        foodCatalogLoadedAt = Date.now();
       } else {
         state.foodCatalog = [];
+        foodCatalogLoadedAt = 0; // respuesta anómala: no se marca como "fresca", que reintente pronto
       }
     } catch (e) {
       addLiveLog('[WARN] No se pudo cargar el catálogo de alimentos: ' + e.message, 'err');
-      state.foodCatalog = [];
+      // No se toca state.foodCatalog si ya había un array cargado (se
+      // sigue mostrando el picker con lo último bueno que hubo en vez
+      // de vaciarlo de golpe), pero SÍ se deja foodCatalogLoadedAt sin
+      // actualizar para que, pasado el TTL, se reintente la carga en
+      // vez de quedar marcado como "fresco" con datos que en realidad
+      // vienen de un fallo.
+      if (!state.foodCatalog) state.foodCatalog = [];
     }
+    foodPickerLoadPromise = null; // libera el candado para el próximo intento, sea éxito o error
     return state.foodCatalog;
   })();
   return foodPickerLoadPromise;
