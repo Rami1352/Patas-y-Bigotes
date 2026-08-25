@@ -2618,6 +2618,48 @@ html[data-font-size="large"] .toast-container {
 .food-wizard-transfer-send-sub { font-size: 11px; color: var(--mist); margin-top: 1px; line-height: 1.3; }
 .food-wizard-transfer-send-btn > i.fa-chevron-right { color: var(--stone); font-size: 11px; flex-shrink: 0; }
 
+/* Botón "Ya hice la transferencia" — cierre del panel de transferencia
+   (paso 5). Gatea el avance al nuevo paso de Comprobante (ver
+   fwConfirmTransferDone/fwValidateStep); .is-confirmed es el estado
+   post-click, mismo verde que el resto de los estados "éxito" del
+   wizard (--sage-solid), para que quede claro que ya se puede
+   continuar sin necesitar volver a leer el texto del botón. */
+.food-wizard-transfer-confirm-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; margin-top: 14px; padding: 12px; border: none; border-radius: var(--r-md);
+  background: var(--sage-solid); color: #fff; font-weight: 700; font-size: 13.5px;
+  cursor: pointer; transition: background .18s;
+}
+.food-wizard-transfer-confirm-btn:hover { background: var(--sage-solid-hover); }
+.food-wizard-transfer-confirm-btn.is-confirmed { background: var(--sage-solid); opacity: .85; cursor: default; }
+
+/* Paso 6 — Comprobante: dropzone + preview. Mismos tokens de color y
+   radio que el resto del wizard (--sage-*, --r-md/--r-sm) para que no
+   se note como un bloque pegado aparte. */
+.food-wizard-receipt-dropzone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 32px 16px; border-radius: var(--r-md); border: 1.5px dashed var(--border-sm);
+  background: var(--surface-card-alt); cursor: pointer; text-align: center; transition: all .18s;
+}
+.food-wizard-receipt-dropzone:hover, .food-wizard-receipt-dropzone.is-dragover {
+  border-color: var(--sage); background: var(--sage-xlight);
+}
+.food-wizard-receipt-dropzone-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--sage-light); color: var(--sage-solid); display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 6px; }
+.food-wizard-receipt-dropzone-title { font-weight: 700; font-size: 13px; color: var(--charcoal); }
+.food-wizard-receipt-dropzone-sub { font-size: 11.5px; color: var(--mist); }
+.food-wizard-receipt-dropzone-formats { font-size: 10.5px; color: var(--stone); margin-top: 6px; }
+
+.food-wizard-receipt-preview-label { font-size: 11px; font-weight: 700; color: var(--stone); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+.food-wizard-receipt-preview-row {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border: 1px solid var(--border-sm); border-radius: var(--r-md); background: var(--surface-card-alt);
+}
+.food-wizard-receipt-preview-thumb { width: 42px; height: 42px; border-radius: var(--r-sm); object-fit: cover; flex-shrink: 0; border: 1px solid var(--border-sm); }
+.food-wizard-receipt-preview-name { font-weight: 700; font-size: 12.5px; color: var(--charcoal); word-break: break-all; }
+.food-wizard-receipt-preview-size { font-size: 11px; color: var(--mist); margin-top: 1px; }
+.food-wizard-receipt-preview-delete { background: none; border: none; color: var(--stone); cursor: pointer; font-size: 13px; flex-shrink: 0; padding: 6px; }
+.food-wizard-receipt-preview-delete:hover { color: var(--red); }
+
 /* Paso 6 — resumen previo a confirmar */
 .food-wizard-confirm-badge {
   display: flex; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px;
@@ -6592,7 +6634,17 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="wizard-step-circle"><i class="fa-solid fa-credit-card"></i></div>
         <div class="wizard-step-label">Pago</div>
       </div>
+      <!-- ── PASO NUEVO — Comprobante ──
+           Solo aplica a Transferencia bancaria (ver fwRenderStep /
+           fwGoStep): con 'cash' o 'mp' este paso se salta y el flujo va
+           directo de Pago a Confirmar, porque no hay comprobante que
+           subir en esos dos métodos. -->
       <div class="wizard-step" data-fwstep="6">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-receipt"></i></div>
+        <div class="wizard-step-label">Comprobante</div>
+      </div>
+      <div class="wizard-step" data-fwstep="7">
         <div class="wizard-step-line"></div>
         <div class="wizard-step-circle"><i class="fa-solid fa-check"></i></div>
         <div class="wizard-step-label">Confirmar</div>
@@ -6602,7 +6654,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <!-- Contenedor que se reemplaza entero por la pantalla de "Procesando
          pago…" (mostrarAnimacionTransferencia) y, cuando el pago resuelve,
          por "Pedido confirmado" (fwShowOrderDone, llamada desde
-         fwCompleteOrderAfterPayment). Mientras tanto contiene los 6
+         fwCompleteOrderAfterPayment). Mientras tanto contiene los 7
          paneles + la barra de navegación. -->
     <div id="fw-body-wrap">
 
@@ -6695,13 +6747,13 @@ document.addEventListener('DOMContentLoaded', function () {
          Alias de Mercado Pago / MODO: aparecen debajo de cada opción de
          pago, solo cuando esa opción está tildada (ver fwSelectPayment). -->
     <div class="wizard-panel" data-fwpanel="5">
-      <!-- Caja "Total a pagar" oculta a pedido: no se muestran precios
-           al usuario final mientras Mercado Pago esté desactivado. Se
-           deja display:none (no se borra el bloque) para poder
-           reactivarla sin reconstruir nada; fw-total-value sigue
-           recibiendo el textContent en fwRenderPaymentList como antes,
-           simplemente no es visible. -->
-      <div class="food-wizard-total-box" style="display:none">
+      <!-- Caja "Total a pagar": visible (Fase C). Antes tenía
+           display:none porque no se mostraban precios al usuario final
+           mientras Mercado Pago estaba desactivado; ese motivo ya no
+           aplica. fw-total-value sigue recibiendo el textContent en
+           fwRenderPaymentList exactamente igual que antes, ahora
+           simplemente se ve. -->
+      <div class="food-wizard-total-box">
         <div class="food-wizard-total-box-label">Total a pagar</div>
         <div class="food-wizard-total-box-value" id="fw-total-value">$ 0</div>
       </div>
@@ -6745,8 +6797,60 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 
 
-    <!-- ── PASO 6 — Confirmación (resumen antes de confirmar) ── -->
+    <!-- ── PASO 6 — Comprobante ──
+         Solo se llega acá con fwSelectedPaymentKey === 'transfer' (ver
+         fwGoStep, que salta este paso para 'cash'/'mp'). Requiere
+         fwTransferConfirmed === true (botón "Ya hice la transferencia"
+         del paso 5) antes de poder cargar el archivo -- ver
+         fwValidateStep(5). El archivo se guarda en fwReceiptFile
+         (objeto {name, size, dataUrl}) vía FileReader; fwReceiptFile
+         != null es lo que fwValidateStep(6) exige para poder avanzar,
+         y lo que fwRenderStep usa para habilitar/deshabilitar
+         "Confirmar pedido" en el paso 7 cuando el método es
+         'transfer'. NO se envía a ningún backend todavía acá: el
+         adjunto de este archivo al pedido real que viaja por
+         fetchJSONP queda pendiente de una decisión de arquitectura de
+         subida (ver comentario grande en fwSubmitReceiptFile más
+         abajo). -->
     <div class="wizard-panel" data-fwpanel="6">
+      <div class="food-wizard-pay-section-title">Subí el comprobante de transferencia</div>
+      <div class="food-wizard-transfer-panel-sub" style="margin-bottom:16px">Adjuntá una imagen del comprobante para que podamos verificar tu pago.</div>
+
+      <div id="fw-receipt-dropzone" class="food-wizard-receipt-dropzone"
+           onclick="document.getElementById('fw-receipt-input').click()"
+           ondragover="fwReceiptDragOver(event)"
+           ondragleave="fwReceiptDragLeave(event)"
+           ondrop="fwReceiptDrop(event)">
+        <input type="file" id="fw-receipt-input" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="fwReceiptFileSelected(event)">
+        <div class="food-wizard-receipt-dropzone-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <div class="food-wizard-receipt-dropzone-title">Arrastrá tu imagen acá</div>
+        <div class="food-wizard-receipt-dropzone-sub">o tocá para seleccionar</div>
+        <div class="food-wizard-receipt-dropzone-formats">Formatos: JPG, PNG. Max. 10MB</div>
+      </div>
+
+      <div id="fw-receipt-preview-wrap" style="display:none;margin-top:14px">
+        <div class="food-wizard-receipt-preview-label">Vista previa</div>
+        <div class="food-wizard-receipt-preview-row">
+          <img id="fw-receipt-preview-thumb" class="food-wizard-receipt-preview-thumb" alt="Comprobante">
+          <div style="flex:1;min-width:0">
+            <div class="food-wizard-receipt-preview-name" id="fw-receipt-preview-name">—</div>
+            <div class="food-wizard-receipt-preview-size" id="fw-receipt-preview-size">—</div>
+          </div>
+          <button type="button" class="food-wizard-receipt-preview-delete" title="Quitar comprobante" onclick="fwReceiptRemove(event)"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      </div>
+
+      <div class="food-wizard-transfer-important" style="margin-top:16px">
+        <div class="food-wizard-transfer-important-icon"><i class="fa-solid fa-circle-info"></i></div>
+        <div>
+          <div class="food-wizard-transfer-important-title">Importante</div>
+          <div class="food-wizard-transfer-important-sub">Verificaremos el comprobante y confirmaremos tu pedido. Esto puede tomar algunas horas.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 7 — Confirmación (resumen antes de confirmar) ── -->
+    <div class="wizard-panel" data-fwpanel="7">
       <div class="food-wizard-confirm-badge">
         <div class="food-wizard-confirm-badge-icon"><i class="fa-solid fa-shield-halved"></i></div>
         <div>
@@ -6837,14 +6941,25 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="wizard-step-circle"><i class="fa-solid fa-credit-card"></i></div>
         <div class="wizard-step-label">Método de pago</div>
       </div>
+      <!-- ── PASO NUEVO — Comprobante ──
+           Solo aplica a Transferencia bancaria (ver dwRenderStep /
+           dwGoStep), mismo criterio que el paso equivalente en
+           Alimentación (fwpanel 6): con 'cash'/'mp' se salta, y en
+           modo edición (editingDewormId) también se salta -- un
+           registro ya pagado no vuelve a pedir comprobante. -->
       <div class="wizard-step" data-dwstep="5">
+        <div class="wizard-step-line"></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-receipt"></i></div>
+        <div class="wizard-step-label">Comprobante</div>
+      </div>
+      <div class="wizard-step" data-dwstep="6">
         <div class="wizard-step-line"></div>
         <div class="wizard-step-circle"><i class="fa-solid fa-check"></i></div>
         <div class="wizard-step-label">Confirmación</div>
       </div>
-      <div class="wizard-step" data-dwstep="6">
+      <div class="wizard-step" data-dwstep="7">
         <div class="wizard-step-line"></div>
-        <div class="wizard-step-circle"><i class="fa-solid fa-receipt"></i></div>
+        <div class="wizard-step-circle"><i class="fa-solid fa-flag-checkered"></i></div>
         <div class="wizard-step-label">Pago registrado</div>
       </div>
     </div>
@@ -6981,11 +7096,15 @@ document.addEventListener('DOMContentLoaded', function () {
          negocio, no de la sección, así que se reutiliza la misma
          constante en vez de duplicarla. -->
     <div class="wizard-panel" data-dwpanel="4">
-      <!-- Caja "Total a pagar" oculta a pedido, mismo criterio que
-           #fw-total-value en Alimentación: no mostrar precios al
-           usuario final. dw-total-value sigue actualizándose en
-           dwRenderPaymentList, solo que no es visible. -->
-      <div class="deworm-wizard-total-box" style="display:none">
+      <!-- Caja "Total a pagar": visible (Fase C), mismo criterio que
+           #fw-total-value en Alimentación. dw-total-value sigue
+           actualizándose en dwRenderPaymentList exactamente igual que
+           antes, ahora simplemente se ve. NOTA: esto no toca el
+           banner "No mostramos precios" del paso de Confirmación más
+           abajo (deworm-wizard-next-banner) -- ese es un texto de
+           negocio aparte, no se modificó acá; revisar si sigue
+           correspondiendo con el total ya visible en este paso. -->
+      <div class="deworm-wizard-total-box">
         <div class="deworm-wizard-total-box-label">Total a pagar</div>
         <div class="deworm-wizard-total-box-value" id="dw-total-value">$ 0</div>
       </div>
@@ -7023,8 +7142,54 @@ document.addEventListener('DOMContentLoaded', function () {
       <div id="dw-cash-panel" class="food-wizard-transfer-panel"></div>
     </div>
 
-    <!-- ── PASO 5 — Confirmación (resumen antes de confirmar) ── -->
+    <!-- ── PASO 5 — Comprobante ──
+         Mismo patrón exacto que el panel equivalente en Alimentación
+         (fwpanel 6): solo se llega acá con dwSelectedPaymentKey ===
+         'transfer' y fuera de modo edición (ver dwGoStep, que salta
+         este paso para 'cash'/'mp' y para editingDewormId). Requiere
+         dwTransferConfirmed === true (botón "Ya hice la
+         transferencia" del paso 4) antes de poder cargar el archivo
+         -- ver dwValidateStep(4). dwReceiptFile != null es lo que
+         dwValidateStep(5) exige para avanzar. -->
     <div class="wizard-panel" data-dwpanel="5">
+      <div class="deworm-wizard-pay-section-title">Subí el comprobante de transferencia</div>
+      <div class="food-wizard-transfer-panel-sub" style="margin-bottom:16px">Adjuntá una imagen del comprobante para que podamos verificar tu pago.</div>
+
+      <div id="dw-receipt-dropzone" class="food-wizard-receipt-dropzone"
+           onclick="document.getElementById('dw-receipt-input').click()"
+           ondragover="dwReceiptDragOver(event)"
+           ondragleave="dwReceiptDragLeave(event)"
+           ondrop="dwReceiptDrop(event)">
+        <input type="file" id="dw-receipt-input" accept="image/jpeg,image/png,image/jpg" style="display:none" onchange="dwReceiptFileSelected(event)">
+        <div class="food-wizard-receipt-dropzone-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+        <div class="food-wizard-receipt-dropzone-title">Arrastrá tu imagen acá</div>
+        <div class="food-wizard-receipt-dropzone-sub">o tocá para seleccionar</div>
+        <div class="food-wizard-receipt-dropzone-formats">Formatos: JPG, PNG. Max. 10MB</div>
+      </div>
+
+      <div id="dw-receipt-preview-wrap" style="display:none;margin-top:14px">
+        <div class="food-wizard-receipt-preview-label">Vista previa</div>
+        <div class="food-wizard-receipt-preview-row">
+          <img id="dw-receipt-preview-thumb" class="food-wizard-receipt-preview-thumb" alt="Comprobante">
+          <div style="flex:1;min-width:0">
+            <div class="food-wizard-receipt-preview-name" id="dw-receipt-preview-name">—</div>
+            <div class="food-wizard-receipt-preview-size" id="dw-receipt-preview-size">—</div>
+          </div>
+          <button type="button" class="food-wizard-receipt-preview-delete" title="Quitar comprobante" onclick="dwReceiptRemove(event)"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      </div>
+
+      <div class="food-wizard-transfer-important" style="margin-top:16px">
+        <div class="food-wizard-transfer-important-icon"><i class="fa-solid fa-circle-info"></i></div>
+        <div>
+          <div class="food-wizard-transfer-important-title">Importante</div>
+          <div class="food-wizard-transfer-important-sub">Verificaremos el comprobante y confirmaremos tu pedido. Esto puede tomar algunas horas.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PASO 6 — Confirmación (resumen antes de confirmar) ── -->
+    <div class="wizard-panel" data-dwpanel="6">
       <div class="deworm-wizard-confirm-badge">
         <div class="deworm-wizard-confirm-badge-icon"><i class="fa-solid fa-shield-halved"></i></div>
         <div>
@@ -11864,7 +12029,7 @@ function openFoodModalLegacy() {
    los 6 <div class="wizard-panel" data-fwpanel="N">.
 ══════════════════════════════════ */
 let fwCurrentStep = 1;
-const FW_TOTAL_STEPS = 6;
+const FW_TOTAL_STEPS = 7;
 let fwSelectedPaymentKey = null; // 'credit' | 'debit' | 'mp' | 'modo' | 'transfer' | 'cash'
 // FIX (ver informe de bugs): antes el cardForm de Mercado Pago recién
 // se montaba en fwSubmitPayment (al tocar "Confirmar pedido", paso 6),
@@ -11973,6 +12138,8 @@ function openFoodWizard() {
   editingFoodId = null;
   fwCurrentStep = 1;
   fwSelectedPaymentKey = null;
+  fwTransferConfirmed = false; // sin esto, un segundo pedido saltaría directo al gate ya desbloqueado
+  fwReceiptFile = null;         // ídem: sin esto, la preview del comprobante anterior quedaría en memoria
   // El wrap se puede restaurar (o no) más abajo según venga de "Pedido
   // confirmado"; en cualquier caso, cualquier Payment Brick montado en
   // una apertura anterior quedó sobre nodos que ya no existen o están
@@ -12256,7 +12423,7 @@ function fwRenderTransferPanel() {
       <div class="food-wizard-transfer-important-icon"><i class="fa-solid fa-circle-info"></i></div>
       <div>
         <div class="food-wizard-transfer-important-title">Importante</div>
-        <div class="food-wizard-transfer-important-sub">Una vez realizada la transferencia, enviá el comprobante para que podamos confirmar tu pedido.</div>
+        <div class="food-wizard-transfer-important-sub">Una vez realizada la transferencia, presioná el botón "Ya hice la transferencia" para continuar.</div>
       </div>
     </div>
     <div class="food-wizard-transfer-send-label">Enviar comprobante por</div>
@@ -12277,7 +12444,130 @@ function fwRenderTransferPanel() {
         </div>
         <i class="fa-solid fa-chevron-right"></i>
       </a>
-    </div>`;
+    </div>
+    <button type="button" class="food-wizard-transfer-confirm-btn${fwTransferConfirmed ? ' is-confirmed' : ''}" onclick="fwConfirmTransferDone()">
+      <i class="fa-solid ${fwTransferConfirmed ? 'fa-check' : 'fa-circle-check'}"></i>
+      ${fwTransferConfirmed ? 'Transferencia confirmada' : 'Ya hice la transferencia'}
+    </button>`;
+}
+
+// fwConfirmTransferDone — dispara al presionar "Ya hice la
+// transferencia" dentro del panel de transferencia (paso 5). SOLO
+// cambia fwTransferConfirmed (estado en memoria) para desbloquear el
+// avance al nuevo paso "Comprobante" en fwValidateStep/fwGoStep.
+// A PROPÓSITO no llama a fwPagarPorTransferencia ni a fetchJSONP acá:
+// el pago real se sigue confirmando desde "Confirmar pedido" en el
+// paso de Confirmación final, exactamente igual que antes de este
+// cambio (ver fwSubmitPayment) -- esto es solamente el gate de UI que
+// pide la referencia de diseño ("Recién ahí puede continuar").
+let fwTransferConfirmed = false;
+function fwConfirmTransferDone() {
+  fwTransferConfirmed = true;
+  fwRenderTransferPanel();
+  showToast('Transferencia marcada como realizada', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PASO 6 — Comprobante: carga de archivo (drag&drop + click) con
+//  validación y preview. fwReceiptFile es el único estado ({name,
+//  size, dataUrl}); null significa "sin archivo cargado" y es lo que
+//  fwValidateStep(6) exige para avanzar.
+//
+//  IMPORTANTE — esto NO envía el archivo a ningún backend. dataUrl
+//  (base64 vía FileReader) queda solo en memoria del navegador para
+//  la preview. Adjuntarlo al pedido real que fwPagarPorTransferencia
+//  manda por fetchJSONP queda pendiente A PROPÓSITO: fetchJSONP es un
+//  GET (mismo mecanismo <script src="..."> que usan las otras ~19
+//  llamadas al backend en este archivo, ver comentario grande sobre
+//  fwPagarPorTransferencia/fwPagarEnEfectivo más abajo) y un base64 de
+//  una foto de varios cientos de KB a unos MB no entra en una query
+//  string. Pasar esta función a fetch()+POST reintroduce el problema
+//  de CORS contra script.google.com que esas dos funciones ya
+//  tuvieron una vez en producción (mismo comentario) -- necesita
+//  definirse antes un mecanismo de subida propio (ej. Drive vía
+//  google.script.run, o un endpoint de subida separado que devuelva
+//  un ID/URL corto) para pasar por fetchJSONP como un query param
+//  normal, en vez de mandar el archivo entero por ahí.
+// ═══════════════════════════════════════════════════════════════
+let fwReceiptFile = null; // {name, size, dataUrl} | null
+
+const FW_RECEIPT_MAX_BYTES = 10 * 1024 * 1024; // 10MB, mismo límite que dice el texto del dropzone
+const FW_RECEIPT_ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+
+function fwReceiptDragOver(ev) {
+  ev.preventDefault();
+  const zone = document.getElementById('fw-receipt-dropzone');
+  if (zone) zone.classList.add('is-dragover');
+}
+function fwReceiptDragLeave(ev) {
+  ev.preventDefault();
+  const zone = document.getElementById('fw-receipt-dropzone');
+  if (zone) zone.classList.remove('is-dragover');
+}
+function fwReceiptDrop(ev) {
+  ev.preventDefault();
+  const zone = document.getElementById('fw-receipt-dropzone');
+  if (zone) zone.classList.remove('is-dragover');
+  const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (file) fwReceiptLoadFile(file);
+}
+function fwReceiptFileSelected(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (file) fwReceiptLoadFile(file);
+  ev.target.value = ''; // permite volver a seleccionar el mismo archivo tras un delete
+}
+
+// Valida tipo/tamaño y arma fwReceiptFile vía FileReader. Solo
+// JPG/PNG (el texto del dropzone dice "JPG, PNG"), tal cual pide la
+// referencia de diseño -- no HEIC/WEBP/PDF/etc.
+function fwReceiptLoadFile(file) {
+  if (FW_RECEIPT_ALLOWED_TYPES.indexOf(file.type) === -1) {
+    showToast('Formato no válido. Usá JPG o PNG.', 'error');
+    return;
+  }
+  if (file.size > FW_RECEIPT_MAX_BYTES) {
+    showToast('El archivo supera los 10MB permitidos.', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    fwReceiptFile = { name: file.name, size: file.size, dataUrl: reader.result };
+    fwReceiptRenderPreview();
+  };
+  reader.onerror = () => showToast('No se pudo leer el archivo. Probá de nuevo.', 'error');
+  reader.readAsDataURL(file);
+}
+
+function fwReceiptRemove(ev) {
+  if (ev) ev.stopPropagation(); // evita reabrir el file picker del dropzone
+  fwReceiptFile = null;
+  fwReceiptRenderPreview();
+}
+
+// Formatea bytes como "1.2 MB" / "340 KB", mismo criterio simple que
+// usa el resto del archivo para tamaños (ver texto "Max. 10MB").
+function fwFormatFileSize(bytes) {
+  if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  if (bytes >= 1024) return Math.round(bytes / 1024) + ' KB';
+  return bytes + ' B';
+}
+
+function fwReceiptRenderPreview() {
+  const dropzone = document.getElementById('fw-receipt-dropzone');
+  const wrap = document.getElementById('fw-receipt-preview-wrap');
+  if (!dropzone || !wrap) return; // paneles fuera del DOM actual (otro método de pago)
+
+  if (fwReceiptFile) {
+    dropzone.style.display = 'none';
+    wrap.style.display = '';
+    document.getElementById('fw-receipt-preview-thumb').src = fwReceiptFile.dataUrl;
+    document.getElementById('fw-receipt-preview-name').textContent = fwReceiptFile.name;
+    document.getElementById('fw-receipt-preview-size').textContent = fwFormatFileSize(fwReceiptFile.size);
+  } else {
+    dropzone.style.display = '';
+    wrap.style.display = 'none';
+  }
+  fwRenderStep(); // re-evalúa si "Confirmar pedido" debe habilitarse/deshabilitarse (ver fwRenderStep)
 }
 
 // Formatea un número tipo "541112345678" como "+54 11 1234-5678" para
@@ -12617,8 +12907,8 @@ function fwCopyAliasFallback(text, done) {
 }
 
 // Validación por paso: mismo criterio que wizardValidateStep (wizard de
-// mascota), un array de checks por número de paso. Los pasos 4 (notas)
-// y 6 (confirmación, ya validada al llegar) no tienen requisitos.
+// mascota), un array de checks por número de paso. El paso 4 (notas) y
+// el paso 7 (confirmación, ya validada al llegar) no tienen requisitos.
 function fwValidateStep(step) {
   if (step === 1) {
     const dogOk = !!document.getElementById('fw-dog').value;
@@ -12642,6 +12932,24 @@ function fwValidateStep(step) {
   }
   if (step === 5) {
     if (!fwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return false; }
+    // Con transferencia, no se puede avanzar (ni al paso de Comprobante
+    // ni, salteado ese paso, a Confirmación) sin haber presionado antes
+    // "Ya hice la transferencia" -- mismo comportamiento que muestra la
+    // referencia de diseño ("Recién ahí puede continuar").
+    if (fwSelectedPaymentKey === 'transfer' && !fwTransferConfirmed) {
+      showToast('Presioná "Ya hice la transferencia" para continuar', 'error');
+      return false;
+    }
+    return true;
+  }
+  if (step === 6) {
+    // Este paso solo se valida cuando efectivamente se está parado en
+    // él, lo cual solo pasa con método 'transfer' (fwGoStep salta este
+    // paso para 'cash'/'mp' en ambas direcciones).
+    if (!fwReceiptFile) {
+      showToast('Subí el comprobante para continuar', 'error');
+      return false;
+    }
     return true;
   }
   return true;
@@ -12649,7 +12957,14 @@ function fwValidateStep(step) {
 
 function fwGoStep(dir) {
   if (dir > 0 && !fwValidateStep(fwCurrentStep)) return;
-  const next = fwCurrentStep + dir;
+  let next = fwCurrentStep + dir;
+  // El paso 6 (Comprobante) solo existe para transferencia -- para
+  // 'cash'/'mp' se salta en ambas direcciones (avanzando de 5 va
+  // directo a 7; retrocediendo de 7 vuelve directo a 5), igual que ya
+  // hacía este wizard con Mercado Pago ocultando "Confirmar pedido"
+  // en fwRenderStep: el paso queda en el DOM pero fuera del recorrido
+  // cuando no aplica.
+  if (next === 6 && fwSelectedPaymentKey !== 'transfer') next = dir > 0 ? 7 : 5;
   if (next < 1) return;
   // Antes: if (next > FW_TOTAL_STEPS) { saveFoodOrder(); return; }
   // saveFoodOrder() guardaba el pedido directo, sin pasar por ninguna
@@ -12662,7 +12977,7 @@ function fwGoStep(dir) {
   if (next > FW_TOTAL_STEPS) { fwSubmitPayment(); return; }
   fwCurrentStep = next;
   if (fwCurrentStep === 2) fwSyncDogSummary();
-  if (fwCurrentStep === 6) fwRenderConfirmSummary();
+  if (fwCurrentStep === 7) fwRenderConfirmSummary();
   fwRenderStep();
 }
 
@@ -12749,6 +13064,11 @@ function fwRenderStep() {
   const nextBtn = document.getElementById('fw-btn-next');
   if (backBtn) backBtn.style.visibility = fwCurrentStep === 1 ? 'hidden' : 'visible';
   if (nextBtn) {
+    // Reset explícito antes de las ramas: sin esto, el disabled que
+    // pone la rama del paso de Confirmación (más abajo, cuando falta
+    // el comprobante) queda pegado en true si el usuario vuelve
+    // "Atrás" a un paso anterior, donde ese disabled ya no aplica.
+    nextBtn.disabled = false;
     // Con Payment Brick elegido, el pago con tarjeta se dispara desde el
     // botón que el propio Brick dibuja dentro de #paymentBrick_container
     // (paso 5), no hay forma de separarlo del resto de su UI. Por eso acá
@@ -12760,6 +13080,14 @@ function fwRenderStep() {
     } else if (fwCurrentStep === FW_TOTAL_STEPS) {
       nextBtn.style.display = '';
       nextBtn.innerHTML = '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
+      // Defensivo: con transferencia, fwValidateStep(6) ya exige
+      // fwReceiptFile antes de poder LLEGAR a este paso, así que en
+      // uso normal esto nunca debería aplicar -- se agrega igual para
+      // que "Enviar pedido" quede visualmente deshabilitado si el
+      // estado en memoria se perdiera por algún motivo (ver imagen de
+      // referencia: "El botón 'Enviar pedido' se habilita solo cuando
+      // hay una imagen cargada").
+      nextBtn.disabled = (fwSelectedPaymentKey === 'transfer' && !fwReceiptFile);
     } else if (fwCurrentStep === 4) {
       // Paso "Notas (opcional)": el texto del botón deja explícito que
       // se puede avanzar sin cargar nada, igual que dice el encabezado.
@@ -13023,7 +13351,7 @@ function fwShowOrderDone({ dog, brand, price, method, orderNumber, when, comprob
    junto a fwPagarEnEfectivo/fwPagarPorTransferencia al final del
    archivo. */
 let dwCurrentStep = 1;
-const DW_TOTAL_STEPS = 6;
+const DW_TOTAL_STEPS = 7;
 let dwSelectedPaymentKey = null; // 'mp' | 'transfer' | 'cash'
 // dwMountedPaymentBrick: instancia del Payment Brick montado sobre
 // #dw-paymentBrick_container (mismo rol que fwMountedPaymentBrick en
@@ -13165,7 +13493,7 @@ function dwRenderTransferPanel() {
       <div class="food-wizard-transfer-important-icon"><i class="fa-solid fa-circle-info"></i></div>
       <div>
         <div class="food-wizard-transfer-important-title">Importante</div>
-        <div class="food-wizard-transfer-important-sub">Una vez realizada la transferencia, enviá el comprobante para que podamos confirmar tu pedido.</div>
+        <div class="food-wizard-transfer-important-sub">Una vez realizada la transferencia, presioná el botón "Ya hice la transferencia" para continuar.</div>
       </div>
     </div>
     <div class="food-wizard-transfer-send-label">Enviar comprobante por</div>
@@ -13186,10 +13514,103 @@ function dwRenderTransferPanel() {
         </div>
         <i class="fa-solid fa-chevron-right"></i>
       </a>
-    </div>`;
+    </div>
+    <button type="button" class="food-wizard-transfer-confirm-btn${dwTransferConfirmed ? ' is-confirmed' : ''}" onclick="dwConfirmTransferDone()">
+      <i class="fa-solid ${dwTransferConfirmed ? 'fa-check' : 'fa-circle-check'}"></i>
+      ${dwTransferConfirmed ? 'Transferencia confirmada' : 'Ya hice la transferencia'}
+    </button>`;
 }
 
-// Copia Alias o CBU de la cuenta de transferencia al portapapeles, para
+// dwConfirmTransferDone — clon de fwConfirmTransferDone (Alimentación).
+// Solo cambia dwTransferConfirmed (estado en memoria) para desbloquear
+// el avance al paso de Comprobante en dwValidateStep/dwGoStep. NO
+// llama a dwPagarPorTransferencia ni a fetchJSONP -- el pago real se
+// sigue confirmando desde "Confirmar pedido" en el paso de
+// Confirmación final, igual que antes de este cambio.
+let dwTransferConfirmed = false;
+function dwConfirmTransferDone() {
+  dwTransferConfirmed = true;
+  dwRenderTransferPanel();
+  showToast('Transferencia marcada como realizada', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PASO 5 (Desparasitarios) — Comprobante: clon exacto de la lógica
+//  equivalente en Alimentación (fwReceiptFile y funciones asociadas,
+//  paso 6 de ese wizard). Mismo comentario sobre por qué el archivo
+//  NO se envía a ningún backend todavía aplica acá sin cambios: ver
+//  el comentario grande junto a "let fwReceiptFile" más arriba.
+// ═══════════════════════════════════════════════════════════════
+let dwReceiptFile = null; // {name, size, dataUrl} | null
+
+function dwReceiptDragOver(ev) {
+  ev.preventDefault();
+  const zone = document.getElementById('dw-receipt-dropzone');
+  if (zone) zone.classList.add('is-dragover');
+}
+function dwReceiptDragLeave(ev) {
+  ev.preventDefault();
+  const zone = document.getElementById('dw-receipt-dropzone');
+  if (zone) zone.classList.remove('is-dragover');
+}
+function dwReceiptDrop(ev) {
+  ev.preventDefault();
+  const zone = document.getElementById('dw-receipt-dropzone');
+  if (zone) zone.classList.remove('is-dragover');
+  const file = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0];
+  if (file) dwReceiptLoadFile(file);
+}
+function dwReceiptFileSelected(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  if (file) dwReceiptLoadFile(file);
+  ev.target.value = '';
+}
+
+// Reusa los mismos límites que Alimentación (FW_RECEIPT_MAX_BYTES,
+// FW_RECEIPT_ALLOWED_TYPES): son reglas del negocio (tamaño/formato
+// de comprobante), no de la sección, mismo criterio que ya aplica a
+// FW_TRANSFER_ACCOUNT/FOOD_WIZARD_PAYMENT_METHODS en este wizard.
+function dwReceiptLoadFile(file) {
+  if (FW_RECEIPT_ALLOWED_TYPES.indexOf(file.type) === -1) {
+    showToast('Formato no válido. Usá JPG o PNG.', 'error');
+    return;
+  }
+  if (file.size > FW_RECEIPT_MAX_BYTES) {
+    showToast('El archivo supera los 10MB permitidos.', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    dwReceiptFile = { name: file.name, size: file.size, dataUrl: reader.result };
+    dwReceiptRenderPreview();
+  };
+  reader.onerror = () => showToast('No se pudo leer el archivo. Probá de nuevo.', 'error');
+  reader.readAsDataURL(file);
+}
+
+function dwReceiptRemove(ev) {
+  if (ev) ev.stopPropagation();
+  dwReceiptFile = null;
+  dwReceiptRenderPreview();
+}
+
+function dwReceiptRenderPreview() {
+  const dropzone = document.getElementById('dw-receipt-dropzone');
+  const wrap = document.getElementById('dw-receipt-preview-wrap');
+  if (!dropzone || !wrap) return;
+
+  if (dwReceiptFile) {
+    dropzone.style.display = 'none';
+    wrap.style.display = '';
+    document.getElementById('dw-receipt-preview-thumb').src = dwReceiptFile.dataUrl;
+    document.getElementById('dw-receipt-preview-name').textContent = dwReceiptFile.name;
+    document.getElementById('dw-receipt-preview-size').textContent = fwFormatFileSize(dwReceiptFile.size);
+  } else {
+    dropzone.style.display = '';
+    wrap.style.display = 'none';
+  }
+  dwRenderStep(); // re-evalúa si "Confirmar pedido" debe habilitarse/deshabilitarse
+}
 // el wizard de Desparasitarios. Clon de fwCopyTransferField (mismo
 // patrón defensivo clipboard/execCommand vía fwCopyAliasFallback,
 // reutilizada tal cual porque no depende de nada específico de
@@ -13453,8 +13874,8 @@ function dwCopyAlias(key) {
 
 // Validación por paso. El paso 4 (método de pago) se salta la
 // validación de "elegir método" cuando se está editando un registro
-// existente -- ver dwGoStep, que directamente no pasa por el panel 4 en
-// modo edición.
+// existente -- ver dwGoStep, que directamente no pasa por los paneles
+// 4 y 5 en modo edición.
 function dwValidateStep(step) {
   if (step === 1) {
     const dogOk = !!document.getElementById('deworm-dog').value;
@@ -13470,24 +13891,49 @@ function dwValidateStep(step) {
   }
   if (step === 4 && !editingDewormId) {
     if (!dwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return false; }
+    // Mismo gate que fwValidateStep(5) en Alimentación: con
+    // transferencia, no se avanza (ni al paso de Comprobante ni,
+    // salteado ese paso, a Confirmación) sin haber presionado antes
+    // "Ya hice la transferencia".
+    if (dwSelectedPaymentKey === 'transfer' && !dwTransferConfirmed) {
+      showToast('Presioná "Ya hice la transferencia" para continuar', 'error');
+      return false;
+    }
+    return true;
+  }
+  if (step === 5 && !editingDewormId) {
+    // Este paso solo se valida estando parado en él, lo cual solo
+    // pasa con método 'transfer' (dwGoStep salta este paso para
+    // 'cash'/'mp' y en modo edición, en ambas direcciones).
+    if (!dwReceiptFile) {
+      showToast('Subí el comprobante para continuar', 'error');
+      return false;
+    }
     return true;
   }
   return true;
 }
 
-// A diferencia de fwGoStep (siempre 6 pasos lineales), acá el paso 4
-// (Método de pago) se salta por completo cuando se está editando un
-// registro existente (editingDewormId seteado): un registro ya pagado
-// no vuelve a cobrarse solo por corregir una fecha o el producto. En
-// ese caso el paso 5 (Confirmación) muestra "Guardar cambios" en vez
-// de "Confirmar pedido" y llama a dwSaveEdit() en vez de
+// A diferencia de fwGoStep (siempre 7 pasos lineales), acá el paso 4
+// (Método de pago) Y el paso 5 (Comprobante) se saltan por completo
+// cuando se está editando un registro existente (editingDewormId
+// seteado): un registro ya pagado no vuelve a cobrarse ni a pedir
+// comprobante solo por corregir una fecha o el producto. En ese caso
+// el paso 6 (Confirmación) muestra "Guardar cambios" en vez de
+// "Confirmar pedido" y llama a dwSaveEdit() en vez de
 // dwSubmitPayment() -- ver dwRenderStep.
+// El paso 5 (Comprobante) TAMBIÉN se salta fuera de modo edición
+// cuando el método de pago no es 'transfer' -- mismo criterio que
+// fwGoStep en Alimentación, no hay comprobante que subir con
+// 'cash'/'mp'.
 function dwGoStep(dir) {
   if (dir > 0 && !dwValidateStep(dwCurrentStep)) return;
   let next = dwCurrentStep + dir;
   if (editingDewormId) {
-    if (dir > 0 && dwCurrentStep === 3) next = 5; // notas → confirmación, salteando método de pago
-    if (dir < 0 && dwCurrentStep === 5) next = 3; // confirmación → notas
+    if (dir > 0 && dwCurrentStep === 3) next = 6; // notas → confirmación, salteando método de pago y comprobante
+    if (dir < 0 && dwCurrentStep === 6) next = 3; // confirmación → notas
+  } else if (next === 5 && dwSelectedPaymentKey !== 'transfer') {
+    next = dir > 0 ? 6 : 4; // sin transferencia, Comprobante no existe: salta directo
   }
   if (next < 1) return;
   if (next > DW_TOTAL_STEPS) {
@@ -13497,7 +13943,7 @@ function dwGoStep(dir) {
   }
   dwCurrentStep = next;
   if (dwCurrentStep === 2) dwSyncDogSummary();
-  if (dwCurrentStep === 5) dwRenderConfirmSummary();
+  if (dwCurrentStep === 6) dwRenderConfirmSummary();
   dwRenderStep();
 }
 
@@ -13576,30 +14022,43 @@ function dwRenderStep() {
   const nextBtn = document.getElementById('dw-btn-next');
   if (backBtn) backBtn.style.visibility = dwCurrentStep === 1 ? 'hidden' : 'visible';
   if (nextBtn) {
-    // NOTA: acá va el panel real de Confirmación (5), no DW_TOTAL_STEPS
-    // (6) -- DW_TOTAL_STEPS cuenta el indicador "Pago registrado" de la
-    // barra de progreso (data-dwstep="6"), que nunca tiene panel propio
+    // Reset explícito antes de las ramas: sin esto, el disabled que
+    // pone la rama del panel de Confirmación (más abajo, cuando falta
+    // el comprobante) queda pegado en true si el usuario vuelve
+    // "Atrás" a un paso anterior, donde ese disabled ya no aplica.
+    // Mismo fix aplicado en fwRenderStep (Alimentación).
+    nextBtn.disabled = false;
+    // NOTA: acá va el panel real de Confirmación (6), no DW_TOTAL_STEPS
+    // (7) -- DW_TOTAL_STEPS cuenta el indicador "Pago registrado" de la
+    // barra de progreso (data-dwstep="7"), que nunca tiene panel propio
     // ni es un valor que dwCurrentStep llegue a tomar (ver dwGoStep:
     // next > DW_TOTAL_STEPS dispara el pago sin pasar por dwCurrentStep
-    // = 6). Usar DW_TOTAL_STEPS acá es un bug preexistente, señalado al
-    // usuario aparte: con eso, el botón nunca mostraba "Confirmar
-    // pedido"/"Guardar cambios" en el panel 5, siempre quedaba en
-    // "Continuar". Se corrige acá porque el ocultamiento para MP (que
-    // sigue) depende de apuntar al panel correcto.
-    if (dwCurrentStep === 5 && dwSelectedPaymentKey === 'mp' && !editingDewormId) {
+    // = 7). Usar DW_TOTAL_STEPS acá sería el mismo bug preexistente que
+    // ya existía apuntando al 5 cuando el total era 6 -- se mantiene
+    // apuntando al panel real (ahora 6) por el mismo motivo que ya
+    // valía antes: el ocultamiento para MP depende de apuntar al panel
+    // correcto.
+    if (dwCurrentStep === 6 && dwSelectedPaymentKey === 'mp' && !editingDewormId) {
       // Con Payment Brick elegido, el pago con tarjeta se dispara desde
       // el botón que el propio Brick dibuja dentro de
       // #dw-paymentBrick_container (paso 4), no hay forma de separarlo
       // del resto de su UI. Por eso acá se oculta "Confirmar pedido" en
-      // el panel de confirmación (5) para ese método específico -- para
+      // el panel de confirmación (6) para ese método específico -- para
       // transferencia y efectivo, y para modo edición (que nunca pasa
       // por MP), el flujo sigue igual que siempre.
       nextBtn.style.display = 'none';
-    } else if (dwCurrentStep === 5) {
+    } else if (dwCurrentStep === 6) {
       nextBtn.style.display = '';
       nextBtn.innerHTML = editingDewormId
         ? '<i class="fa-solid fa-check" style="font-size:11px;margin-right:4px"></i> Guardar cambios'
         : '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
+      // Defensivo, mismo criterio que fwRenderStep: con transferencia
+      // fuera de modo edición, dwValidateStep(5) ya exige dwReceiptFile
+      // antes de poder LLEGAR a este panel, así que en uso normal esto
+      // nunca debería aplicar -- queda para que "Confirmar pedido" no
+      // quede habilitado visualmente si el estado en memoria se
+      // perdiera por algún motivo.
+      nextBtn.disabled = (!editingDewormId && dwSelectedPaymentKey === 'transfer' && !dwReceiptFile);
     } else {
       nextBtn.style.display = '';
       nextBtn.innerHTML = 'Continuar <i class="fa-solid fa-arrow-right" style="font-size:11px;margin-left:2px"></i>';
@@ -13607,7 +14066,7 @@ function dwRenderStep() {
   }
 }
 
-// Arma el resumen de confirmación (paso 5) con todos los datos cargados
+// Arma el resumen de confirmación (paso 6) con todos los datos cargados
 // hasta ahora, incluido el método de pago elegido en el paso 4 (con su
 // alias, si corresponde). En modo edición no hay método de pago que
 // mostrar (no se pasó por el paso 4), así que esa fila queda oculta.
