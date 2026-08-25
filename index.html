@@ -6123,6 +6123,19 @@ document.addEventListener('DOMContentLoaded', function () {
       <div id="payments-content"></div>
     </div>
 
+    <!-- ── ADMIN — PAGOS PENDIENTES DE VERIFICACIÓN ──
+         Vista visible solo para admin (mismo criterio que view-payments/
+         view-agenda: buildSidebar solo agrega el nav-item si isAdmin()
+         es true, pero acá además el propio renderComprobantesPendientes
+         valida server-side vía getPagosPendientesVerificacion -- ver
+         comentario grande junto a esa función). -->
+    <div class="view" id="view-admin-comprobantes">
+      <div class="section-header">
+        <div><div class="section-title section-title--inter">Pagos pendientes de verificación</div><div class="section-sub">Comprobantes de transferencia a la espera de aprobación</div></div>
+      </div>
+      <div id="admin-comprobantes-content"></div>
+    </div>
+
     <!-- ── CONFIGURACIÓN ── -->
     <div class="view" id="view-settings">
       <div class="section-header">
@@ -7304,6 +7317,20 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 </div>
 
+<!-- ── ADMIN — VER COMPROBANTE ──
+     Mismo esqueleto modal-overlay > modal > modal-header + modal-body
+     que ya usa el resto del portal (ver modal-deworm-info arriba).
+     El contenido se arma por JS en abrirModalComprobante(). -->
+<div class="modal-overlay" id="modal-ver-comprobante">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title modal-title--inter">Comprobante de pago</div>
+      <button class="modal-close" onclick="closeModal('modal-ver-comprobante')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" id="modal-ver-comprobante-body"></div>
+  </div>
+</div>
+
 <!-- ── CENTRO DE NOTIFICACIONES ("Ver todas") ── -->
 <div class="modal-overlay notif-center-overlay" id="modal-notif-center">
   <div class="notif-center-modal">
@@ -8019,7 +8046,7 @@ function buildSidebar() {
       <i class="fa-solid fa-bone" style="font-size:16px;width:16px;color:#ffffff"></i>Mis Mascotas
     </button>`;
 
-  // Solo admin ve Cobros & Costos y Agenda
+  // Solo admin ve Cobros & Costos, Agenda y Comprobantes pendientes
   if (_isAdmin) {
     clientNav += `
     <div class="nav-section-label" style="margin-top:8px">Administración</div>
@@ -8028,6 +8055,9 @@ function buildSidebar() {
     </button>
     <button class="nav-item" onclick="showView('payments')" id="nav-payments">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Cobros & Costos
+    </button>
+    <button class="nav-item" onclick="showView('admin-comprobantes')" id="nav-admin-comprobantes">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.418-4.03 8-9 8s-9-3.582-9-8 4.03-8 9-8 9 3.582 9 8Z"/></svg>Comprobantes
     </button>`;
   }
 
@@ -8872,6 +8902,7 @@ function showView(view) {
     health: 'Salud & Vacunas', food: 'Alimentación',
     recommendations: 'Lugares Recomendados', payments: 'Cobros & Costos',
     'mis-mascotas': 'Mis Mascotas',
+    'admin-comprobantes': 'Comprobantes Pendientes',
     'service-module': currentServiceLabel || 'Servicio',
     settings: 'Configuración'
   };
@@ -8942,6 +8973,7 @@ function renderView(v) {
     recommendations: renderRecommendations,
     payments: renderPayments,
     'mis-mascotas': renderMisMascotas,
+    'admin-comprobantes': renderComprobantesPendientes,
     'service-module': renderServiceModule,
     settings: renderSettingsAccount
   };
@@ -11409,8 +11441,174 @@ function renderPayments() {
 }
 
 /* ══════════════════════════════════
-   CONFIGURACIÓN — CUENTA
+   ADMIN — VERIFICACIÓN DE COMPROBANTES
+   (getPagosPendientesVerificacion / aprobarComprobante /
+   rechazarComprobante ya existen en el Apps Script v26 y validan
+   admin server-side vía getAuthContext -- acá NO se confía en
+   isAdmin() para nada más que ocultar el nav-item; si alguien entra
+   igual a esta vista sin ser admin, el backend responde error y
+   adminComprobantesRows queda vacío.)
+
+   NOTA sobre columnas: el prompt pedía mostrar "Mascota" y
+   "Producto" como columnas separadas, pero la hoja Pagos no las
+   tiene -- fwSubmitPayment/dwSubmitPayment arman la columna
+   Descripcion como 'Patas y Bigotes · <marca/producto> · <mascota>'
+   (ver fwSubmitPayment), así que ese dato viaja ahí adentro, no en
+   columnas propias. Se muestra Descripcion completa bajo "Detalle"
+   en vez de parsear ese string a mano, que sería frágil (no todos
+   los métodos de pago garantizan ese formato exacto). Mismo
+   criterio para "ID del pedido": no es una columna propia, es
+   ReferenciaExterna (ver fwPendingOrder.newId, lo que se manda como
+   externalReference).
 ══════════════════════════════════ */
+let adminComprobantesRows = []; // cache en memoria de la última carga, para poder abrir el modal por id sin volver a pedir al backend
+
+async function renderComprobantesPendientes() {
+  const container = document.getElementById('admin-comprobantes-content');
+  if (!container) return;
+  container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)"><i class="fa-solid fa-spinner fa-spin"></i> Cargando pagos pendientes…</div></div>`;
+
+  try {
+    const token = await PYB_AUTH.getIdToken();
+    if (!token) {
+      container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">Necesitás iniciar sesión para ver esta sección.</div></div>`;
+      return;
+    }
+    const url = APPS_SCRIPT_URL + '?action=getPagosPendientesVerificacion&idToken=' + encodeURIComponent(token);
+    const res = await fetchJSONP(url);
+    const rows = Array.isArray(res) ? res : [];
+
+    if (rows.length === 1 && rows[0] && rows[0].error) {
+      // El backend rechazó por rol (_requireAdminCtx) o token inválido.
+      container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">${escapeHtml(rows[0].error)}</div></div>`;
+      return;
+    }
+
+    adminComprobantesRows = rows;
+
+    if (!rows.length) {
+      container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">No hay comprobantes pendientes de verificación.</div></div>`;
+      return;
+    }
+
+    const rowsHtml = rows.map(r => {
+      const fechaSolo = String(r['Fecha'] || '').split(' ')[0]; // recorta la hora antes de formatDate, que espera YYYY-MM-DD
+      return `
+      <tr>
+        <td><strong>${escapeHtml(r['Mail'] || '—')}</strong></td>
+        <td>${escapeHtml(r['CLIENTE_ID'] || '—')}</td>
+        <td>${escapeHtml(r['Descripcion'] || '—')}</td>
+        <td style="font-weight:700;color:var(--sage)">${formatCLP(r['Monto'] || 0)}</td>
+        <td>${formatDate(fechaSolo)}</td>
+        <td><span class="badge badge-amber">${escapeHtml(r['Metodo'] || '—')}</span></td>
+        <td>
+          <button type="button" class="btn btn-secondary" style="padding:6px 12px;font-size:12px" onclick="abrirModalComprobante('${escapeHtml(r['Id'] || '')}')">
+            <i class="fa-solid fa-eye"></i> Ver comprobante
+          </button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-header"><div><div class="card-title card-title--inter">${rows.length} comprobante${rows.length !== 1 ? 's' : ''} pendiente${rows.length !== 1 ? 's' : ''}</div></div></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Cliente</th><th>CLIENTE_ID</th><th>Detalle</th><th>Monto</th><th>Fecha</th><th>Método</th><th></th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch (err) {
+    console.error('[renderComprobantesPendientes]', err);
+    container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">No se pudo cargar la lista. Probá de nuevo en un momento.</div></div>`;
+  }
+}
+
+// abrirModalComprobante — arma el modal a partir de adminComprobantesRows
+// (ya cargado por renderComprobantesPendientes), sin volver a pedir al
+// backend. Muestra Comprobante_URL en tamaño grande + los mismos datos
+// de la fila de la tabla, más el nombre de archivo y el id del pedido
+// (ReferenciaExterna).
+function abrirModalComprobante(id) {
+  const r = adminComprobantesRows.find(row => String(row['Id'] || '') === String(id));
+  const body = document.getElementById('modal-ver-comprobante-body');
+  if (!r || !body) return;
+
+  const fechaSolo = String(r['Fecha'] || '').split(' ')[0];
+  const comprobanteUrl = r['Comprobante_URL'] || '';
+
+  body.innerHTML = `
+    ${comprobanteUrl
+      ? `<img src="${escapeHtml(comprobanteUrl)}" alt="Comprobante" style="width:100%;border-radius:var(--r-lg);margin-bottom:16px;border:1px solid var(--line)">`
+      : `<div class="card-body" style="padding:24px;text-align:center;color:var(--mist);background:var(--panel-2);border-radius:var(--r-lg);margin-bottom:16px">Este pago no tiene comprobante adjunto.</div>`}
+    <div class="food-wizard-transfer-rows">
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">Cliente</div><div class="food-wizard-transfer-row-value">${escapeHtml(r['Mail'] || '—')}</div></div></div>
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">Detalle</div><div class="food-wizard-transfer-row-value">${escapeHtml(r['Descripcion'] || '—')}</div></div></div>
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">Monto</div><div class="food-wizard-transfer-row-value">${formatCLP(r['Monto'] || 0)}</div></div></div>
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">Fecha</div><div class="food-wizard-transfer-row-value">${formatDate(fechaSolo)}</div></div></div>
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">ID del pedido</div><div class="food-wizard-transfer-row-value">${escapeHtml(r['ReferenciaExterna'] || '—')}</div></div></div>
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">Método de pago</div><div class="food-wizard-transfer-row-value">${escapeHtml(r['Metodo'] || '—')}</div></div></div>
+      <div class="food-wizard-transfer-row"><div class="food-wizard-transfer-row-body"><div class="food-wizard-transfer-row-label">Nombre del comprobante</div><div class="food-wizard-transfer-row-value">${escapeHtml(r['Comprobante_Nombre'] || '—')}</div></div></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px">
+      <button type="button" class="btn btn-primary" style="flex:1;background:var(--sage)" onclick="aprobarComprobante('${escapeHtml(r['Id'] || '')}')">
+        <i class="fa-solid fa-check"></i> Aprobar pago
+      </button>
+      <button type="button" class="btn btn-secondary" style="flex:1;color:var(--red)" onclick="rechazarComprobante('${escapeHtml(r['Id'] || '')}')">
+        <i class="fa-solid fa-xmark"></i> Rechazar comprobante
+      </button>
+    </div>`;
+
+  openModal('modal-ver-comprobante');
+}
+
+// aprobarComprobante — llama al backend (que ya setea Estado_Comprobante/
+// Estado/Fecha_Verificacion/Verificado_Por, el admin no completa nada a
+// mano), cierra el modal, muestra el toast pedido y refresca la lista.
+async function aprobarComprobante(id) {
+  try {
+    const url = APPS_SCRIPT_URL + '?action=aprobarComprobante&id=' + encodeURIComponent(id);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      closeModal('modal-ver-comprobante');
+      showToast('Pago aprobado correctamente.', 'success');
+      renderComprobantesPendientes();
+    } else {
+      showToast((data && data.error) || 'No se pudo aprobar el pago.', 'error');
+    }
+  } catch (err) {
+    console.error('[aprobarComprobante]', err);
+    showToast('No se pudo conectar con el servidor. Probá de nuevo.', 'error');
+  }
+}
+
+// rechazarComprobante — pide confirmación (tal como pedía el prompt
+// original: "¿Estás seguro de que querés rechazar este comprobante?")
+// antes de llamar al backend. El backend deja Estado='Pendiente' para
+// que el cliente pueda volver a cargar un comprobante -- eso ya lo
+// resuelve handleRechazarComprobante, acá no hace falta nada extra
+// para habilitar la resubida.
+async function rechazarComprobante(id) {
+  if (!confirm('¿Estás seguro de que querés rechazar este comprobante?')) return;
+  try {
+    const url = APPS_SCRIPT_URL + '?action=rechazarComprobante&id=' + encodeURIComponent(id);
+    const res = await fetchJSONP(url);
+    const data = Array.isArray(res) ? res[0] : res;
+    if (data && data.ok) {
+      closeModal('modal-ver-comprobante');
+      showToast('Comprobante rechazado.', '');
+      renderComprobantesPendientes();
+    } else {
+      showToast((data && data.error) || 'No se pudo rechazar el comprobante.', 'error');
+    }
+  } catch (err) {
+    console.error('[rechazarComprobante]', err);
+    showToast('No se pudo conectar con el servidor. Probá de nuevo.', 'error');
+  }
+}
+
 function renderSettingsAccount() {
   if (!currentUser) return;
   const overrides = getAccountOverrides()[currentUser.email] || {};
@@ -16277,15 +16475,86 @@ async function fwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaEx
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+//  subirComprobanteAlBackend — sube fwReceiptFile/dwReceiptFile (ya
+//  validado y cargado en memoria por fwReceiptLoadFile/
+//  dwReceiptLoadFile) al backend, ANTES de registrar el pago.
+//
+//  Por qué fetch()+POST y NO fetchJSONP acá, a diferencia de las
+//  otras ~19 llamadas al backend de este archivo: fetchJSONP arma un
+//  <script src="URL...">, es decir, TODO el payload viaja en la URL.
+//  Un comprobante de hasta 10MB (FW_RECEIPT_MAX_BYTES) en base64 pesa
+//  ~33% más como texto (~13MB) — muy por encima de cualquier límite
+//  práctico de largo de URL del navegador o de la infraestructura de
+//  Apps Script como Web App. Con GET, esta llamada fallaría en
+//  silencio o ni siquiera saldría.
+//  Se usa el mismo patrón que ya prueba fwHandleMercadoPagoSubmit
+//  (fetch + POST + JSON.stringify, SIN headers custom para no
+//  disparar preflight OPTIONS): eso es justamente lo que evita el
+//  problema de CORS contra script.google.com que en su momento rompió
+//  a pagarEnEfectivo/pagarPorTransferencia cuando usaban fetch()+POST
+//  sin este cuidado (ver comentario grande más abajo, antes de
+//  fwPagarEnEfectivo). doPost ya tiene el dispatch de
+//  'subirComprobante' -> handleSubirComprobante armado del lado del
+//  Apps Script, sin cambios necesarios ahí.
+//
+//  Devuelve { url, nombre } si subió bien, o null si falló o si no
+//  había receiptFile (nunca tira: un fallo acá NO debe impedir que el
+//  pago se registre igual -- ver comentario en fwPagarPorTransferencia
+//  sobre por qué la subida no es bloqueante).
+// ─────────────────────────────────────────────────────────────
+async function subirComprobanteAlBackend(receiptFile, clienteId, firebaseUid, mailComprador, referenciaExterna) {
+  if (!receiptFile) return null;
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'subirComprobante',
+        comprobanteBase64: receiptFile.dataUrl,
+        comprobanteNombre: receiptFile.name,
+        clienteId: clienteId || '',
+        mail: mailComprador || '',
+        externalReference: referenciaExterna || ''
+      })
+    });
+    const data = await resp.json();
+    if (data && data.ok) {
+      return { url: data.url, nombre: data.nombre };
+    }
+    console.warn('[subirComprobanteAlBackend] El backend respondió sin ok:', data && data.error);
+    return null;
+  } catch (err) {
+    // Red caída, CORS, timeout, etc: mismo criterio que
+    // fwHandleMercadoPagoSubmit -- se loguea y se sigue, nunca se
+    // bloquea el flujo de pago por esto.
+    console.error('[subirComprobanteAlBackend]', err);
+    return null;
+  }
+}
+
 async function fwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
   mostrarAnimacionTransferencia();
   try {
+    // Sube el comprobante ANTES de registrar el pago (si falla, sigue
+    // igual: ver comentario en subirComprobanteAlBackend). fwReceiptFile
+    // siempre existe acá con método transferencia -- fwValidateStep(6)
+    // no deja avanzar al paso de Confirmación sin él.
+    const comprobante = await subirComprobanteAlBackend(
+      fwReceiptFile, currentUser.clienteId,
+      (PYB_AUTH.currentUser() && PYB_AUTH.currentUser().uid) || '',
+      mailComprador, referenciaExterna
+    );
+
     const url = APPS_SCRIPT_URL
       + '?action=confirmarPagoTransferencia'
       + '&amount=' + encodeURIComponent(monto)
       + '&description=' + encodeURIComponent(descripcion)
       + '&payerEmail=' + encodeURIComponent(mailComprador)
-      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+      + '&externalReference=' + encodeURIComponent(referenciaExterna)
+      + '&clienteId=' + encodeURIComponent(currentUser.clienteId || '')
+      + '&firebaseUid=' + encodeURIComponent((PYB_AUTH.currentUser() && PYB_AUTH.currentUser().uid) || '')
+      + (comprobante ? '&comprobanteUrl=' + encodeURIComponent(comprobante.url) : '')
+      + (comprobante ? '&comprobanteNombre=' + encodeURIComponent(comprobante.nombre) : '');
     const res = await fetchJSONP(url);
     const data = Array.isArray(res) ? res[0] : res;
     if (data && data.ok) {
@@ -16397,12 +16666,26 @@ async function dwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaEx
 async function dwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
   dwMostrarAnimacionPago();
   try {
+    // Mismo patrón que fwPagarPorTransferencia (ver
+    // subirComprobanteAlBackend, definida junto a esa función):
+    // dwReceiptFile siempre existe acá con método transferencia --
+    // dwValidateStep(5) no deja avanzar a Confirmación sin él.
+    const comprobante = await subirComprobanteAlBackend(
+      dwReceiptFile, currentUser.clienteId,
+      (PYB_AUTH.currentUser() && PYB_AUTH.currentUser().uid) || '',
+      mailComprador, referenciaExterna
+    );
+
     const url = APPS_SCRIPT_URL
       + '?action=confirmarPagoTransferencia'
       + '&amount=' + encodeURIComponent(monto)
       + '&description=' + encodeURIComponent(descripcion)
       + '&payerEmail=' + encodeURIComponent(mailComprador)
-      + '&externalReference=' + encodeURIComponent(referenciaExterna);
+      + '&externalReference=' + encodeURIComponent(referenciaExterna)
+      + '&clienteId=' + encodeURIComponent(currentUser.clienteId || '')
+      + '&firebaseUid=' + encodeURIComponent((PYB_AUTH.currentUser() && PYB_AUTH.currentUser().uid) || '')
+      + (comprobante ? '&comprobanteUrl=' + encodeURIComponent(comprobante.url) : '')
+      + (comprobante ? '&comprobanteNombre=' + encodeURIComponent(comprobante.nombre) : '');
     const res = await fetchJSONP(url);
     const data = Array.isArray(res) ? res[0] : res;
     if (data && data.ok) {
