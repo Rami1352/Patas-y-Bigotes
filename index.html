@@ -8051,6 +8051,19 @@ function firebaseErrorToSpanish(err) {
 
 function doLogout() {
   currentUser = null;
+  // Antes esta función no llamaba a PYB_AUTH.logout(): solo limpiaba
+  // currentUser y la UI, pero la sesión real de Firebase (persistida con
+  // setPersistence(LOCAL)) seguía viva en el navegador. No se notaba
+  // porque nada releía esa sesión automáticamente -- pero ahora que
+  // PYB_AUTH.onChange restaura la sesión al cargar/volver a la pantalla
+  // de login (ver el fix de "currentUser vacío al recargar"), esa
+  // sesión de Firebase que nunca se cerró hacía que se reconstruyera
+  // currentUser con la cuenta vieja de nuevo, sin dejar tipear otro
+  // mail. PYB_AUTH.logout() cierra la sesión de verdad del lado de
+  // Firebase para que eso deje de pasar.
+  PYB_AUTH.logout().catch(function (err) {
+    console.warn('[doLogout] PYB_AUTH.logout() falló:', err);
+  });
   document.body.classList.remove('readonly');
   const appEl = document.getElementById('app');
   appEl.classList.remove('visible'); appEl.style.display = 'none';
