@@ -5884,6 +5884,35 @@ document.addEventListener('DOMContentLoaded', function () {
       if (e.key === 'Enter') handleLoginAction();
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  Restaurar sesión persistida (fix: currentUser vacío al recargar) —
+  //  _auth.setPersistence(LOCAL) hace que Firebase ya sepa quién es el
+  //  usuario apenas carga la página (PYB_AUTH.currentUser() no es null),
+  //  pero currentUser (variable global con clienteId) solo se armaba
+  //  dentro del handler del botón "Ingresar" -- si esta carga de página
+  //  nunca pasó por ese form (usuario que ya estaba logueado de antes),
+  //  currentUser quedaba en null y cualquier pago hecho en el medio
+  //  mandaba clienteId/firebaseUid vacíos al backend, sin avisar nada
+  //  (el pago se confirmaba igual, solo esas dos columnas quedaban
+  //  vacías en la hoja Pagos).
+  //
+  //  onAuthStateChanged dispara UNA VEZ al cargar con el usuario
+  //  restaurado (o null si no hay sesión), y de nuevo en cada
+  //  login/logout posterior. Acá solo nos importa el caso "hay usuario
+  //  pero currentUser todavía no se armó" -- el login manual arma
+  //  currentUser por su cuenta (vía entrarConCuentaVerificada) y este
+  //  listener no debe pisarlo ni duplicar trabajo.
+  PYB_AUTH.onChange(function (user) {
+    if (!user) return; // sin sesión: se queda en la pantalla de login, como ya pasaba
+    if (currentUser) return; // ya se armó (login manual en curso o recién hecho)
+    entrarConCuentaVerificada(user.email || '').catch(function (err) {
+      console.warn('[restaurar sesión] No se pudo verificar la cuenta:', err);
+      // No se fuerza logout ni se muestra error: se deja al usuario en
+      // la pantalla de login para que reintente manualmente, mismo
+      // comportamiento que ya existía cuando currentUser quedaba null.
+    });
+  });
 });
 </script>
 
@@ -7900,71 +7929,103 @@ async function doLogin() {
     // 1) Firebase valida email + contraseña.
     await PYB_AUTH.login(email, pass);
 
-    // 2) Se le pregunta al backend quién es este idToken (CLIENTE_ID,
-    //    rol, estado de vinculación). currentUser sale de acá, NUNCA
-    //    de una tabla local: el backend es la única fuente de verdad
-    //    sobre roles y permisos.
-    const cuenta = await PYB_AUTH.miCuenta();
-    if (!cuenta || !cuenta.ok) {
-      throw new Error('No se pudo verificar la cuenta con el servidor. Probá de nuevo en un momento.');
-    }
-    if (cuenta.estado === 'PENDIENTE') {
-      addLiveLog('[WARN] Cuenta ' + email + ' todavía PENDIENTE de vinculación por un administrador.', 'err');
-    }
-
-    currentUser = {
-      username:  email.split('@')[0],
-      email:     cuenta.email || email,
-      clienteId: cuenta.clienteId || '',
-      role:      cuenta.isAdmin ? 'admin' : 'cliente',
-      label:     cuenta.isAdmin ? 'Administrador' : 'Cliente Portal',
-      initials:  email.split('@')[0].substring(0,2).toUpperCase(),
-      estado:    cuenta.estado || ''
-    };
-    addLiveLog('[OK] Acceso concedido: ' + currentUser.username + (currentUser.clienteId ? ' (' + currentUser.clienteId + ')' : ''), 'ok');
+    // 2) El resto (armar currentUser, preguntarle al backend, mostrar
+    //    la app) es EXACTAMENTE lo mismo que hace entrarConCuentaVerificada
+    //    cuando restaura una sesión ya persistida al recargar la página
+    //    (ver PYB_AUTH.onChange más abajo) -- se extrajo a una función
+    //    aparte para que las dos rutas (login manual y sesión persistida)
+    //    dejen currentUser en el mismo estado siempre, en vez de que
+    //    currentUser solo se complete si el usuario tipeó el form de
+    //    login en ESTA carga de página.
+    await entrarConCuentaVerificada(email);
 
     btn.textContent = 'Ingresar'; btn.disabled = false;
-    document.getElementById('login-screen').classList.add('hidden');
-    const appEl = document.getElementById('app');
-    appEl.classList.add('visible');
-
-    document.getElementById('readonly-banner').style.display = 'none';
-
-    const badge = document.getElementById('sync-badge');
-    badge.style.display = 'inline';
-    badge.innerHTML = lastSyncTime
-      ? '<i class="fa-solid fa-check" style="color:var(--sage)"></i> Sincronizado · ' + lastSyncTime.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})
-      : '<i class="fa-regular fa-circle" style="color:var(--mist)"></i> Datos locales';
-
-    document.getElementById('sidebar-avatar').textContent = currentUser.initials;
-
-    /* Nombre en sidebar: buscar en el sheet, o usar el del usuario logueado.
-       NOTA (migración en curso, ver punto 7): esto sigue filtrando por
-       currentUser.email porque state.dogs (la respuesta de "Mascota Paseo")
-       ya viene pre-filtrada por CLIENTE_ID/mail desde el backend
-       (filterRowsForContext), así que en la práctica myDogs YA ES "mis
-       mascotas" sin importar qué campo se use acá para buscar el nombre
-       a mostrar. El campo mail se mantiene como dato de contacto legible,
-       no como mecanismo de autorización. */
-    const myDogs = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
-    if (myDogs.length > 0) {
-      document.getElementById('sidebar-username').textContent = myDogs[0].owner || currentUser.username || 'Cliente';
-    } else if (isAdmin()) {
-      document.getElementById('sidebar-username').textContent = 'Administrador';
-    } else {
-      document.getElementById('sidebar-username').textContent = currentUser.username || 'Cliente';
-    }
-    document.getElementById('sidebar-role').textContent = currentUser.label;
-
-    buildSidebar();
-    showView('dashboard');
-    runNotifCheck();
     showToast('¡Bienvenido, ' + (currentUser.username || 'Cliente') + '!', 'success');
   } catch (err) {
     btn.textContent = 'Ingresar'; btn.disabled = false;
     errEl.textContent = firebaseErrorToSpanish(err);
     errEl.classList.add('show');
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  entrarConCuentaVerificada — arma currentUser contra el backend y
+//  muestra la app. Es EL MISMO código que antes vivía inline dentro
+//  del handler del botón "Ingresar" (login manual). Se extrae acá
+//  para poder llamarlo también desde PYB_AUTH.onChange cuando la
+//  página carga con una sesión de Firebase ya persistida (usuario que
+//  cerró la pestaña y volvió sin tipear el login de nuevo): sin esto,
+//  Firebase ya sabe quién es (PYB_AUTH.currentUser() no es null) pero
+//  currentUser (la variable global con clienteId) queda en null hasta
+//  que alguien pasa por el form de login -- y si esa persona intenta
+//  pagar en el medio, currentUser.clienteId / PYB_AUTH.currentUser().uid
+//  se mandan vacíos al backend (columnas CLIENTE_ID / Firebase_UID
+//  vacías en la hoja Pagos, sin que el pago falle ni avise nada).
+//
+//  emailFallback: el email a usar en currentUser.email/username si el
+//  backend no devuelve uno (mismo comportamiento que ya tenía el login
+//  manual, que usaba el "email" tipeado en el form como fallback).
+// ═══════════════════════════════════════════════════════════════
+async function entrarConCuentaVerificada(emailFallback) {
+  // Se le pregunta al backend quién es este idToken (CLIENTE_ID, rol,
+  // estado de vinculación). currentUser sale de acá, NUNCA de una
+  // tabla local: el backend es la única fuente de verdad sobre roles
+  // y permisos.
+  const cuenta = await PYB_AUTH.miCuenta();
+  if (!cuenta || !cuenta.ok) {
+    throw new Error('No se pudo verificar la cuenta con el servidor. Probá de nuevo en un momento.');
+  }
+  const email = cuenta.email || emailFallback || '';
+  if (cuenta.estado === 'PENDIENTE') {
+    addLiveLog('[WARN] Cuenta ' + email + ' todavía PENDIENTE de vinculación por un administrador.', 'err');
+  }
+
+  currentUser = {
+    username:  email.split('@')[0],
+    email:     email,
+    clienteId: cuenta.clienteId || '',
+    role:      cuenta.isAdmin ? 'admin' : 'cliente',
+    label:     cuenta.isAdmin ? 'Administrador' : 'Cliente Portal',
+    initials:  email.split('@')[0].substring(0,2).toUpperCase(),
+    estado:    cuenta.estado || ''
+  };
+  addLiveLog('[OK] Acceso concedido: ' + currentUser.username + (currentUser.clienteId ? ' (' + currentUser.clienteId + ')' : ''), 'ok');
+
+  document.getElementById('login-screen').classList.add('hidden');
+  const appEl = document.getElementById('app');
+  appEl.classList.add('visible');
+
+  document.getElementById('readonly-banner').style.display = 'none';
+
+  const badge = document.getElementById('sync-badge');
+  badge.style.display = 'inline';
+  badge.innerHTML = lastSyncTime
+    ? '<i class="fa-solid fa-check" style="color:var(--sage)"></i> Sincronizado · ' + lastSyncTime.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})
+    : '<i class="fa-regular fa-circle" style="color:var(--mist)"></i> Datos locales';
+
+  document.getElementById('sidebar-avatar').textContent = currentUser.initials;
+
+  /* Nombre en sidebar: buscar en el sheet, o usar el del usuario logueado.
+     NOTA (migración en curso, ver punto 7): esto sigue filtrando por
+     currentUser.email porque state.dogs (la respuesta de "Mascota Paseo")
+     ya viene pre-filtrada por CLIENTE_ID/mail desde el backend
+     (filterRowsForContext), así que en la práctica myDogs YA ES "mis
+     mascotas" sin importar qué campo se use acá para buscar el nombre
+     a mostrar. El campo mail se mantiene como dato de contacto legible,
+     no como mecanismo de autorización. */
+  const myDogs = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  if (myDogs.length > 0) {
+    document.getElementById('sidebar-username').textContent = myDogs[0].owner || currentUser.username || 'Cliente';
+  } else if (isAdmin()) {
+    document.getElementById('sidebar-username').textContent = 'Administrador';
+  } else {
+    document.getElementById('sidebar-username').textContent = currentUser.username || 'Cliente';
+  }
+  document.getElementById('sidebar-role').textContent = currentUser.label;
+
+  buildSidebar();
+  showView('dashboard');
+  runNotifCheck();
 }
 
 // Traduce los códigos de error más comunes de Firebase Auth a un
