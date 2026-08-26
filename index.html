@@ -331,7 +331,16 @@ html.theme-transition *::after {
    reemplaza el fix de .service-card de arriba (ese resuelve el freeze
    del hilo principal); esto es la capa de seguridad para el hueco negro
    en sí, y beneficia a TODAS las vistas, no solo "Mis Servicios". */
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-y: none; background-color: var(--surface-app); }
+/* FIX (Imagen 4 del usuario): faltaba el equivalente en X.
+   overscroll-behavior-y:none no toca el eje horizontal, así que un
+   swipe de lado a lado seguía disparando el gesto nativo de
+   navegación (volver/avanzar en el historial) de Chrome/Safari
+   mobile, que corre visualmente la página completa a mitad de camino
+   mientras decide si completar la navegación -- de ahí la vista
+   descuadrada mostrando fragmentos de dos pantallas superpuestas. Con
+   overscroll-behavior-x:none el navegador deja de interceptar ese
+   swipe para su propio gesto de historial. */
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-x: none; overscroll-behavior-y: none; background-color: var(--surface-app); }
 body { -webkit-tap-highlight-color: transparent; }
 body {
   font-family: 'Inter', sans-serif;
@@ -339,6 +348,7 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
   overscroll-behavior-y: none;
 }
 
@@ -1365,6 +1375,33 @@ body[data-bg-scene="settings"]::after {
 }
 .wizard-step:first-child .wizard-step-line { display: none; }
 .wizard-step.done .wizard-step-line, .wizard-step.active .wizard-step-line { background: var(--sage-solid); }
+/* FIX: en mobile, wizards con muchos pasos (ej. Desparasitarios: 7
+   pasos, ver Imagen 3 del usuario -- "Pago registrado" queda cortado)
+   comprimían cada .wizard-step con flex:1 dentro del ancho angosto del
+   modal (100vw en mobile), aplastando los labels de texto hasta
+   solaparse o recortarse. Se cambia a un carril horizontal scrolleable:
+   cada paso conserva un ancho mínimo legible y el usuario desliza para
+   ver el resto, en vez de que el layout intente encajar los 7 a la
+   fuerza en ~340px. No afecta desktop (el modal ahí tiene ancho
+   suficiente para que los 7 quepan sin comprimirse). */
+@media (max-width: 767.98px) {
+  .wizard-steps {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .wizard-steps::-webkit-scrollbar { display: none; }
+  .wizard-step {
+    flex: 0 0 auto;
+    width: 72px;
+    min-width: 72px;
+  }
+  .wizard-step-label { font-size: 9.5px; line-height: 1.2; }
+  .wizard-step-line { left: calc(-50% + 17px); width: calc(100% - 34px); }
+}
 .wizard-panel { display: none; padding: 20px 24px; animation: cardFadeIn .25s cubic-bezier(.22,1,.36,1) both; }
 .wizard-panel.active { display: block; }
 .wizard-photo-upload {
@@ -5750,14 +5787,14 @@ var PYB_AUTH = (function () {
         <label for="login-user">Correo electrónico</label>
         <div class="input-wrap">
           <svg class="field-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          <input type="text" id="login-user" placeholder="tucorreo@ejemplo.com" autocomplete="username" />
+          <input type="text" id="login-user" placeholder="tucorreo@ejemplo.com" autocomplete="username" enterkeyhint="next" />
         </div>
       </div>
       <div class="login-field" id="login-pass-field">
         <label for="login-pass">Contraseña</label>
         <div class="input-wrap">
           <svg class="field-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <input type="password" id="login-pass" placeholder="Tu contraseña" autocomplete="current-password" />
+          <input type="password" id="login-pass" placeholder="Tu contraseña" autocomplete="current-password" enterkeyhint="go" />
           <button class="toggle-pass" type="button" onclick="togglePasswordVisibility()" tabindex="-1" aria-label="Mostrar u ocultar contraseña">
             <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
@@ -5873,28 +5910,54 @@ var PYB_AUTH = (function () {
 
 // Listeners que reemplazan los onkeydown inline quitados de
 // #login-user, #login-pass y #register-pass-confirm.
+//
+// FIX: en mobile, algunos teclados virtuales (predicción de texto,
+// autocompletado de contraseñas) no siempre completan el ciclo de
+// 'keydown' con key/code seteados de forma confiable antes de que el
+// campo pierda foco -- de ahí el reclamo de que "hay que hacer click
+// siempre". Se agrega 'keyup' como respaldo (mismo handler, chequeo
+// isEnterKey) y también e.keyCode===13 para cubrir navegadores/webviews
+// viejos que no exponen e.key. isEnterKeyHandled evita que, en
+// navegadores que sí disparan 'keydown' y 'keyup' correctamente para la
+// misma pulsación, handleLoginAction() se llame dos veces.
+function isEnterKey(e) { return e.key === 'Enter' || e.keyCode === 13; }
+
 document.addEventListener('DOMContentLoaded', function () {
   var loginUser = document.getElementById('login-user');
   var loginPass = document.getElementById('login-pass');
   var registerPassConfirm = document.getElementById('register-pass-confirm');
+  var enterAlreadyHandled = false;
 
   if (loginUser) {
-    loginUser.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        var p = document.getElementById('login-pass');
-        if (p) p.focus();
-      }
-    });
+    var focusPass = function (e) {
+      if (!isEnterKey(e)) return;
+      if (e.type === 'keydown') enterAlreadyHandled = true;
+      if (e.type === 'keyup' && enterAlreadyHandled) { enterAlreadyHandled = false; return; }
+      var p = document.getElementById('login-pass');
+      if (p) p.focus();
+    };
+    loginUser.addEventListener('keydown', focusPass);
+    loginUser.addEventListener('keyup', focusPass);
   }
   if (loginPass) {
-    loginPass.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') handleLoginAction();
-    });
+    var submitLogin = function (e) {
+      if (!isEnterKey(e)) return;
+      if (e.type === 'keydown') enterAlreadyHandled = true;
+      if (e.type === 'keyup' && enterAlreadyHandled) { enterAlreadyHandled = false; return; }
+      handleLoginAction();
+    };
+    loginPass.addEventListener('keydown', submitLogin);
+    loginPass.addEventListener('keyup', submitLogin);
   }
   if (registerPassConfirm) {
-    registerPassConfirm.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') handleLoginAction();
-    });
+    var submitRegister = function (e) {
+      if (!isEnterKey(e)) return;
+      if (e.type === 'keydown') enterAlreadyHandled = true;
+      if (e.type === 'keyup' && enterAlreadyHandled) { enterAlreadyHandled = false; return; }
+      handleLoginAction();
+    };
+    registerPassConfirm.addEventListener('keydown', submitRegister);
+    registerPassConfirm.addEventListener('keyup', submitRegister);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -13341,12 +13404,29 @@ function fwUnlockConfirmBtn() {
 
 let fwPendingOrder = null; // seteado por fwSubmitPayment, leído por fwCompleteOrderAfterPayment
 
+// Helper compartido por fwRenderStep y dwRenderStep: en mobile el
+// stepper ahora es scrolleable horizontalmente (ver media query de
+// .wizard-steps en el CSS, fix Imagen 3 -- "Pago registrado" cortado),
+// así que si el paso activo queda fuera del área visible (wizards
+// largos como Desparasitarios, 7 pasos) hay que desplazarlo a la vista
+// en vez de dejar que el usuario tenga que buscarlo deslizando a mano.
+// block:'nearest' evita que también scrollee la página completa en
+// vertical (solo mueve el contenedor del stepper en su propio eje X).
+function scrollActiveWizardStepIntoView(stepsContainerId) {
+  const container = document.getElementById(stepsContainerId);
+  if (!container) return;
+  const activeStep = container.querySelector('.wizard-step.active');
+  if (!activeStep) return;
+  activeStep.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
 function fwRenderStep() {
   document.querySelectorAll('#fw-steps .wizard-step').forEach(el => {
     const s = Number(el.dataset.fwstep);
     el.classList.toggle('active', s === fwCurrentStep);
     el.classList.toggle('done', s < fwCurrentStep);
   });
+  scrollActiveWizardStepIntoView('fw-steps');
   document.querySelectorAll('#modal-wizard-food .wizard-panel').forEach(el => {
     el.classList.toggle('active', Number(el.dataset.fwpanel) === fwCurrentStep);
   });
@@ -14294,6 +14374,7 @@ function dwRenderStep() {
     el.classList.toggle('active', s === dwCurrentStep);
     el.classList.toggle('done', s < dwCurrentStep);
   });
+  scrollActiveWizardStepIntoView('dw-steps');
   document.querySelectorAll('#modal-wizard-deworm .wizard-panel').forEach(el => {
     el.classList.toggle('active', Number(el.dataset.dwpanel) === dwCurrentStep);
   });
@@ -16361,6 +16442,17 @@ function syncLanguageUI() {
   function clamp(val, min, max) { return Math.min(Math.max(val, min), max); }
 
   function getNavExclusionBottom() {
+    // FIX: si hay un modal-overlay abierto (ej. el wizard de "Registro
+    // de Alimentación", ver Imagen 1 del usuario), .mobile-nav queda
+    // tapada visualmente por el overlay (z-index 1000 > 100) pero sigue
+    // en el DOM con display:flex, así que su offsetHeight se seguía
+    // restando igual -- el botón (z-index 99999, por encima del modal)
+    // quedaba con ~60px menos de recorrido hacia abajo de lo que
+    // debería, dando la sensación de estar "trabado" y no poder
+    // arrastrarlo hasta el fondo real de la pantalla. Con un modal
+    // abierto, .mobile-nav no es relevante para el cálculo de límites.
+    var modalOpen = document.querySelector('.modal-overlay.open');
+    if (modalOpen) return 0;
     var nav = document.querySelector('.mobile-nav');
     if (!nav || window.getComputedStyle(nav).display === 'none') return 0;
     return nav.offsetHeight + 6; // pequeño respiro extra sobre la barra
