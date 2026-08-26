@@ -12429,7 +12429,7 @@ const FOOD_WIZARD_PAYMENT_METHODS = [
 const FW_TRANSFER_ACCOUNT = {
   titular: 'Patas y Bigotes',
   cbu: '1500054100030064323154',
-  banco: 'Banco Nación',
+  banco: 'Banco Galicia',
   tipoCuenta: 'Cuenta corriente en pesos',
   whatsapp: '5491136237690',
   email: 'pagos@patasybigotes.com.ar'
@@ -12713,9 +12713,6 @@ function fwRenderTransferPanel() {
   const waHref = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : '#';
   const waPhoneDisplay = waNumber ? fwFormatPhoneDisplay(waNumber) : '—';
 
-  const mailSubject = encodeURIComponent('Comprobante de transferencia — Patas y Bigotes');
-  const mailHref = acc.email ? `mailto:${encodeURIComponent(acc.email)}?subject=${mailSubject}` : '#';
-
   panel.innerHTML = `
     <div class="food-wizard-transfer-panel-title">Datos para la transferencia</div>
     <div class="food-wizard-transfer-panel-sub">Realizá la transferencia a la siguiente cuenta y enviá el comprobante.</div>
@@ -12734,14 +12731,6 @@ function fwRenderTransferPanel() {
         <div class="food-wizard-transfer-send-body">
           <div class="food-wizard-transfer-send-title">WhatsApp</div>
           <div class="food-wizard-transfer-send-sub">${escapeHtml(waPhoneDisplay)}</div>
-        </div>
-        <i class="fa-solid fa-chevron-right"></i>
-      </a>
-      <a class="food-wizard-transfer-send-btn" href="${mailHref}">
-        <div class="food-wizard-transfer-send-icon"><i class="fa-solid fa-envelope"></i></div>
-        <div class="food-wizard-transfer-send-body">
-          <div class="food-wizard-transfer-send-title">Email</div>
-          <div class="food-wizard-transfer-send-sub">${escapeHtml(acc.email || '—')}</div>
         </div>
         <i class="fa-solid fa-chevron-right"></i>
       </a>
@@ -13783,9 +13772,6 @@ function dwRenderTransferPanel() {
   const waHref = waNumber ? `https://wa.me/${waNumber}?text=${waMsg}` : '#';
   const waPhoneDisplay = waNumber ? fwFormatPhoneDisplay(waNumber) : '—';
 
-  const mailSubject = encodeURIComponent('Comprobante de transferencia — Patas y Bigotes');
-  const mailHref = acc.email ? `mailto:${encodeURIComponent(acc.email)}?subject=${mailSubject}` : '#';
-
   panel.innerHTML = `
     <div class="food-wizard-transfer-panel-title">Datos para la transferencia</div>
     <div class="food-wizard-transfer-panel-sub">Realizá la transferencia a la siguiente cuenta y enviá el comprobante.</div>
@@ -13804,14 +13790,6 @@ function dwRenderTransferPanel() {
         <div class="food-wizard-transfer-send-body">
           <div class="food-wizard-transfer-send-title">WhatsApp</div>
           <div class="food-wizard-transfer-send-sub">${escapeHtml(waPhoneDisplay)}</div>
-        </div>
-        <i class="fa-solid fa-chevron-right"></i>
-      </a>
-      <a class="food-wizard-transfer-send-btn" href="${mailHref}">
-        <div class="food-wizard-transfer-send-icon"><i class="fa-solid fa-envelope"></i></div>
-        <div class="food-wizard-transfer-send-body">
-          <div class="food-wizard-transfer-send-title">Email</div>
-          <div class="food-wizard-transfer-send-sub">${escapeHtml(acc.email || '—')}</div>
         </div>
         <i class="fa-solid fa-chevron-right"></i>
       </a>
