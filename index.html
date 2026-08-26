@@ -5612,8 +5612,20 @@ var PYB_AUTH = (function () {
     try {
       firebase.initializeApp(FIREBASE_CONFIG);
       _auth = firebase.auth();
-      // La sesión sobrevive al cierre de pestaña (igual que hoy).
-      _auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      // FIX: antes era Persistence.LOCAL, que guarda la sesión sin límite
+      // de tiempo en ese navegador (sobrevive a cerrar la pestaña, cerrar
+      // el navegador entero, y hasta reiniciar la compu). Combinado con
+      // PYB_AUTH.onChange (más abajo, restaura sesión al cargar), eso
+      // hacía que cualquier persona que abriera el link en ESE MISMO
+      // navegador entrara automáticamente con la última cuenta logueada
+      // ahí, sin loguearse -- típico en compus/celulares compartidos
+      // (familia, kiosco, PC de trabajo) donde varias personas abren el
+      // mismo link.
+      // Con Persistence.SESSION, la sesión se guarda solo para esa
+      // pestaña/ventana y se borra sola al cerrarla -- persiste mientras
+      // la pestaña sigue abierta (recargar la página no desloguea), pero
+      // no queda pegada para la próxima persona que abra el link.
+      _auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
       _ready = true;
     } catch (err) {
       console.warn('[PYB_AUTH] No se pudo inicializar Firebase:', err);
