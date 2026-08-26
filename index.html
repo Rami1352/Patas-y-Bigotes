@@ -4438,6 +4438,48 @@ html[data-font-size="large"]  .main       { height: 86.96vh; }
   html[data-font-size="large"] .toast-container {
     zoom: 1 !important;
   }
+
+  /* ── FIX MOBILE: .mobile-nav se estira hasta atrás de la barra del navegador ──
+     Bug reportado: en celular, la barra de navegación inferior (Inicio/
+     Mascotas/Agenda/Perros/Cobros) no "corta" antes de donde arranca la
+     barra de direcciones de Safari/Chrome (la fila con la URL
+     "…-y-bigotes.vercel.app"); en vez de dejar ver el fondo de la página
+     entre el final de la barra y el borde de esa franja del navegador,
+     queda pegada justo contra ese borde, como si la nav se extendiera
+     por debajo de donde debería terminar (ver línea marcada por el
+     usuario en su captura).
+
+     Causa raíz nº1 (la de siempre): `.mobile-nav` es `position:fixed;
+     bottom:0`, y ese `bottom:0` se resuelve contra el "large viewport"
+     del navegador — que en Safari/Chrome mobile incluye el espacio
+     reservado para la barra de direcciones aunque esté visible en su
+     estado compacto/anclada abajo. El resultado es que la barra queda
+     anclada al borde inferior de ESE viewport más grande, pegada contra
+     la franja del navegador, en vez de contra el borde inferior real de
+     lo que se ve en pantalla. Mismo mecanismo ya resuelto arriba para
+     .sidebar con dvh.
+
+     Causa raíz nº2 (agosto 2026, específica de iOS): a partir de iOS 26,
+     Safari cambió su barra inferior a un diseño flotante ("liquid
+     glass") y tiene un bug ampliamente reportado (developer.apple.com/
+     forums/thread/800798 y /799216) donde el contenido `position:fixed`
+     que llega hasta el borde del viewport dinámico puede quedar
+     pegado/recortado contra esa barra flotante de forma inconsistente
+     (a veces con un huequito de más, a veces sin ninguno), en vez de
+     dejar el margen prolijo y estable que se ve en apps nativas. Apple
+     ya lo parchó parcialmente en Safari 26.1, pero no todos los
+     dispositivos están actualizados, así que no conviene depender
+     únicamente del cálculo dvh puro para el margen.
+
+     Solución: se resuelve la causa nº1 igual que en .sidebar (anclar
+     bottom contra dvh en vez del vh grande) y, sobre ese resultado ya
+     correcto, se suma un colchón fijo propio de 10px — así el corte
+     entre la nav y el chrome del navegador queda determinado por
+     nosotros mismos (con aire de sobra y estable) en vez de depender al
+     100% de que cada versión de iOS calcule el gap de forma perfecta.
+     No se toca `position`, `left`, `right` ni ninguna otra propiedad de
+     `.mobile-nav`. */
+  .mobile-nav { bottom: calc(10px + (100vh - 100dvh)); }
 }
 
 /* ── Preferencias: selector de idioma estilo Apple (select nativo estilizado) ── */
@@ -4557,6 +4599,37 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 #login-screen.hidden { display: none !important; }
 #app { display: none; width: 100%; }
 #app.visible { display: flex !important; }
+
+/* ── FIX: .mobile-nav visible sobre la pantalla de login en celular ──
+   Bug reportado: al abrir la app por primera vez en el celular (link de
+   Vercel), la barra de navegación inferior (Inicio/Mascotas/Agenda/
+   Perros/Cobros) aparece flotando encima de la tarjeta de login, cuando
+   en ese momento no debería existir ninguna navegación (el usuario ni
+   siquiera inició sesión todavía).
+
+   Causa raíz: `.mobile-nav` (dentro de #app) pasa a `display:flex` por
+   su propia regla de responsive (media max-width:767.98px) en cuanto el
+   ancho de pantalla es de celular — esa regla no sabe nada sobre si
+   #app está visible o no, así que solo depende del ancho, nunca del
+   estado de sesión. En el flujo normal esto no se nota porque
+   `#app { display:none }` (arriba) ya tapa a TODOS sus hijos, `.mobile-
+   nav` incluida, hasta que se agrega la clase `.visible` tras un login
+   exitoso. Pero al ser `.mobile-nav` un `position:fixed`, cualquier
+   estado intermedio en el que #app llegue a pintarse un instante antes
+   de que el guard de arriba surta efecto (primer paint en una red lenta,
+   o una futura reordenación del CSS/JS de sesión) alcanza para que se
+   vea flotando por encima del login, que vive en un contenedor
+   completamente aparte (#login-screen) y no en #app.
+
+   Solución: no depender solo de que el padre (#app) esté oculto.
+   Mientras #login-screen NO tenga la clase "hidden" (es decir, mientras
+   el login siga siendo la pantalla activa), se oculta .mobile-nav de
+   forma explícita y directa, sin importar el ancho de pantalla ni el
+   estado de #app. Esto es puramente defensivo/redundante sobre el
+   guard de #app — no cambia nada del comportamiento ya correcto post-
+   login, solo blinda el caso puntual de la navegación mobile durante
+   el login. */
+body:has(#login-screen:not(.hidden)) .mobile-nav { display: none !important; }
 
 /* --- Screen: deep-green ambient stage --- */
 #login-screen {
@@ -16455,7 +16528,26 @@ function syncLanguageUI() {
     if (modalOpen) return 0;
     var nav = document.querySelector('.mobile-nav');
     if (!nav || window.getComputedStyle(nav).display === 'none') return 0;
-    return nav.offsetHeight + 6; // pequeño respiro extra sobre la barra
+    // FIX: antes se usaba nav.offsetHeight (altura de la caja, sin
+    // contar dónde termina esa caja respecto al viewport). Eso daba un
+    // límite correcto SOLO mientras .mobile-nav tuviera bottom:0. Al
+    // agregarle a .mobile-nav su propio colchón contra la barra de
+    // Safari/Chrome (ver fix "se estira hasta atrás de la barra del
+    // navegador" en el CSS), la nav ya no llega hasta bottom:0 -- queda
+    // flotando unos px más arriba. Si acá se seguía restando solo
+    // offsetHeight, el botón quedaba con recorrido de sobra hacia abajo
+    // (podía superponerse al huequito que ahora deja la nav), o corto,
+    // según el dispositivo: dos síntomas nuevos por no leer la posición
+    // real. getBoundingClientRect().bottom da directamente el borde
+    // inferior REAL de la nav ya renderizada (incluye cualquier bottom/
+    // offset que tenga en ese momento, sea cual sea la fórmula CSS
+    // vigente), así que restar eso de innerHeight es válido sin
+    // importar si la fórmula de bottom de .mobile-nav cambia en el
+    // futuro -- no hay que duplicar ni mantener sincronizados dos
+    // números en dos lugares distintos del código.
+    var navBottomGap = window.innerHeight - nav.getBoundingClientRect().bottom;
+    if (navBottomGap < 0) navBottomGap = 0; // por si algún borde cae fuera del viewport
+    return nav.offsetHeight + navBottomGap + 6; // + pequeño respiro extra sobre la barra
   }
 
   function applyPosition(left, top) {
