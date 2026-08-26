@@ -7971,7 +7971,24 @@ async function entrarConCuentaVerificada(emailFallback) {
   // estado de vinculación). currentUser sale de acá, NUNCA de una
   // tabla local: el backend es la única fuente de verdad sobre roles
   // y permisos.
-  const cuenta = await PYB_AUTH.miCuenta();
+  //
+  // Reintento (fix: timeout intermitente de fetchJSONP dejaba
+  // currentUser sin armar) -- getMiCuenta viaja por JSONP con un
+  // timeout de 14s; bajo carga de Apps Script a veces no llega a
+  // tiempo. Antes, un solo timeout acá tiraba el error y currentUser
+  // quedaba sin completar para el resto de la sesión (nada volvía a
+  // reintentar por su cuenta). Un segundo intento cubre el caso común
+  // de una demora puntual sin cambiar el comportamiento si el backend
+  // realmente no responde.
+  let cuenta = null;
+  for (let intento = 0; intento < 2 && !cuenta; intento++) {
+    try {
+      cuenta = await PYB_AUTH.miCuenta();
+    } catch (err) {
+      if (intento === 1) throw err;
+      console.warn('[entrarConCuentaVerificada] intento ' + (intento + 1) + ' falló, reintentando:', err);
+    }
+  }
   if (!cuenta || !cuenta.ok) {
     throw new Error('No se pudo verificar la cuenta con el servidor. Probá de nuevo en un momento.');
   }
@@ -16608,6 +16625,27 @@ async function subirComprobanteAlBackend(receiptFile, clienteId, firebaseUid, ma
 }
 
 async function fwPagarPorTransferencia(monto, descripcion, mailComprador, referenciaExterna) {
+  // Guard (fix: columnas CLIENTE_ID/Firebase_UID vacías en Pagos) —
+  // entrarConCuentaVerificada() a veces no llega a completarse porque
+  // getMiCuenta (vía fetchJSONP) puede tardar más que el timeout de
+  // 14s; cuando eso pasa, currentUser queda sin clienteId (o en null)
+  // y el pago igual se confirmaba, mandando esos dos campos vacíos al
+  // backend sin avisar nada. Con este guard, si currentUser no está
+  // listo se reintenta UNA vez antes de dejar pagar; si el reintento
+  // también falla, se corta acá con un error visible en vez de
+  // registrar el pago con datos incompletos.
+  if (!currentUser || !currentUser.clienteId) {
+    mostrarAnimacionTransferencia();
+    try {
+      await entrarConCuentaVerificada((currentUser && currentUser.email) || mailComprador);
+    } catch (err) {
+      console.warn('[fwPagarPorTransferencia] reintento de sesión falló:', err);
+    }
+    if (!currentUser || !currentUser.clienteId) {
+      mostrarErrorPago('No se pudo verificar tu cuenta con el servidor. Cerrá sesión, volvé a entrar e intentá de nuevo.');
+      return;
+    }
+  }
   mostrarAnimacionTransferencia();
   try {
     // Sube el comprobante ANTES de registrar el pago (si falla, sigue
