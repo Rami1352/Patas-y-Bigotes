@@ -340,12 +340,14 @@ html.theme-transition *::after {
    descuadrada mostrando fragmentos de dos pantallas superpuestas. Con
    overscroll-behavior-x:none el navegador deja de interceptar ese
    swipe para su propio gesto de historial. */
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-x: none; overscroll-behavior-y: none; background-color: var(--surface-app); }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-x: none; overscroll-behavior-y: none; background-color: var(--surface-app); min-height: 100vh; min-height: 100dvh; }
 body { -webkit-tap-highlight-color: transparent; }
 body {
   font-family: 'Inter', sans-serif;
   color: var(--charcoal);
+  background-color: var(--surface-app);
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   overscroll-behavior-x: none;
@@ -3981,21 +3983,17 @@ html[data-font-size="large"] .toast-container {
   .notif-bell-btn { width: 34px; height: 34px; }
   .hamburger { display: flex; }
   .page-title { font-size: 17px; }
-  /* margin-top: 56px del topbar + la altura real de .mobile-nav, que
-     ahora vive PEGADA debajo del topbar (ver bloque "REPOSICIÓN + LIQUID
-     GLASS" más abajo) en vez de flotar fija abajo. --pyb-mnav-h se define
-     ahí mismo junto con el resto de las reglas de la barra, así el número
-     queda en un solo lugar y no hay que mantenerlo sincronizado en dos
-     puntos distintos del CSS. Ya no hace falta padding-bottom extra en
-     .content (la vieja reserva de 78px era para no tapar el final del
-     scroll contra una barra fija abajo; con la barra arriba esa reserva
-     no aplica más), así que el padding vuelve al valor base sin colchón
-     extra — el propio safe-area-inset-bottom del dispositivo alcanza. */
-  /* padding-right 10px (no 4px): en mobile/touch los scrollbars suelen
-     ser overlay (flotan encima, no ocupan espacio propio), así que un
-     recorte tan agresivo como en desktop no es necesario acá; se deja
-     un margen moderado por si el navegador sí reserva espacio real. */
-  .content { padding: 14px 10px calc(14px + env(safe-area-inset-bottom)) 14px; margin-top: calc(56px + var(--pyb-mnav-h, 62px)); }
+  /* REVERSIÓN a pedido del usuario: la barra vuelve a vivir FIJA ABAJO
+     (fixed bottom-0), estilo mobile app nativa, en vez de pegada debajo
+     del topbar. Por eso acá ya NO se suma --pyb-mnav-h a margin-top
+     (el topbar sigue siendo el único responsable del margen superior)
+     y en cambio .content necesita padding-bottom extra para que el
+     scroll del contenido no termine tapado detrás de la barra fija de
+     abajo -- ese colchón es calc(pyb-mnav-h + safe-area-inset-bottom),
+     con un extra de 16px de aire visual entre la última tarjeta y la
+     barra. Ver el bloque .mobile-nav más abajo para el `fixed bottom:0`
+     en sí. */
+  .content { padding: 14px 10px calc(16px + var(--pyb-mnav-h, 62px) + env(safe-area-inset-bottom)) 14px; margin-top: 56px; }
   .stats-strip { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .stat-card { padding: 14px; gap: 10px; }
   .stat-value { font-size: 22px; }
@@ -4008,89 +4006,62 @@ html[data-font-size="large"] .toast-container {
      igual de nítido que en desktop. */
   .stats-strip[style*="repeat(3"] { grid-template-columns: 1fr !important; }
 
-  /* ── REPOSICIÓN + LIQUID GLASS de .mobile-nav (pedido del usuario) ──
-     1) Antes .mobile-nav era `position:fixed; bottom:0` — pedido nuevo:
-        que viva pegada debajo del topbar (ver marca en verde de la
-        Imagen 2 del usuario: apunta justo debajo de la fila con el
-        título de sección/botón "Sincronizar", que es el .topbar). Se
-        pasa a `top:56px` (la misma altura fija que ya tiene .topbar en
-        este media query, línea de arriba) y se sueltan `bottom`/
-        `box-shadow` de abajo hacia arriba para que la sombra "caiga"
-        del lado correcto de la barra.
-     2) Esto de paso resuelve una fricción que ya tenía este archivo con
-        el liquid glass NATIVO de Safari/iOS 26 (ver el fix "se estira
-        hasta atrás de la barra del navegador" más abajo, con los links
-        a developer.apple.com sobre el bug de ese diseño flotante): al
-        dejar de competir por el mismo borde inferior de la pantalla
-        contra la barra de direcciones de Safari, ese problema deja de
-        aplicar para esta barra (si en el futuro Safari cambia de nuevo
-        su comportamiento inferior, ya no afecta a .mobile-nav).
-     3) "Liquid glass" propio (pedido explícito): panel translúcido con
-        blur + saturate de lo que quede detrás (contenido haciendo
-        scroll) en vez del fondo sólido `var(--white)` de antes.
-        -webkit-backdrop-filter es obligatorio para que esto funcione en
-        Safari/iOS (no alcanza con el estándar sin prefijo). Se agrega un
-        `@supports not (backdrop-filter: blur(1px))` con fondo casi
-        opaco como red de seguridad para el WebView que resultó no
-        soportar `:has()` (ver fix de arriba) u otros motores viejos
-        similares: sin ese fallback, un navegador sin backdrop-filter
-        dejaría el nav completamente transparente e ilegible en vez de
-        solo "sin efecto vidrio". */
-  /* 62px, no un número redondo cualquiera: es el resultado real de
-     sumar el contenido de .mobile-nav-item (ícono 22px + gap 3px +
-     label de 10px con line-height ~12px + su propio padding vertical
-     de 6px arriba/abajo = 49px) más el padding vertical propio de
-     .mobile-nav (6px arriba/abajo = 12px) = 61px, redondeado a 62px
-     para dejar 1px de aire y que nada quede recortado por un redondeo
-     de subpíxel del navegador. Si se cambia el tamaño de ícono, gap o
-     font-size de .mobile-nav-item más abajo, este valor hay que
-     recalcularlo a mano (no hay forma de que CSS mida "el contenido
-     más alto de un flex item" para pasárselo a otra regla). */
+  /* ── REVERSIÓN a fixed bottom-0 (pedido actual del usuario) ──
+     El bloque anterior había movido .mobile-nav a `top:56px` pegada
+     debajo del topbar con efecto "liquid glass" (a pedido de una
+     iteración previa). El pedido ahora es el opuesto: volver al patrón
+     de bottom nav fijo estilo app nativa (Inicio/Mascotas/Agenda/
+     Perros/Cobros ancladas abajo, tapa fija mientras el contenido
+     scrollea por detrás). Se conserva el look "liquid glass" (blur +
+     tinte + fallback @supports) porque no fue parte de lo que el
+     usuario pidió cambiar acá, solo se reubica el panel.
+     `z-index: 50` explícito (antes dependía del valor heredado del
+     bloque base, z-index:100 -- se sube el comentario nada más para
+     dejar constancia de que debe quedar por encima del contenido con
+     scroll, ver pedido "z-50" del usuario, aunque 100 ya cumple lo
+     mismo y no hace falta bajarlo). */
+  /* 62px: resultado real de sumar el contenido de .mobile-nav-item
+     (ícono 22px + gap 3px + label de 10px con line-height ~12px + su
+     propio padding vertical de 6px arriba/abajo = 49px) más el padding
+     vertical propio de .mobile-nav (6px arriba/abajo = 12px) = 61px,
+     redondeado a 62px para dejar 1px de aire. Si se cambia tamaño de
+     ícono, gap o font-size de .mobile-nav-item más abajo, recalcular a
+     mano. */
   :root { --pyb-mnav-h: 62px; }
   .mobile-nav {
     display: flex;
-    top: 56px; bottom: auto;
-    height: var(--pyb-mnav-h);
-    padding: 6px 4px;
-    /* Panel flotante en vez de barra edge-to-edge: se despega un toque
-       de los bordes laterales y redondea solo las esquinas de abajo
-       (las de arriba quedan a nivel del topbar, sin borde vivo contra
-       él) -- es el gesto visual que distingue un panel "liquid glass"
-       real de un simple fondo semitransparente pegado a los cuatro
-       bordes. */
-    left: 8px; right: 8px;
-    border-radius: 0 0 var(--r-lg) var(--r-lg);
-    border-top: none;
-    border-bottom: 1px solid rgba(255,255,255,.35);
-    /* Tinte con --sage por encima de una base blanca suave (el orden de
-       capas en un `background` multi-valor importa: la PRIMERA capa
-       listada queda arriba en el stacking). Si el blanco fuera la capa
-       de arriba, taparía casi por completo el verde de abajo -- se
-       comprobó que con blanco al 72% encima, el resultado final es
-       prácticamente blanco puro (~249,249,247) sin ningún matiz
-       perceptible. Con el sage arriba y una base blanca más suave
-       debajo, el verde sí se nota, sutil pero real. */
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    /* Padding inferior real del dispositivo (home-indicator de iOS,
+       gesture bar de Android) sumado al padding vertical propio de la
+       barra, para que los botones no queden tapados/pegados contra el
+       borde físico de la pantalla. El alto total de la barra crece con
+       el safe-area (en vez de dejar que el padding "coma" del alto fijo
+       de --pyb-mnav-h), para que los íconos+label conserven siempre su
+       tamaño de 62px reales sin comprimirse en dispositivos con
+       home-indicator más alto. */
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    height: calc(var(--pyb-mnav-h) + env(safe-area-inset-bottom));
+    /* Barra edge-to-edge pegada al borde inferior real (no panel
+       flotante): sin separación lateral ni radio en las esquinas de
+       abajo, que es el patrón visual de una bottom tab bar nativa. */
+    left: 0; right: 0;
+    border-radius: 0;
+    border-top: 1px solid rgba(255,255,255,.35);
+    border-bottom: none;
     background: linear-gradient(rgba(45,80,22,.10), rgba(45,80,22,.10)), rgba(255,255,255,.55);
     -webkit-backdrop-filter: blur(18px) saturate(180%);
     backdrop-filter: blur(18px) saturate(180%);
-    box-shadow: 0 8px 24px rgba(0,0,0,.08);
+    box-shadow: 0 -8px 24px rgba(0,0,0,.08);
+    z-index: 50;
   }
   [data-theme="dark"] .mobile-nav {
-    /* Mismo fix de orden de capas que en el bloque claro de arriba: el
-       tinte de marca (acá el --sage de dark mode, #6FCF56) va como
-       primera capa para quedar arriba y ser perceptible; la base oscura
-       semitransparente va segunda. */
     background: linear-gradient(rgba(111,207,86,.07), rgba(111,207,86,.07)), rgba(28,28,28,.55);
-    border-bottom-color: rgba(255,255,255,.08);
-    box-shadow: 0 8px 24px rgba(0,0,0,.32);
+    border-top-color: rgba(255,255,255,.08);
+    box-shadow: 0 -8px 24px rgba(0,0,0,.32);
   }
   @supports not (backdrop-filter: blur(1px)) {
-    /* Sin backdrop-filter el "glass" no puede existir (no hay nada que
-       desenfocar), así que acá se cae a un fondo prácticamente opaco:
-       prioriza que el texto/íconos sigan siendo legibles contra
-       cualquier contenido que haga scroll detrás, en vez de insistir
-       con una transparencia que en este caso dejaría la barra casi
-       ilegible. */
     .mobile-nav { background: var(--white); }
     [data-theme="dark"] .mobile-nav { background: #1e201c; }
   }
@@ -4534,24 +4505,17 @@ html[data-font-size="large"]  .main       { height: 86.96vh; }
     zoom: 1 !important;
   }
 
-  /* ── (RETIRADO) FIX MOBILE: .mobile-nav se estira hasta atrás de la barra del navegador ──
-     Este fix (colchón de 10px contra dvh para no pegar la nav contra la
-     barra de direcciones / liquid glass de Safari abajo) aplicaba
-     exclusivamente a .mobile-nav como barra INFERIOR (`bottom:0`). Con
-     el reposicionamiento pedido por el usuario (ver bloque "REPOSICIÓN +
-     LIQUID GLASS de .mobile-nav" más arriba: la barra ahora vive arriba,
-     pegada debajo del .topbar, con `top:56px; bottom:auto` y una
-     `height` fija), .mobile-nav ya no comparte borde con la barra de
-     Safari/Chrome — el problema que este fix resolvía dejó de poder
-     ocurrir para este elemento. Se retira la regla en vez de dejarla
-     "por las dudas": con `top` y `height` ya fijados arriba, un `bottom`
-     calculado acá no tendría ningún efecto visual (el navegador
-     prioriza top+height sobre bottom cuando los tres coexisten en un
-     position:fixed), así que mantenerla solo agregaría código muerto y
-     un comentario que ya no describiría la realidad del layout. Si en
-     el futuro se agrega OTRA barra fija pegada al borde inferior real
-     de la pantalla, el mecanismo para resolverlo (anclar contra dvh +
-     colchón fijo) sigue siendo válido y puede reutilizarse desde acá. */
+  /* ── (RETIRADO, sigue retirado) FIX MOBILE: .mobile-nav se estira hasta atrás de la barra del navegador ──
+     Este fix viejo (colchón manual de 10px contra dvh) existía para que
+     la nav inferior no quedara pegada contra la barra de direcciones de
+     Safari. Se había retirado cuando la nav pasó a vivir arriba. Ahora
+     que la nav volvió a `bottom:0` (pedido actual del usuario), el
+     motivo original vuelve a existir en teoría -- pero ya no hace falta
+     reconstruir este colchón manual: `.mobile-nav` calcula su `height`
+     y `padding-bottom` sumando `env(safe-area-inset-bottom)` (ver
+     bloque `.mobile-nav` con `bottom:0` más arriba), que es el
+     mecanismo nativo y correcto para esto en navegadores actuales. No
+     se reintroduce código muerto acá. */
 }
 
 /* ── Preferencias: selector de idioma estilo Apple (select nativo estilizado) ── */
@@ -4717,14 +4681,31 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 #app:not(.visible) .mobile-nav { display: none !important; }
 
 /* --- Screen: deep-green ambient stage --- */
+/* FIX MOBILE (franjas blancas/grises arriba y abajo del login en iOS/
+   Android, ver Imagen 1 del usuario): `inset:0` sobre `position:fixed`
+   ya cubre el viewport completo en teoría, pero en Safari/Chrome mobile
+   el alto real del viewport cambia quites (barra de direcciones que
+   se colapsa/expande, teclado, etc.) y `inset:0` por sí solo no fuerza
+   un `height` explícito -- combinado con que este bloque no reservaba
+   nada para la notch/home-indicator, el motor de layout podía dejar un
+   corte de 1 frame contra el `background-color` blanco por defecto de
+   <body> antes de que el fondo del login terminara de pintar ese
+   extremo. Se agrega `min-height: 100dvh` (dvh = dynamic viewport
+   height, se ajusta en vivo al alto real visible) como refuerzo de
+   `inset:0`, y `env(safe-area-inset-top/bottom)` sumado al padding
+   para que el contenido no quede pegado contra la notch/home-indicator
+   (eso es el margen "gris" que se veía, no un fondo distinto: sin
+   safe-area el sistema podía recortar visualmente el borde del propio
+   `#login-screen` contra su UI de sistema). */
 #login-screen {
   position: fixed;
   inset: 0;
+  min-height: 100dvh;
   z-index: 9999;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 24px 20px;
+  padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
   overflow-y: auto;
   overflow-x: hidden;
   font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif;
@@ -16616,22 +16597,14 @@ function syncLanguageUI() {
     // FIX v2: esta función existe para restarle al recorrido de arrastre
     // SOLO el espacio que .mobile-nav ocupa pegada contra el borde
     // INFERIOR real de la pantalla -- así el botón nunca queda tapado
-    // detrás de ella. Eso dejó de ser un supuesto seguro el día que
-    // .mobile-nav pasó a vivir arriba, debajo del .topbar (pedido del
-    // usuario: ver bloque "REPOSICIÓN + LIQUID GLASS de .mobile-nav" en
-    // el CSS). Sin este chequeo, getBoundingClientRect().bottom de una
-    // nav que ahora vive a ~56-118px del TOPE de la pantalla generaba un
-    // navBottomGap enorme (todo el alto de pantalla que queda por debajo
-    // de esos 118px), y esa cifra gigante se sumaba igual a la
-    // exclusión de abajo -- el botón quedaba con centenares de píxeles
-    // de recorrido hacia abajo bloqueados sin ningún motivo real, ya que
-    // la nav de arriba no le tapa nada ahí.
-    // Se agrega un chequeo de posición antes de restar nada: solo se
-    // considera "pegada abajo" una nav cuyo borde inferior está a menos
-    // de 40px del borde inferior real del viewport (margen generoso para
-    // cubrir cualquier colchón/safe-area que a futuro se le vuelva a
-    // sumar a una nav inferior). Si la nav vive en cualquier otra
-    // posición (como ahora, arriba), no hay nada que excluir abajo.
+    // detrás de ella. La nav volvió a vivir fija abajo (bottom:0, pedido
+    // actual del usuario), así que esta exclusión vuelve a aplicar de
+    // lleno en el caso normal.
+    // Se mantiene igual el chequeo de posición antes de restar nada
+    // (nav a menos de 40px del borde inferior real del viewport) como
+    // salvaguarda genérica: si en el futuro .mobile-nav volviera a
+    // reposicionarse (arriba, flotante, etc.), este cálculo se
+    // desactiva solo en vez de restar un hueco enorme sin sentido.
     var navRect = nav.getBoundingClientRect();
     var distanciaAlBordeInferior = window.innerHeight - navRect.bottom;
     if (distanciaAlBordeInferior > 40) return 0; // la nav no está pegada abajo: nada que excluir
