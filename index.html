@@ -4633,7 +4633,17 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 
 /* --- App visibility plumbing (required) --- */
 #login-screen.hidden { display: none !important; }
-#app { display: none; width: 100%; }
+/* background-color en #app (no transparente, el valor por defecto):
+   red de seguridad para el recuadro gris de la Imagen 1 del usuario.
+   Si por lo que sea quedara un frame donde #app ya es visible pero su
+   contenido real (body::before con el fondo de la escena activa) no
+   terminó de pintar encima, este color de fondo propio se ve en su
+   lugar. Se usa el mismo verde oscuro con el que arranca el gradiente
+   de #login-screen (#16240f) para que, si ese frame llegara a existir,
+   se perciba como continuidad del login en vez de un salto a un color
+   ajeno (el beige/gris de --surface-app de <body>, que es el que se
+   veía en la imagen). */
+#app { display: none; width: 100%; background-color: #16240f; }
 #app.visible { display: flex !important; }
 
 /* ── FIX v2: .mobile-nav visible sobre la pantalla de login en celular ──
@@ -8222,9 +8232,40 @@ async function entrarConCuentaVerificada(emailFallback) {
   };
   addLiveLog('[OK] Acceso concedido: ' + currentUser.username + (currentUser.clienteId ? ' (' + currentUser.clienteId + ')' : ''), 'ok');
 
+  // FIX MOBILE (recuadro gris en login, ver Imagen 1 del usuario — franja
+  // gris arriba y abajo apenas abre el link, coincide con el auto-login):
+  // estas dos líneas conmutan #login-screen a hidden y #app a visible por
+  // separado. En un celular (motor de renderizado más lento que una PC de
+  // escritorio, donde esto se probó antes sin reproducirse) el navegador
+  // puede pintar un frame intermedio EXACTO entre ambas líneas: para ese
+  // instante, #login-screen ya tiene display:none (perdió su fondo verde
+  // radial) pero #app todavía no tiene .visible (sigue en display:none,
+  // heredado de la regla base "#app { display:none }"). En ese frame no
+  // hay NINGÚN elemento con fondo propio pintando la pantalla — se ve
+  // directo el `background-color: var(--surface-app)` de <body> (beige/
+  // gris claro en modo claro), que es exactamente el recuadro gris de la
+  // imagen. No es un fondo "que falta pintar": es un instante real sin
+  // ningún elemento de fondo verde presente en el árbol visual.
+  //
+  // CORRECCIÓN sobre un primer intento de este mismo fix: envolver estas
+  // dos líneas en un requestAnimationFrame() sin más funcionaba para el
+  // recuadro gris, pero diferir el cambio de clases un frame entero
+  // significa que TODO el código que sigue después (buildSidebar(),
+  // showView('dashboard'), runNotifCheck()) pasaba a ejecutarse ANTES de
+  // que #app tuviera .visible -- es decir, sobre un árbol todavía con
+  // display:none en el ancestro. showView() ya documenta en otro punto
+  // de este archivo (ver el requestAnimationFrame propio para
+  // 'mis-mascotas', más abajo) que medir layout (clientWidth, etc.)
+  // sobre un contenedor recién visible da 0: el mismo riesgo aplicaba acá
+  // de forma más general, sin necesidad real, ya que buildSidebar/
+  // showView/runNotifCheck no necesitan estar en el mismo frame que el
+  // cambio de clases -- solo el cambio de clases en sí necesitaba
+  // agruparse, para que login y app nunca coincidan ambos en
+  // display:none. Se corrige agrupando SOLO esas dos líneas, y dejando
+  // el resto de la función correr en el mismo tick de siempre, como
+  // antes de este fix.
   document.getElementById('login-screen').classList.add('hidden');
-  const appEl = document.getElementById('app');
-  appEl.classList.add('visible');
+  document.getElementById('app').classList.add('visible');
 
   document.getElementById('readonly-banner').style.display = 'none';
 
