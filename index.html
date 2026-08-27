@@ -1005,12 +1005,15 @@ body[data-bg-scene="settings"]::after {
 @media (max-width: 900px) { #sync-badge { display: none !important; } }
 
 .btn-sync {
-  background: var(--surface-card); color: var(--stone);
-  border: 1.5px solid var(--border); box-shadow: var(--shadow-xs);
+  background: var(--glass-bg-solid); color: var(--stone);
+  border: 1.5px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  box-shadow: var(--glass-shadow);
 }
 .btn-sync:hover {
-  background: var(--surface-hover); border-color: var(--fog);
-  color: var(--charcoal); box-shadow: var(--shadow-sm);
+  background: var(--glass-bg-solid); border-color: var(--glass-border);
+  color: var(--charcoal); box-shadow: var(--glass-shadow-hover);
 }
 .btn-sync svg { transition: transform .3s ease; }
 .btn-sync:hover svg { transform: rotate(50deg); }
@@ -2203,7 +2206,7 @@ body[data-bg-scene="settings"]::after {
 
 
 /* Week tabs */
-.week-tabs { display: flex; gap: 4px; background: var(--white); border: 1px solid var(--border-sm); border-radius: 12px; padding: 4px; margin-bottom: 18px; overflow-x: auto; scrollbar-width: none; box-shadow: var(--shadow-xs); }
+.week-tabs { display: flex; gap: 4px; border: 1px solid var(--border-sm); border-radius: 12px; padding: 4px; margin-bottom: 18px; overflow-x: auto; scrollbar-width: none; }
 .week-tabs::-webkit-scrollbar { display: none; }
 .week-tab { padding: 8px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--mist); transition: all .15s; white-space: nowrap; flex-shrink: 0; }
 .week-tab.active { background: var(--sage-solid); color: #fff; }
@@ -5459,7 +5462,8 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 .food-empty,
 .home-care-empty,
 .mascota-stat-card,
-.no-service-screen {
+.no-service-screen,
+.week-tabs {
   background: var(--glass-bg-solid) !important;
   -webkit-backdrop-filter: var(--glass-blur-strong);
   backdrop-filter: var(--glass-blur-strong);
@@ -5487,7 +5491,8 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 .food-empty::before,
 .home-care-empty::before,
 .mascota-stat-card::before,
-.no-service-screen::before {
+.no-service-screen::before,
+.week-tabs::before {
   content: '';
   position: absolute; inset: 0;
   border-radius: inherit;
@@ -5503,11 +5508,12 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 [data-theme="dark"] .food-empty::before,
 [data-theme="dark"] .home-care-empty::before,
 [data-theme="dark"] .mascota-stat-card::before,
-[data-theme="dark"] .no-service-screen::before {
+[data-theme="dark"] .no-service-screen::before,
+[data-theme="dark"] .week-tabs::before {
   background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 40%);
 }
 /* Los hijos directos quedan por encima del reflejo */
-.card > *, .stat-card > *, .hc-stat-card > *, .pet-profile-card > *, .timeline-row > *, .food-empty > *, .home-care-empty > *, .mascota-stat-card > *, .no-service-screen > * { position: relative; z-index: 1; }
+.card > *, .stat-card > *, .hc-stat-card > *, .pet-profile-card > *, .timeline-row > *, .food-empty > *, .home-care-empty > *, .mascota-stat-card > *, .no-service-screen > *, .week-tabs > * { position: relative; z-index: 1; }
 
 /* .data-table vive dentro de .card y hereda el vidrio del padre,
    pero cada fila individual (Simba, Olivia, Frida...) necesita su
@@ -5606,6 +5612,7 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
   .card, .stat-card, .hc-stat-card, .hc-row, .food-timeline-card,
   .mascotas-stats-card, .pet-profile-card, .timeline-row,
   .food-empty, .home-care-empty, .mascota-stat-card, .no-service-screen,
+  .week-tabs,
   .walks-hero, .hc-hero, .mascotas-hero, .deworm-header-bar, .deworm-footer-tip,
   /* FIX SAFARI iOS — freeze de scroll + hueco negro SOLO en "Mis
      Servicios": a .service-card (grid del dashboard) se le había
@@ -11010,8 +11017,9 @@ function renderAgenda() {
     return `<div class="timeline-row">
       <div class="time-range">${w.start} → ${w.end}</div>
       <div class="timeline-dot"></div>
+      ${dogAvatar(dog)}
       <div style="flex:1;min-width:0">
-        <div class="timeline-dog">${dogIcon(dog)} <strong>${dog.name}</strong></div>
+        <div class="timeline-dog"><strong>${dog.name}</strong></div>
         <div class="timeline-meta">${dog.owner} · ${dog.neighborhood}</div>
       </div>
       ${neighborhoodBadge(dog.neighborhood)}
