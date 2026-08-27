@@ -99,6 +99,51 @@ function fwGetMercadoPago() {
     var fontSize = localStorage.getItem('pyb_font_size') || 'normal';
     document.documentElement.setAttribute('data-font-size', fontSize);
   } catch (e) {}
+  // FIX MOBILE (franja beige arriba/abajo del login SOLO dentro del
+  // WebView in-app de WhatsApp, confirmado con captura real + medición
+  // de color de píxel: rgb(246,245,240) ≈ --surface-app/--cream): ya se
+  // había documentado en otro punto de este archivo (buscar "Causa raíz
+  // nº2" más abajo en el CSS de .mobile-nav) que esa WebView corre sobre
+  // un motor sin soporte real de :has(), y que una regla con :has() no
+  // soportado se descarta ENTERA en el parseo sin fallback -- por eso
+  // acá NO se usa `body:has(#login-screen:not(.hidden))` para pintar el
+  // fondo condicionalmente por CSS puro, que sería la solución obvia
+  // pero fallaría en silencio ahí mismo.
+  // La franja persistía con #login-screen ya en `position:fixed; inset:0`
+  // + `min-height:100dvh` + viewport-fit=cover + safe-area en el padding
+  // -- ninguno de esos fixes de unidades de viewport la sacó, y la
+  // medición de píxel real confirmó que el color visible es sólido y
+  // uniforme (no un gradiente tenue quedándose corto). La explicación
+  // que más encaja con evidencia real: WebViews embebidas en apps nativas
+  // de iOS (WhatsApp entre ellas) son conocidas por calcular su propio
+  // "safe area"/viewport visual de forma distinta a Safari real cuando la
+  // app anfitriona agrega su propia UI arriba (acá, la barra "◄
+  // WhatsApp"), y `position:fixed; inset:0` puede terminar anclado al
+  // layout viewport en vez del área realmente visible -- no es algo que
+  // más precisión de env()/dvh vaya a corregir, porque no es un cálculo
+  // de tamaño lo que falla, es el propio marco de referencia del
+  // WebView.
+  // La solución que no depende de pelear contra ese motor: asegurarse de
+  // que <html> (que SIEMPRE cubre el 100% del área real disponible, sea
+  // cual sea el marco de referencia que el WebView use) tenga puesto el
+  // MISMO verde con el que arranca el gradiente de #login-screen
+  // (#16240f) mientras el login es la pantalla visible. Así, cualquier
+  // hueco que el sistema deje por la causa que sea, se rellena con
+  // verde -- continuidad visual perfecta -- en vez del beige de
+  // --surface-app pensado para el resto de la app.
+  // Se hace acá, en el script que corre ANTES del primer paint (mismo
+  // <script> que ya aplica tema oscuro/tamaño de letra tempranamente
+  // por el mismo motivo: "evitar el flash de valores incorrectos"), y
+  // NO con una regla CSS `html { background: ... }` a secas, porque acá
+  // sí se puede usar JS con la certeza de que corre en TODO navegador
+  // (a diferencia de :has(), esto no depende de soporte de selector
+  // moderno) y se revierte explícitamente al entrar a la app (ver
+  // `document.documentElement.style.backgroundColor = ''` justo antes
+  // de `login-screen.classList.add('hidden')` más abajo en el JS del
+  // body), así el verde vive solo mientras el login está en pantalla.
+  try {
+    document.documentElement.style.backgroundColor = '#16240f';
+  } catch (e) {}
 })();
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
