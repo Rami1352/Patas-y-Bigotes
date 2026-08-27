@@ -5,6 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Patas y Bigotes — Portal de Clientes</title>
 
+<!-- FIX MOBILE (recuadro/barra blanca-beige arriba en Safari iOS, ver
+     capturas del usuario -- confirmado que aparece SIEMPRE, no un flash
+     ocasional, y coincide con conexión no-full-signal): theme-color
+     estaba declarado en la línea 75 original, DESPUÉS de dos
+     <script src="..."> externos sin async/defer (MercadoPago SDK y
+     html2canvas, ver más abajo) que son render-blocking por defecto --
+     el navegador detiene el parseo del <head> hasta descargar y
+     ejecutar cada uno antes de seguir leyendo las etiquetas que vienen
+     después, incluido el <meta name="theme-color">. En una conexión no
+     instantánea esa demora es perfectamente perceptible, y durante ese
+     lapso Safari ya pintó la barra de estado con su color por defecto
+     (el fondo de página visible en ese instante, beige/gris claro de
+     --surface-app) porque el theme-color real todavía no había llegado
+     a aplicarse. Se sube theme-color a la primera línea posible del
+     <head> -- inmediatamente después de charset/viewport/title, antes
+     de CUALQUIER script o link externo -- para que Safari lo tenga
+     disponible desde el primer instante de parseo, sin depender de que
+     ningún recurso de red termine de cargar primero. -->
+<meta name="theme-color" content="#16240f" />
+
 <!-- ═══════════════════════════════════════════════════════════════
   Patas y Bigotes — SDK de Mercado Pago (v24)
   FIX: este bloque vivía al final del <body> (después de línea 14000),
@@ -22,15 +42,27 @@
   y los <select> de banco emisor/cuotas quedaban vacíos y bloqueados.
   Se soluciona cargando el SDK y creando `mp` acá, en el <head>, antes
   de que se ejecute cualquier función del wizard.
+
+  FIX MOBILE (theme-color tardío, ver bloque de arriba): se agrega
+  `defer` a este script y al de html2canvas. Ninguno de los dos hace
+  falta antes de que el usuario interactúe con el wizard de pago (paso
+  5), así que no hay ninguna razón para que bloqueen el parseo del resto
+  del <head> -- con `defer`, el navegador sigue leyendo el HTML que
+  sigue (incluido theme-color, aunque ahora ya no dependa de esto por
+  estar primero) mientras estos scripts se descargan en paralelo, y los
+  ejecuta recién cuando el parseo del documento termina, en el mismo
+  orden en que aparecen. mp queda definido igual de a tiempo para el
+  paso 5 del wizard, que ocurre muchísimo después del parseo inicial.
 ═══════════════════════════════════════════════════════════════ -->
-<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script src="https://sdk.mercadopago.com/js/v2" defer></script>
 <!-- html2canvas: captura la pantalla "Pago registrado" (#fw-order-done /
      #dw-order-done, ver fwShowOrderDone/dwShowOrderDone más abajo en el
      JS) como imagen PNG para mandarla como comprobante por mail (ver
      fwCapturarComprobante/dwCapturarComprobante). Se carga acá, junto al
      SDK de MP, para que esté disponible desde el arranque sin depender
-     de que el wizard de pago se abra primero. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+     de que el wizard de pago se abra primero. `defer` por el mismo
+     motivo que el script de arriba: no bloquea el parseo del <head>. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 <script>
 // Reemplazar MI_PUBLIC_KEY por tu Public Key real
 // (la que empieza con APP_USR-..., NO el Access Token)
@@ -72,7 +104,6 @@ function fwGetMercadoPago() {
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 <link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#2D5016" />
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <!-- FIX MOBILE — se eliminaron los 6 <link rel="preload"> de backgrounds/*.webp
@@ -5798,20 +5829,22 @@ var PYB_AUTH = (function () {
     try {
       firebase.initializeApp(FIREBASE_CONFIG);
       _auth = firebase.auth();
-      // FIX: antes era Persistence.LOCAL, que guarda la sesión sin límite
-      // de tiempo en ese navegador (sobrevive a cerrar la pestaña, cerrar
-      // el navegador entero, y hasta reiniciar la compu). Combinado con
-      // PYB_AUTH.onChange (más abajo, restaura sesión al cargar), eso
-      // hacía que cualquier persona que abriera el link en ESE MISMO
-      // navegador entrara automáticamente con la última cuenta logueada
-      // ahí, sin loguearse -- típico en compus/celulares compartidos
-      // (familia, kiosco, PC de trabajo) donde varias personas abren el
-      // mismo link.
-      // Con Persistence.SESSION, la sesión se guarda solo para esa
-      // pestaña/ventana y se borra sola al cerrarla -- persiste mientras
-      // la pestaña sigue abierta (recargar la página no desloguea), pero
-      // no queda pegada para la próxima persona que abra el link.
-      _auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+      // FIX (pedido del usuario): quitar el auto-login por completo. Antes
+      // era Persistence.LOCAL (sesión sin límite de tiempo, sobrevive a
+      // cerrar navegador/reiniciar PC), después se pasó a SESSION (dura
+      // mientras la pestaña siga abierta). El problema es que SESSION
+      // igual reloguea solo en el celular: al abrir el link desde WhatsApp
+      // u otro navegador in-app, esos navegadores suelen tratar esa
+      // apertura como continuación de la misma sesión de navegación en
+      // vez de una pestaña nueva, así que la sesión de Firebase seguía
+      // viva y PYB_AUTH.onChange la restauraba sola.
+      // Con Persistence.NONE, Firebase no guarda la sesión en ningún
+      // lado (ni localStorage ni sessionStorage): cada carga de página
+      // arranca sin sesión, sin importar el navegador o cómo se haya
+      // abierto el link. Esto significa que ahora SIEMPRE hay que
+      // loguearse de nuevo al abrir el portal, incluso recargando la
+      // misma pestaña.
+      _auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
       _ready = true;
     } catch (err) {
       console.warn('[PYB_AUTH] No se pudo inicializar Firebase:', err);
