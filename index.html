@@ -1046,21 +1046,15 @@ body[data-bg-scene="settings"]::after {
 @media (max-width: 900px) { #sync-badge { display: none !important; } }
 
 .btn-sync {
-  /* --glass-bg-liquid (alpha .16, la misma que .mobile-nav) en vez de
-     --glass-bg-solid (.42): sobre el fondo de escena real, .42 se leía
-     casi blanco sólido y tapaba el blur en vez de dejarlo protagonizar. */
-  background: var(--glass-bg-liquid); color: var(--stone);
+  background: var(--glass-bg-solid); color: var(--stone);
   border: 1.5px solid var(--glass-border);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   backdrop-filter: var(--glass-blur-strong);
   box-shadow: var(--glass-shadow);
 }
 .btn-sync:hover {
-  background: var(--glass-bg-liquid-active); border-color: var(--glass-border);
+  background: var(--glass-bg-solid); border-color: var(--glass-border);
   color: var(--charcoal); box-shadow: var(--glass-shadow-hover);
-}
-@supports not (backdrop-filter: blur(1px)) {
-  .btn-sync { background: var(--glass-bg-sticky); }
 }
 .btn-sync svg { transition: transform .3s ease; }
 .btn-sync:hover svg { transform: rotate(50deg); }
@@ -2407,27 +2401,15 @@ body[data-bg-scene="settings"]::after {
   .view.active { animation: none; }
 }
 
-/* Back button — liquid glass: mismo tratamiento que .btn-sync/.mobile-nav
-   (--glass-bg-liquid + blur/saturate fuerte) en vez de fondo blanco sólido,
-   para que se lea el fondo real de la escena (parque, living, etc.) a
-   través del botón. */
+/* Back button */
 .back-btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 8px 14px; border-radius: 10px;
-  background: var(--glass-bg-liquid); border: 1.5px solid var(--glass-border);
-  -webkit-backdrop-filter: var(--glass-blur-strong);
-  backdrop-filter: var(--glass-blur-strong);
-  box-shadow: var(--glass-shadow);
+  background: var(--white); border: 1.5px solid var(--border);
   font-size: 13px; font-weight: 600; color: var(--stone);
   cursor: pointer; transition: all .15s; margin-bottom: 20px;
 }
-.back-btn:hover {
-  background: var(--glass-bg-liquid-active); border-color: var(--glass-border);
-  box-shadow: var(--glass-shadow-hover);
-}
-@supports not (backdrop-filter: blur(1px)) {
-  .back-btn { background: var(--glass-bg-sticky); }
-}
+.back-btn:hover { background: var(--cream); border-color: var(--fog); }
 
 /* Botón contactar administrador — compacto horizontal */
 .btn-contact-admin {
@@ -9538,16 +9520,11 @@ function setBgScene(scene) {
   if (scene) document.body.setAttribute('data-bg-scene', scene);
   else document.body.removeAttribute('data-bg-scene');
 
-  // Safari iOS: el MutationObserver sobre [data-bg-scene] (ver script final,
-  // pybRefreshSafariTint) es quien dispara el mirror de artwork al chrome del
-  // navegador. Antes también se llamaba acá mismo, de forma síncrona, lo que
-  // duplicaba un getComputedStyle(..., '::before') carísimo (el fondo es un
-  // SVG con varias capas de feGaussianBlur) en cada cambio de vista. Con taps
-  // rápidos en el nav esas dos llamadas por cambio se apilaban una atrás de
-  // otra y el hilo principal quedaba varios segundos poniéndose al día antes
-  // de poder pintar la vista nueva. Se deja un único disparador (el
-  // observer, que además ya viene debounceado con requestAnimationFrame) sin
-  // cambiar el resultado visual: el atributo se sigue seteando igual arriba.
+  // Safari iOS: mantener el canvas transparente para que el Liquid Glass del navegador
+  // pueda mostrar el artwork real de la escena debajo. No se aplica ningún color artificial.
+  if (typeof window.pybRefreshSafariTint === 'function') {
+    window.pybRefreshSafariTint(scene || 'login');
+  }
 }
 
 function showView(view) {
@@ -17525,22 +17502,6 @@ window.handleLoginAction = handleLoginAction;
 
   window.pybRefreshSafariTint = copyArtworkToDocument;
 
-  // Debounce compartido: si llegan varios cambios de escena en rápida
-  // sucesión (nav tocado varias veces seguidas), solo se procesa el último.
-  // Antes cada tap encolaba su propio requestAnimationFrame sin cancelar el
-  // anterior, y como copyArtworkToDocument hace un getComputedStyle(...,
-  // '::before') sobre un fondo con feGaussianBlur pesado, esas llamadas se
-  // iban acumulando y el cambio de sección tardaba varios segundos en
-  // reflejarse cuando se navegaba rápido.
-  var pendingTintFrame = null;
-  function scheduleTintRefresh() {
-    if (pendingTintFrame !== null) cancelAnimationFrame(pendingTintFrame);
-    pendingTintFrame = requestAnimationFrame(function () {
-      pendingTintFrame = null;
-      copyArtworkToDocument();
-    });
-  }
-
   // Initial login paint.
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', copyArtworkToDocument, { once: true });
@@ -17548,14 +17509,14 @@ window.handleLoginAction = handleLoginAction;
     copyArtworkToDocument();
   }
 
-  // Scene changes are made by setBgScene(), que solo setea el atributo
-  // data-bg-scene; este observer es el único disparador de
-  // copyArtworkToDocument para esa transición (antes también se llamaba
-  // de forma síncrona desde setBgScene, duplicando el trabajo).
+  // Scene changes are made by setBgScene(); it calls pybRefreshSafariTint.
+  // The observer covers the other transition (login hidden/visible) without
+  // changing application logic or depending on :has().
   var login = document.getElementById('login-screen');
   if (login && window.MutationObserver) {
-    new MutationObserver(scheduleTintRefresh)
-      .observe(login, { attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(function () {
+      requestAnimationFrame(copyArtworkToDocument);
+    }).observe(login, { attributes: true, attributeFilter: ['class'] });
   }
 
   var body = document.body;
@@ -17563,15 +17524,15 @@ window.handleLoginAction = handleLoginAction;
     new MutationObserver(function (records) {
       for (var i = 0; i < records.length; i++) {
         if (records[i].type === 'attributes' && records[i].attributeName === 'data-bg-scene') {
-          scheduleTintRefresh();
+          requestAnimationFrame(copyArtworkToDocument);
           break;
         }
       }
     }).observe(body, { attributes: true, attributeFilter: ['data-bg-scene'] });
   }
 
-  window.addEventListener('pageshow', scheduleTintRefresh);
-  window.addEventListener('resize', scheduleTintRefresh, { passive: true });
+  window.addEventListener('pageshow', copyArtworkToDocument);
+  window.addEventListener('resize', copyArtworkToDocument, { passive: true });
 })();
 </script>
 
