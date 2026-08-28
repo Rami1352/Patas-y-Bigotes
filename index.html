@@ -5905,10 +5905,35 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
   .notif-center-bulk-row { padding: 0 16px; }
 }
 /* --- iPhone Safari 26 edge-to-edge hardening --- */
+/*
+   IMPORTANTE: Safari tiene dos superficies distintas que antes estábamos
+   tratando como si fueran una sola:
+   1) el canvas real de la aplicación (html/body/#login/#app), y
+   2) el chrome del navegador (barra de estado + toolbar inferior), que toma
+      su color de <meta name="theme-color">.
+
+   El fix anterior pintaba TODO Safari de #16240f. Eso resolvía las franjas
+   del login, pero hacía que al entrar a una escena fotográfica (Paseos,
+   Alimentación, etc.) el chrome siguiera verde oscuro aunque el fondo fuera
+   azul, madera, interior, violeta, etc.
+
+   Acá dejamos un color de respaldo por escena. La fotografía/gradiente sigue
+   siendo el fondo real de la app; este color solo evita que una zona que
+   Safari no entrega al documento quede beige y, además, armoniza las barras
+   propias de Safari con la escena activa.
+*/
 html.safari-ios,
 html.safari-ios body {
   background-color: #16240f;
 }
+
+html.safari-ios body[data-bg-scene="services"] { background-color: #55753b; }
+html.safari-ios body[data-bg-scene="walks"] { background-color: #69b9dc; }
+html.safari-ios body[data-bg-scene="food"] { background-color: #b8875d; }
+html.safari-ios body[data-bg-scene="homecare"] { background-color: #c4a68a; }
+html.safari-ios body[data-bg-scene="pets"] { background-color: #89a36f; }
+html.safari-ios body[data-bg-scene="desparasitarios"] { background-color: #8d80bd; }
+html.safari-ios body[data-bg-scene="settings"] { background-color: #8da37b; }
 
 @media (max-width: 767.98px), (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
   /* In Safari iOS, fixed full-height overlays are subject to the iOS 26
@@ -5937,14 +5962,36 @@ html.safari-ios body {
     min-height: 100dvh;
   }
 
-  /* The default mobile bottom bar is translucent white in the light theme.
-     Keep Safari's edge tint aligned with the app's green background. */
+  /*
+     NO se fija acá un background opaco para .mobile-nav.
+     La regla general de mobile (líneas ~4162) ya tiene el Liquid Glass
+     correcto: rgba translúcido + backdrop-filter blur/saturate.
+     El override Safari anterior lo tapaba con rgba(...,.84), que es la
+     razón exacta por la que en la captura actual la barra parece una banda
+     verde sólida y dejó de verse el fondo a través del vidrio.
+
+     Safari iOS usa el mismo tratamiento Liquid Glass que el resto de
+     navegadores. Solo reforzamos borde/sombra para que el vidrio siga siendo
+     legible sobre fotografías claras.
+  */
   html.safari-ios .mobile-nav {
-    background: linear-gradient(rgba(45,80,22,.14), rgba(45,80,22,.14)), rgba(22,36,15,.84);
-    border-top-color: rgba(255,255,255,.18);
+    background: rgba(255,255,255,.18);
+    -webkit-backdrop-filter: blur(24px) saturate(185%);
+    backdrop-filter: blur(24px) saturate(185%);
+    border-top-color: rgba(255,255,255,.42);
+    box-shadow:
+      0 -8px 28px rgba(0,0,0,.10),
+      inset 0 1px 0 rgba(255,255,255,.30);
   }
+
   html.safari-ios [data-theme="dark"] .mobile-nav {
-    background: linear-gradient(rgba(111,207,86,.06), rgba(111,207,86,.06)), rgba(14,26,8,.88);
+    background: rgba(18,25,13,.30);
+    -webkit-backdrop-filter: blur(24px) saturate(175%);
+    backdrop-filter: blur(24px) saturate(175%);
+    border-top-color: rgba(255,255,255,.14);
+    box-shadow:
+      0 -8px 28px rgba(0,0,0,.28),
+      inset 0 1px 0 rgba(255,255,255,.08);
   }
 }
 
@@ -8485,6 +8532,10 @@ async function entrarConCuentaVerificada(emailFallback) {
   // pasa a estar oculto -- de vuelta a que el CSS estático (var(--surface-app)
   // en html/body) sea quien decida el color, como en cualquier otra
   // pantalla de la app.
+  // Antes de quitar el fondo de emergencia del login, dejamos preparada
+  // la escena real de entrada. Así nunca existe un frame en el que Safari
+  // pueda encontrar el fondo crema de la app entre login y dashboard.
+  setBgScene('services');
   try {
     document.documentElement.style.backgroundColor = '';
     document.body.style.backgroundColor = '';
@@ -8565,6 +8616,10 @@ function doLogout() {
   const appEl = document.getElementById('app');
   appEl.classList.remove('visible'); appEl.style.display = 'none';
   document.getElementById('login-screen').classList.remove('hidden');
+  // Al volver al login también quitamos la escena fotográfica anterior,
+  // para que el fondo de respaldo y el chrome de Safari vuelvan al verde
+  // propio del login de forma atómica.
+  setBgScene(null);
   document.getElementById('login-user').value = '';
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').classList.remove('show');
@@ -9452,6 +9507,13 @@ const BG_SCENE_BY_SERVICE = {
 function setBgScene(scene) {
   if (scene) document.body.setAttribute('data-bg-scene', scene);
   else document.body.removeAttribute('data-bg-scene');
+
+  // Safari iOS: sincronizar también el chrome del navegador con la escena.
+  // No altera routing, datos ni render; solo el color de las áreas que Safari
+  // pinta fuera del canvas web. En Chrome/Firefox/etc. no hace nada.
+  if (typeof window.pybRefreshSafariTint === 'function') {
+    window.pybRefreshSafariTint(scene || 'login');
+  }
 }
 
 function showView(view) {
@@ -17367,12 +17429,42 @@ window.switchLoginTab = switchLoginTab;
 window.togglePasswordVisibility = togglePasswordVisibility;
 window.handleLoginAction = handleLoginAction;
 </script>
-<!-- Safari iOS 26 edge-to-edge tint sync. This does not change app state or routing. -->
+<!-- Safari iOS 26 edge-to-edge tint sync. -->
 <script>
 (function () {
   'use strict';
 
+  /*
+     Safari no puede hacer que su toolbar inferior sea un backdrop-filter de
+     nuestra página: esa barra pertenece al navegador. Lo que sí podemos
+     controlar es su color base mediante theme-color.
+
+     El valor se actualiza cada vez que cambia data-bg-scene. Así: login =
+     verde profundo; Paseos = azul cielo; Alimentación = madera cálida; etc.
+     Esto evita que el verde del login "se arrastre" a toda la app.
+  */
+  var SAFARI_SCENE_TINTS = {
+    login: '#16240f',
+    services: '#55753b',
+    walks: '#69b9dc',
+    food: '#b8875d',
+    homecare: '#c4a68a',
+    pets: '#89a36f',
+    desparasitarios: '#8d80bd',
+    settings: '#8da37b'
+  };
+
+  function isSafariIOS() {
+    var ua = navigator.userAgent || '';
+    var iOS = /iPhone|iPad|iPod/i.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var webkit = /WebKit/i.test(ua);
+    var excluded = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//i.test(ua);
+    return iOS && webkit && !excluded;
+  }
+
   function pybSetSafariTint(color) {
+    if (!isSafariIOS()) return;
     try {
       var meta = document.querySelector('meta[name="theme-color"]');
       if (!meta) {
@@ -17386,18 +17478,22 @@ window.handleLoginAction = handleLoginAction;
     } catch (e) {}
   }
 
-  function pybRefreshSafariTint() {
-    if (!document.documentElement.classList.contains('safari-ios')) return;
-    pybSetSafariTint('#16240f');
-  }
+  window.pybRefreshSafariTint = function (scene) {
+    if (!isSafariIOS()) return;
+    var key = scene || (document.body && document.body.getAttribute('data-bg-scene')) || 'login';
+    var color = SAFARI_SCENE_TINTS[key] || SAFARI_SCENE_TINTS.login;
+    pybSetSafariTint(color);
+  };
 
+  // Estado inicial: login. Esto ocurre además del meta estático del <head>,
+  // por lo que no introduce un frame blanco/beige antes del primer render.
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', pybRefreshSafariTint, { once: true });
+    document.addEventListener('DOMContentLoaded', function () {
+      window.pybRefreshSafariTint('login');
+    }, { once: true });
   } else {
-    pybRefreshSafariTint();
+    window.pybRefreshSafariTint('login');
   }
-  window.addEventListener('pageshow', pybRefreshSafariTint, { passive: true });
-  document.addEventListener('visibilitychange', pybRefreshSafariTint);
 })();
 </script>
 
