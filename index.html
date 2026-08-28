@@ -5913,10 +5913,16 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 */
 html.safari-ios,
 html.safari-ios body {
-  /* The browser's Liquid Glass must be able to see the actual page artwork.
-     Solid colors here create the exact flat bands the user reported. */
-  background-color: transparent !important;
-  background-image: none !important;
+  /* Safari's top/bottom browser glass samples the document background, not
+     reliably the fixed pseudo-element used by the app. The JS bridge below
+     mirrors the ACTIVE scene artwork onto html/body. These are only safe
+     fallbacks used before that first sync; they must never become a white
+     surface. */
+  background-color: #16240f !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: cover !important;
+  background-attachment: fixed !important;
 }
 
 /* Keep the real scene layer edge-to-edge. Safari 26 can expose the page
@@ -8545,8 +8551,6 @@ async function entrarConCuentaVerificada(emailFallback) {
   setBgScene('services');
   try {
     document.documentElement.classList.remove('pyb-login-start');
-    document.documentElement.style.backgroundColor = 'transparent';
-    document.body.style.backgroundColor = 'transparent';
   } catch (e) {}
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
@@ -17436,11 +17440,14 @@ window.switchLoginTab = switchLoginTab;
 window.togglePasswordVisibility = togglePasswordVisibility;
 window.handleLoginAction = handleLoginAction;
 </script>
-<!-- Safari iOS 26: no artificial color tint. The browser chrome must show
-     the real page artwork through its translucent Liquid Glass. -->
+<!-- Safari iOS 26: mirror the ACTIVE page artwork onto the document canvas.
+     Safari's translucent browser chrome can then render the same real scene
+     at the top/bottom safe areas instead of exposing body/html's fallback.
+     No artificial per-scene color is used. -->
 <script>
 (function () {
   'use strict';
+
   function isSafariIOS() {
     var ua = navigator.userAgent || '';
     var ios = /iPhone|iPad|iPod/i.test(ua) ||
@@ -17449,22 +17456,81 @@ window.handleLoginAction = handleLoginAction;
   }
   if (!isSafariIOS()) return;
 
-  // iOS 26 derives the browser chrome appearance from the page itself.
-  // Do not inject a theme-color or solid scene tint: doing so paints a flat
-  // band instead of allowing the underlying image/gradient to show through.
-  try {
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.remove();
-  } catch (e) {}
+  document.documentElement.classList.add('safari-ios');
 
-  // Force a repaint after scene changes without changing the scene's color.
-  window.pybRefreshSafariTint = function () {
+  function copyArtworkToDocument(sceneHint) {
     try {
-      document.documentElement.style.backgroundColor = 'transparent';
-      document.body.style.backgroundColor = 'transparent';
+      var body = document.body;
+      var html = document.documentElement;
+      if (!body) return;
+
+      var login = document.getElementById('login-screen');
+      var loginVisible = login && !login.classList.contains('hidden');
+      var image = '';
+
+      if (loginVisible && (!sceneHint || sceneHint === 'login')) {
+        // Login has its own full-screen multi-layer gradient. Copy that exact
+        // background to the document canvas so Safari's chrome sees the same
+        // artwork that is visible behind the login card.
+        image = getComputedStyle(login).backgroundImage;
+      } else {
+        // Every application section uses body::before for its real photo /
+        // gradient. Copy that exact computed background-image to body/html.
+        // This is NOT a color map: the actual data-URI image and gradients are
+        // mirrored, so Paseos shows its lake/sky, Alimentación its room, etc.
+        image = getComputedStyle(body, '::before').backgroundImage;
+      }
+
+      if (!image || image === 'none') return;
+
+      [html, body].forEach(function (el) {
+        el.style.setProperty('background-image', image, 'important');
+        el.style.setProperty('background-repeat', 'no-repeat', 'important');
+        el.style.setProperty('background-position', 'center center', 'important');
+        el.style.setProperty('background-size', 'cover', 'important');
+        el.style.setProperty('background-attachment', 'fixed', 'important');
+      });
+
+      // Keep the color only as an emergency fallback while an image/gradient
+      // is being composited. It is never the intended Safari scene tint.
+      html.style.setProperty('background-color', '#16240f', 'important');
+      body.style.setProperty('background-color', '#16240f', 'important');
     } catch (e) {}
-  };
-  window.pybRefreshSafariTint();
+  }
+
+  window.pybRefreshSafariTint = copyArtworkToDocument;
+
+  // Initial login paint.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', copyArtworkToDocument, { once: true });
+  } else {
+    copyArtworkToDocument();
+  }
+
+  // Scene changes are made by setBgScene(); it calls pybRefreshSafariTint.
+  // The observer covers the other transition (login hidden/visible) without
+  // changing application logic or depending on :has().
+  var login = document.getElementById('login-screen');
+  if (login && window.MutationObserver) {
+    new MutationObserver(function () {
+      requestAnimationFrame(copyArtworkToDocument);
+    }).observe(login, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  var body = document.body;
+  if (body && window.MutationObserver) {
+    new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++) {
+        if (records[i].type === 'attributes' && records[i].attributeName === 'data-bg-scene') {
+          requestAnimationFrame(copyArtworkToDocument);
+          break;
+        }
+      }
+    }).observe(body, { attributes: true, attributeFilter: ['data-bg-scene'] });
+  }
+
+  window.addEventListener('pageshow', copyArtworkToDocument);
+  window.addEventListener('resize', copyArtworkToDocument, { passive: true });
 })();
 </script>
 
