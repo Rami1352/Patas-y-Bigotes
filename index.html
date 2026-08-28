@@ -4792,26 +4792,49 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 #app:not(.visible) .mobile-nav { display: none !important; }
 
 /* --- Screen: deep-green ambient stage --- */
-/* FIX MOBILE (franjas blancas/grises arriba y abajo del login en iOS/
-   Android, ver Imagen 1 del usuario): `inset:0` sobre `position:fixed`
-   ya cubre el viewport completo en teoría, pero en Safari/Chrome mobile
-   el alto real del viewport cambia quites (barra de direcciones que
-   se colapsa/expande, teclado, etc.) y `inset:0` por sí solo no fuerza
-   un `height` explícito -- combinado con que este bloque no reservaba
-   nada para la notch/home-indicator, el motor de layout podía dejar un
-   corte de 1 frame contra el `background-color` blanco por defecto de
-   <body> antes de que el fondo del login terminara de pintar ese
-   extremo. Se agrega `min-height: 100dvh` (dvh = dynamic viewport
-   height, se ajusta en vivo al alto real visible) como refuerzo de
-   `inset:0`, y `env(safe-area-inset-top/bottom)` sumado al padding
-   para que el contenido no quede pegado contra la notch/home-indicator
-   (eso es el margen "gris" que se veía, no un fondo distinto: sin
-   safe-area el sistema podía recortar visualmente el borde del propio
-   `#login-screen` contra su UI de sistema). */
+/* FIX MOBILE v3 (franja beige persistente arriba/abajo del login SOLO
+   dentro del WebView in-app de WhatsApp -- Imagen 1 del usuario --
+   pese a que el fix anterior ya agregó min-height:100dvh + safe-area,
+   documentado arriba en el bloque de comentarios de la línea ~102 y
+   en éste mismo, y pese a que #app también tiene su propio
+   background-color de respaldo, línea ~4747):
+
+   Causa raíz real, distinta a las dos ya identificadas para este mismo
+   síntoma (nº1: .mobile-nav flotando, nº2: :has() no soportado en el
+   WebView -- ver bloque de arriba): esta regla combinaba, en el MISMO
+   elemento, dos formas de medir el alto que un WebView puede resolver
+   de manera DIFERENTE entre sí. `position:fixed; inset:0` ya fija los
+   4 bordes al viewport -- eso solo produce un height computado de
+   100% del área visible, sin ambigüedad ninguna, en cualquier motor.
+   Pero `min-height: 100dvh` es una unidad aparte que el motor CSS
+   resuelve con su PROPIA fórmula interna, independiente del cálculo
+   de `inset`. El WebView de WhatsApp es conocido (según ya establece
+   el bloque de comentarios de arriba) por calcular su "área visible"
+   de forma distinta a Safari real cuando la app anfitriona agrega su
+   propia UI encima (la barra "◄ WhatsApp"). Si en ese cálculo
+   particular el dvh del WebView resuelve a un valor MAYOR que el alto
+   que `inset:0` ya deja disponible, min-height (por ser un PISO, no un
+   valor fijo) fuerza al elemento a crecer hasta ese 100dvh más grande
+   -- pero al seguir siendo position:fixed, ese excedente no empuja
+   nada: se recorta contra el borde real de la pantalla, dejando un
+   margen sin pintar donde asoma el background-color beige de <body>
+   de atrás. Esto explica por qué agregar min-height:100dvh no solo no
+   sacó la franja sino que es coherente con que persista exactamente
+   igual: el problema nunca fue que faltara altura (que es lo que
+   min-height corrige), sino que dos unidades de medida coexistiendo
+   en la misma regla pueden divergir en este motor concreto.
+
+   Solución: eliminar la ambigüedad de raíz sacando min-height:100dvh
+   de acá. `inset:0` sobre `position:fixed` ya es, por definición,
+   exactamente el área visible completa en cualquier navegador --
+   nunca puede faltarle altura porque no la calcula por separado, la
+   HEREDA directo de los 4 bordes fijados. `env(safe-area-inset-*)` se
+   mantiene en el padding (eso sigue haciendo falta, es lo que evita
+   que el contenido quede pegado a la notch/home-indicator -- un
+   problema distinto al de esta franja). */
 #login-screen {
   position: fixed;
   inset: 0;
-  min-height: 100dvh;
   z-index: 9999;
   display: flex;
   flex-direction: column;
