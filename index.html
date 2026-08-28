@@ -5,29 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Patas y Bigotes — Portal de Clientes</title>
 
-<!-- FIX MOBILE (recuadro/barra blanca-beige arriba en Safari iOS, ver
-     capturas del usuario -- confirmado que aparece SIEMPRE, no un flash
-     ocasional, y coincide con conexión no-full-signal): theme-color
-     estaba declarado en la línea 75 original, DESPUÉS de dos
-     <script src="..."> externos sin async/defer (MercadoPago SDK y
-     html2canvas, ver más abajo) que son render-blocking por defecto --
-     el navegador detiene el parseo del <head> hasta descargar y
-     ejecutar cada uno antes de seguir leyendo las etiquetas que vienen
-     después, incluido el <meta name="theme-color">. En una conexión no
-     instantánea esa demora es perfectamente perceptible, y durante ese
-     lapso Safari ya pintó la barra de estado con su color por defecto
-     (el fondo de página visible en ese instante, beige/gris claro de
-     --surface-app) porque el theme-color real todavía no había llegado
-     a aplicarse. Se sube theme-color a la primera línea posible del
-     <head> -- inmediatamente después de charset/viewport/title, antes
-     de CUALQUIER script o link externo -- para que Safari lo tenga
-     disponible desde el primer instante de parseo, sin depender de que
-     ningún recurso de red termine de cargar primero. -->
-<meta name="theme-color" content="#16240f" />
+<!-- Safari iOS 26: no solid theme-color. The real scene artwork is allowed to
+     extend underneath Safari's translucent browser chrome. -->
 
 <!-- ═══════════════════════════════════════════════════════════════
   Patas y Bigotes — SDK de Mercado Pago (v24)
-  FIX: este bloque vivía al final del <body> (después de línea 14000),
+  FIX: este bloque vivía al final del <body>
+
+
   pero fwMountMercadoPagoCardForm() se llama mucho antes, apenas el
   usuario elige "Mercado Pago" en el paso 5 del wizard de pago (ver
   requestAnimationFrame(() => fwMountMercadoPagoCardForm()) más abajo
@@ -142,7 +127,7 @@ function fwGetMercadoPago() {
   // de `login-screen.classList.add('hidden')` más abajo en el JS del
   // body), así el verde vive solo mientras el login está en pantalla.
   try {
-    document.documentElement.style.backgroundColor = '#16240f';
+    document.documentElement.classList.add('pyb-login-start');
     // FIX MOBILE v4 (franja beige SOLO en Safari iOS real, no en Chrome
     // iOS, ni en el WebView de WhatsApp -- confirmado: en la captura del
     // usuario la franja es beige/--surface-app, no verde, y aparece con
@@ -162,7 +147,6 @@ function fwGetMercadoPago() {
     // el beige/crema de toda la app) -- no el de <html>, que sí estaba
     // pintado de verde por el fix anterior y por eso no alcanzaba a
     // taparla. Se pinta <body> con el mismo verde por el mismo motivo.
-    document.body.style.backgroundColor = '#16240f';
   } catch (e) {}
 })();
 </script>
@@ -448,6 +432,11 @@ html.theme-transition *::after {
    swipe para su propio gesto de historial. */
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-x: none; overscroll-behavior-y: none; background-color: var(--surface-app); min-height: 100vh; min-height: 100dvh; height: 100%; }
 body { -webkit-tap-highlight-color: transparent; }
+
+/* Safari iOS 26: let the real scene background reach the browser glass.
+   No solid edge strips are used; Safari must see the page artwork underneath. */
+
+
 body {
   font-family: 'Inter', sans-serif;
   color: var(--charcoal);
@@ -5924,16 +5913,34 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 */
 html.safari-ios,
 html.safari-ios body {
-  background-color: #16240f;
+  /* The browser's Liquid Glass must be able to see the actual page artwork.
+     Solid colors here create the exact flat bands the user reported. */
+  background-color: transparent !important;
+  background-image: none !important;
 }
 
-html.safari-ios body[data-bg-scene="services"] { background-color: #55753b; }
-html.safari-ios body[data-bg-scene="walks"] { background-color: #69b9dc; }
-html.safari-ios body[data-bg-scene="food"] { background-color: #b8875d; }
-html.safari-ios body[data-bg-scene="homecare"] { background-color: #c4a68a; }
-html.safari-ios body[data-bg-scene="pets"] { background-color: #89a36f; }
-html.safari-ios body[data-bg-scene="desparasitarios"] { background-color: #8d80bd; }
-html.safari-ios body[data-bg-scene="settings"] { background-color: #8da37b; }
+/* Keep the real scene layer edge-to-edge. Safari 26 can expose the page
+   beneath its translucent top/bottom chrome when viewport-fit=cover is used. */
+html.safari-ios body::before,
+html.safari-ios body::after {
+  position: fixed !important;
+  inset: 0 !important;
+}
+
+/* The default scene (login / no data-bg-scene) should also be artwork, not a
+   flat fallback color. The login element remains the visible UI layer. */
+html.safari-ios body:not([data-bg-scene])::before {
+  background-image:
+    radial-gradient(1100px 700px at 12% 8%, rgba(45,80,22,.62), transparent 60%),
+    radial-gradient(900px 640px at 88% 92%, rgba(201,123,26,.30), transparent 62%),
+    radial-gradient(760px 560px at 50% 46%, rgba(111,207,86,.16), transparent 65%),
+    linear-gradient(160deg, #16240f 0%, #0b1707 100%) !important;
+  background-size: cover !important;
+  background-position: center !important;
+}
+html.safari-ios body:not([data-bg-scene])::after {
+  background: transparent !important;
+}
 
 @media (max-width: 767.98px), (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
   /* In Safari iOS, fixed full-height overlays are subject to the iOS 26
@@ -8537,8 +8544,9 @@ async function entrarConCuentaVerificada(emailFallback) {
   // pueda encontrar el fondo crema de la app entre login y dashboard.
   setBgScene('services');
   try {
-    document.documentElement.style.backgroundColor = '';
-    document.body.style.backgroundColor = '';
+    document.documentElement.classList.remove('pyb-login-start');
+    document.documentElement.style.backgroundColor = 'transparent';
+    document.body.style.backgroundColor = 'transparent';
   } catch (e) {}
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
@@ -9508,9 +9516,8 @@ function setBgScene(scene) {
   if (scene) document.body.setAttribute('data-bg-scene', scene);
   else document.body.removeAttribute('data-bg-scene');
 
-  // Safari iOS: sincronizar también el chrome del navegador con la escena.
-  // No altera routing, datos ni render; solo el color de las áreas que Safari
-  // pinta fuera del canvas web. En Chrome/Firefox/etc. no hace nada.
+  // Safari iOS: mantener el canvas transparente para que el Liquid Glass del navegador
+  // pueda mostrar el artwork real de la escena debajo. No se aplica ningún color artificial.
   if (typeof window.pybRefreshSafariTint === 'function') {
     window.pybRefreshSafariTint(scene || 'login');
   }
@@ -17429,71 +17436,35 @@ window.switchLoginTab = switchLoginTab;
 window.togglePasswordVisibility = togglePasswordVisibility;
 window.handleLoginAction = handleLoginAction;
 </script>
-<!-- Safari iOS 26 edge-to-edge tint sync. -->
+<!-- Safari iOS 26: no artificial color tint. The browser chrome must show
+     the real page artwork through its translucent Liquid Glass. -->
 <script>
 (function () {
   'use strict';
-
-  /*
-     Safari no puede hacer que su toolbar inferior sea un backdrop-filter de
-     nuestra página: esa barra pertenece al navegador. Lo que sí podemos
-     controlar es su color base mediante theme-color.
-
-     El valor se actualiza cada vez que cambia data-bg-scene. Así: login =
-     verde profundo; Paseos = azul cielo; Alimentación = madera cálida; etc.
-     Esto evita que el verde del login "se arrastre" a toda la app.
-  */
-  var SAFARI_SCENE_TINTS = {
-    login: '#16240f',
-    services: '#55753b',
-    walks: '#69b9dc',
-    food: '#b8875d',
-    homecare: '#c4a68a',
-    pets: '#89a36f',
-    desparasitarios: '#8d80bd',
-    settings: '#8da37b'
-  };
-
   function isSafariIOS() {
     var ua = navigator.userAgent || '';
-    var iOS = /iPhone|iPad|iPod/i.test(ua) ||
+    var ios = /iPhone|iPad|iPod/i.test(ua) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var webkit = /WebKit/i.test(ua);
-    var excluded = /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//i.test(ua);
-    return iOS && webkit && !excluded;
+    return ios && /WebKit/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//i.test(ua);
   }
+  if (!isSafariIOS()) return;
 
-  function pybSetSafariTint(color) {
-    if (!isSafariIOS()) return;
+  // iOS 26 derives the browser chrome appearance from the page itself.
+  // Do not inject a theme-color or solid scene tint: doing so paints a flat
+  // band instead of allowing the underlying image/gradient to show through.
+  try {
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.remove();
+  } catch (e) {}
+
+  // Force a repaint after scene changes without changing the scene's color.
+  window.pybRefreshSafariTint = function () {
     try {
-      var meta = document.querySelector('meta[name="theme-color"]');
-      if (!meta) {
-        meta = document.createElement('meta');
-        meta.setAttribute('name', 'theme-color');
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute('content', color);
-      document.documentElement.style.backgroundColor = color;
-      if (document.body) document.body.style.backgroundColor = color;
+      document.documentElement.style.backgroundColor = 'transparent';
+      document.body.style.backgroundColor = 'transparent';
     } catch (e) {}
-  }
-
-  window.pybRefreshSafariTint = function (scene) {
-    if (!isSafariIOS()) return;
-    var key = scene || (document.body && document.body.getAttribute('data-bg-scene')) || 'login';
-    var color = SAFARI_SCENE_TINTS[key] || SAFARI_SCENE_TINTS.login;
-    pybSetSafariTint(color);
   };
-
-  // Estado inicial: login. Esto ocurre además del meta estático del <head>,
-  // por lo que no introduce un frame blanco/beige antes del primer render.
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      window.pybRefreshSafariTint('login');
-    }, { once: true });
-  } else {
-    window.pybRefreshSafariTint('login');
-  }
+  window.pybRefreshSafariTint();
 })();
 </script>
 
