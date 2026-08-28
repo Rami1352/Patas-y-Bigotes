@@ -166,6 +166,16 @@ function fwGetMercadoPago() {
   } catch (e) {}
 })();
 </script>
+<script>
+(function () {
+  try {
+    var ua = navigator.userAgent || '';
+    var isIOS = /iPhone|iPad|iPod/i.test(ua);
+    var isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua);
+    if (isIOS && isSafari) document.documentElement.classList.add('safari-ios');
+  } catch (e) {}
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 <link rel="manifest" href="manifest.json" />
@@ -5894,6 +5904,50 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
   .notif-center-group-label { padding: 10px 16px 6px; }
   .notif-center-bulk-row { padding: 0 16px; }
 }
+/* --- iPhone Safari 26 edge-to-edge hardening --- */
+html.safari-ios,
+html.safari-ios body {
+  background-color: #16240f;
+}
+
+@media (max-width: 767.98px), (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+  /* In Safari iOS, fixed full-height overlays are subject to the iOS 26
+     viewport/chrome regression. Let the login be part of the document flow;
+     its existing safe-area padding still protects the content. */
+  html.safari-ios #login-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
+  html.safari-ios #app {
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+  }
+
+  html.safari-ios .main {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  /* The default mobile bottom bar is translucent white in the light theme.
+     Keep Safari's edge tint aligned with the app's green background. */
+  html.safari-ios .mobile-nav {
+    background: linear-gradient(rgba(45,80,22,.14), rgba(45,80,22,.14)), rgba(22,36,15,.84);
+    border-top-color: rgba(255,255,255,.18);
+  }
+  html.safari-ios [data-theme="dark"] .mobile-nav {
+    background: linear-gradient(rgba(111,207,86,.06), rgba(111,207,86,.06)), rgba(14,26,8,.88);
+  }
+}
+
 </style>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -17313,5 +17367,39 @@ window.switchLoginTab = switchLoginTab;
 window.togglePasswordVisibility = togglePasswordVisibility;
 window.handleLoginAction = handleLoginAction;
 </script>
+<!-- Safari iOS 26 edge-to-edge tint sync. This does not change app state or routing. -->
+<script>
+(function () {
+  'use strict';
+
+  function pybSetSafariTint(color) {
+    try {
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'theme-color');
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', color);
+      document.documentElement.style.backgroundColor = color;
+      if (document.body) document.body.style.backgroundColor = color;
+    } catch (e) {}
+  }
+
+  function pybRefreshSafariTint() {
+    if (!document.documentElement.classList.contains('safari-ios')) return;
+    pybSetSafariTint('#16240f');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', pybRefreshSafariTint, { once: true });
+  } else {
+    pybRefreshSafariTint();
+  }
+  window.addEventListener('pageshow', pybRefreshSafariTint, { passive: true });
+  document.addEventListener('visibilitychange', pybRefreshSafariTint);
+})();
+</script>
+
 </body>
 </html>
