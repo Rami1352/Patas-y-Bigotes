@@ -143,6 +143,26 @@ function fwGetMercadoPago() {
   // body), así el verde vive solo mientras el login está en pantalla.
   try {
     document.documentElement.style.backgroundColor = '#16240f';
+    // FIX MOBILE v4 (franja beige SOLO en Safari iOS real, no en Chrome
+    // iOS, ni en el WebView de WhatsApp -- confirmado: en la captura del
+    // usuario la franja es beige/--surface-app, no verde, y aparece con
+    // la barra de Safari visible abajo, no la de WhatsApp; los tres fixes
+    // anteriores de este bloque atacaban el WebView de WhatsApp, un
+    // motor distinto, y por eso ninguno tocaba este síntoma):
+    // este mismo bloque ya pintaba <html> de verde para tapar cualquier
+    // hueco que el sistema deje por safe-area/overscroll mientras el
+    // login está en pantalla (ver comentario grande arriba), pero nunca
+    // pintaba <body> -- y <html>/<body> tienen su PROPIO background-color
+    // cada uno, no heredan uno del otro. En el rubber-band/overscroll de
+    // Safari en iOS (WebKit expone ese rebote elástico al hacer scroll
+    // pasado el borde del documento; Chrome en iOS usa el mismo WebKit
+    // pero gestiona ese rebote en su propia capa, por eso el mismo HTML
+    // no lo muestra ahí) lo que se asoma detrás del contenido es el
+    // background-color de <body> (línea ~421, ~445: var(--surface-app),
+    // el beige/crema de toda la app) -- no el de <html>, que sí estaba
+    // pintado de verde por el fix anterior y por eso no alcanzaba a
+    // taparla. Se pinta <body> con el mismo verde por el mismo motivo.
+    document.body.style.backgroundColor = '#16240f';
   } catch (e) {}
 })();
 </script>
@@ -8394,6 +8414,27 @@ async function entrarConCuentaVerificada(emailFallback) {
   // display:none. Se corrige agrupando SOLO esas dos líneas, y dejando
   // el resto de la función correr en el mismo tick de siempre, como
   // antes de este fix.
+  // FIX: el comentario original que documentaba el fix del verde de
+  // <html>/<body> (buscar "FIX MOBILE v4" y el bloque de arriba, cerca
+  // de la línea 102) decía que la reversión de ese color inline vivía
+  // "acá, justo antes de login-screen.classList.add('hidden')" -- pero
+  // nunca estuvo escrita, en ningún punto del archivo: ni html ni body
+  // volvían a su background-color normal después del login. Sin esto,
+  // document.documentElement.style.backgroundColor/document.body.style.
+  // backgroundColor quedaban en '#16240f' para siempre (el style inline
+  // gana contra cualquier regla CSS, incluidas las de data-bg-scene de
+  // cada sección) -- no se notaba a simple vista porque body::before/
+  // ::after (el fondo SVG) se pinta encima tapándolo, pero cualquier
+  // resquicio sin cubrir (safe-areas, overscroll en el resto de la app)
+  // iba a mostrar el verde del login en vez del beige/escena que
+  // corresponda. Se limpia acá, en el mismo momento en que login-screen
+  // pasa a estar oculto -- de vuelta a que el CSS estático (var(--surface-app)
+  // en html/body) sea quien decida el color, como en cualquier otra
+  // pantalla de la app.
+  try {
+    document.documentElement.style.backgroundColor = '';
+    document.body.style.backgroundColor = '';
+  } catch (e) {}
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
 
