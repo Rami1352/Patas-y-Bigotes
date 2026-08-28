@@ -416,7 +416,7 @@ html.theme-transition *::after {
    descuadrada mostrando fragmentos de dos pantallas superpuestas. Con
    overscroll-behavior-x:none el navegador deja de interceptar ese
    swipe para su propio gesto de historial. */
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-x: none; overscroll-behavior-y: none; background-color: var(--surface-app); min-height: 100vh; min-height: 100dvh; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; overflow-x: hidden; overscroll-behavior-x: none; overscroll-behavior-y: none; background-color: var(--surface-app); min-height: 100vh; min-height: 100dvh; height: 100%; }
 body { -webkit-tap-highlight-color: transparent; }
 body {
   font-family: 'Inter', sans-serif;
@@ -481,8 +481,30 @@ body::after {
      Se agrega el caso "landscape con poca altura" para que un celular
      acostado (que supera los 767px de ancho) no vuelva a caer en el
      comportamiento fixed de escritorio: se detecta por la altura, que
-     en un teléfono real sigue siendo baja en cualquier orientación. */
-  body::before, body::after { position: absolute; }
+     en un teléfono real sigue siendo baja en cualquier orientación.
+
+     FIX franjas en navegadores embebidos (WhatsApp, Instagram, etc.):
+     estos in-app browsers exponen una barra de UI propia que cambia
+     de alto, y su 100vh/100dvh inicial no siempre coincide con el
+     alto real ya renderizado del <body> en el momento en que este
+     pseudo-elemento se pinta. Con position:absolute + inset:0, el
+     fondo hereda el alto de scroll de <body> tal cual esté en ESE
+     instante — si quedó corto, aparecen franjas del color base
+     (--surface-app) arriba/abajo, que es justamente lo que se veía.
+     Se ancla en cambio a top/left en 0 con width/height 100% del
+     documento (que sí crece con el contenido real) y un height
+     mínimo de 100dvh como piso, para que nunca quede más bajo que
+     la ventana visible aunque el navegador embebido reporte un vh
+     inconsistente. */
+  body::before, body::after {
+    position: absolute;
+    inset: auto;
+    top: 0; left: 0; right: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
 }
 
 /* ══════════════════════════════════
