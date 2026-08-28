@@ -1045,17 +1045,31 @@ body[data-bg-scene="settings"]::after {
 }
 @media (max-width: 900px) { #sync-badge { display: none !important; } }
 
-.btn-sync {
-  background: var(--glass-bg-solid); color: var(--stone);
-  border: 1.5px solid var(--glass-border);
-  -webkit-backdrop-filter: var(--glass-blur-strong);
-  backdrop-filter: var(--glass-blur-strong);
-  box-shadow: var(--glass-shadow);
+.btn-sync,
+.back-btn {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  background: rgba(255,255,255,.26) !important;
+  color: var(--stone);
+  border: 1.5px solid rgba(255,255,255,.58) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(175%);
+  backdrop-filter: blur(22px) saturate(175%);
+  box-shadow:
+    0 8px 24px rgba(20,40,10,.12),
+    inset 0 1px 0 rgba(255,255,255,.72),
+    inset 0 -1px 0 rgba(255,255,255,.16);
 }
-.btn-sync:hover {
-  background: var(--glass-bg-solid); border-color: var(--glass-border);
-  color: var(--charcoal); box-shadow: var(--glass-shadow-hover);
+.btn-sync:hover,
+.back-btn:hover {
+  background: rgba(255,255,255,.34) !important;
+  border-color: rgba(255,255,255,.72) !important;
+  color: var(--charcoal);
+  box-shadow:
+    0 12px 30px rgba(20,40,10,.16),
+    inset 0 1px 0 rgba(255,255,255,.78);
 }
+
 .btn-sync svg { transition: transform .3s ease; }
 .btn-sync:hover svg { transform: rotate(50deg); }
 .page-title {
@@ -2262,8 +2276,30 @@ body[data-bg-scene="settings"]::after {
   transition: box-shadow .25s cubic-bezier(.22,1,.36,1), transform .25s cubic-bezier(.22,1,.36,1);
   animation: cardFadeIn .4s cubic-bezier(.22,1,.36,1) both;
 }
-.dog-card:hover { box-shadow: var(--shadow-md); transform: translateY(-4px); }
+.dog-card:hover { box-shadow: var(--glass-shadow-hover) !important; transform: translateY(-3px); }
 .dog-card-header { padding: 18px 20px; display: flex; align-items: center; gap: 14px; }
+
+/* Liquid Glass para Mis Perros: el color del barrio queda como un tinte
+   translúcido, mientras el fondo de la sección se percibe por debajo. */
+.dog-card {
+  background: rgba(255,255,255,.22) !important;
+  border: 1.5px solid rgba(255,255,255,.56) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
+  box-shadow:
+    0 14px 38px -12px rgba(20,40,10,.16),
+    inset 0 1px 0 rgba(255,255,255,.62),
+    inset 0 -1px 0 rgba(255,255,255,.14) !important;
+}
+.dog-card-header {
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  border-bottom: 1px solid rgba(255,255,255,.34);
+}
+.dog-card-body {
+  background: rgba(255,255,255,.16);
+}
+
 
 /* Foto de mascota — circular / redondeada */
 .dog-photo-wrap {
@@ -2404,12 +2440,10 @@ body[data-bg-scene="settings"]::after {
 /* Back button */
 .back-btn {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 8px 14px; border-radius: 10px;
-  background: var(--white); border: 1.5px solid var(--border);
-  font-size: 13px; font-weight: 600; color: var(--stone);
+  padding: 8px 14px; border-radius: 14px;
+  font-size: 13px; font-weight: 600;
   cursor: pointer; transition: all .15s; margin-bottom: 20px;
 }
-.back-btn:hover { background: var(--cream); border-color: var(--fog); }
 
 /* Botón contactar administrador — compacto horizontal */
 .btn-contact-admin {
@@ -4078,6 +4112,9 @@ html[data-font-size="large"] .toast-container {
   box-shadow: 0 4px 20px rgba(0,0,0,.07);
 }
 .mobile-nav-item {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 6px 8px; border: none; background: none; cursor: pointer;
   color: var(--mist); font-size: 10px; font-weight: 600;
@@ -5517,6 +5554,7 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
    tiempo de Alimentación y las tarjetas de Mis Mascotas. */
 .card,
 .stat-card,
+.dog-card,
 .hc-stat-card,
 .hc-row,
 .food-timeline-card,
@@ -5537,6 +5575,7 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 }
 .card:hover,
 .stat-card:hover,
+.dog-card:hover,
 .pet-profile-card:hover,
 .timeline-row:hover,
 .food-empty:hover,
@@ -5549,6 +5588,7 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
    de arriba, como si la luz rebotara en el cristal. */
 .card::before,
 .stat-card::before,
+.dog-card::before,
 .hc-stat-card::before,
 .pet-profile-card::before,
 .timeline-row::before,
@@ -5577,7 +5617,7 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
   background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0) 40%);
 }
 /* Los hijos directos quedan por encima del reflejo */
-.card > *, .stat-card > *, .hc-stat-card > *, .pet-profile-card > *, .timeline-row > *, .food-empty > *, .home-care-empty > *, .mascota-stat-card > *, .no-service-screen > *, .week-tabs > * { position: relative; z-index: 1; }
+.card > *, .stat-card > *, .dog-card > *, .hc-stat-card > *, .pet-profile-card > *, .timeline-row > *, .food-empty > *, .home-care-empty > *, .mascota-stat-card > *, .no-service-screen > *, .week-tabs > * { position: relative; z-index: 1; }
 
 /* .data-table vive dentro de .card y hereda el vidrio del padre,
    pero cada fila individual (Simba, Olivia, Frida...) necesita su
@@ -5913,12 +5953,9 @@ i.fa-solid, i.fa-regular, i.fa-brands { line-height: 1; vertical-align: -.06em; 
 */
 html.safari-ios,
 html.safari-ios body {
-  /* Safari's top/bottom browser glass samples the document background, not
-     reliably the fixed pseudo-element used by the app. The JS bridge below
-     mirrors the ACTIVE scene artwork onto html/body. These are only safe
-     fallbacks used before that first sync; they must never become a white
-     surface. */
-  background-color: #16240f !important;
+  /* The browser-owned top/bottom strips are intentionally black.
+     The application itself remains fully photographic/scene-driven. */
+  background-color: #000 !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   background-size: cover !important;
@@ -5975,6 +6012,16 @@ html.safari-ios body:not([data-bg-scene])::after {
     min-height: 100dvh;
   }
 
+  /* Safari iOS: no 6-second transform interpolation during taps. The
+     photographic scene stays visible, but switching sections is immediate
+     and avoids a costly fixed-layer recomposition. */
+  html.safari-ios body[data-bg-scene]::before {
+    transition: opacity .18s ease !important;
+    animation: none !important;
+    transform: scale(1.02) !important;
+  }
+  html.safari-ios .view.active { animation: none !important; }
+
   /*
      NO se fija acá un background opaco para .mobile-nav.
      La regla general de mobile (líneas ~4162) ya tiene el Liquid Glass
@@ -5987,6 +6034,15 @@ html.safari-ios body:not([data-bg-scene])::after {
      navegadores. Solo reforzamos borde/sombra para que el vidrio siga siendo
      legible sobre fotografías claras.
   */
+  html.safari-ios .dog-card {
+    -webkit-backdrop-filter: blur(12px) saturate(155%);
+    backdrop-filter: blur(12px) saturate(155%);
+  }
+  html.safari-ios .dog-card-header {
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    backdrop-filter: blur(10px) saturate(150%);
+  }
+
   html.safari-ios .mobile-nav {
     background: rgba(255,255,255,.18);
     -webkit-backdrop-filter: blur(24px) saturate(185%);
@@ -8234,12 +8290,12 @@ function neighborhoodBadge(nbhd) {
 }
 function neighborhoodHeaderStyle(nbhd) {
   const n = (nbhd || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  if (n.includes('canton') && n.includes('isla'))  return 'background:linear-gradient(135deg,#006064,#00838F);color:#fff;';
-  if (n.includes('canton') && n.includes('golf'))  return 'background:linear-gradient(135deg,#1B5E20,#2E7D32);color:#fff;';
-  if (n.includes('san') && n.includes('matia'))    return 'background:linear-gradient(135deg,#BF360C,#E64A19);color:#fff;';
-  if (n.includes('araucar'))                        return 'background:linear-gradient(135deg,#4A148C,#6A1B9A);color:#fff;';
-  if (n.includes('santa') && n.includes('isabel')) return 'background:linear-gradient(135deg,#F57F17,#F9A825);color:#fff;';
-  return 'background:linear-gradient(135deg,var(--sage) 0%,var(--sage-mid) 100%);color:#fff;';
+  if (n.includes('canton') && n.includes('isla'))  return 'background:linear-gradient(135deg,rgba(0,96,100,.58),rgba(0,131,143,.30));color:#fff;';
+  if (n.includes('canton') && n.includes('golf'))  return 'background:linear-gradient(135deg,rgba(27,94,32,.58),rgba(46,125,50,.30));color:#fff;';
+  if (n.includes('san') && n.includes('matia'))    return 'background:linear-gradient(135deg,rgba(191,54,12,.58),rgba(230,74,25,.30));color:#fff;';
+  if (n.includes('araucar'))                        return 'background:linear-gradient(135deg,rgba(74,20,140,.58),rgba(106,27,154,.30));color:#fff;';
+  if (n.includes('santa') && n.includes('isabel')) return 'background:linear-gradient(135deg,rgba(245,127,23,.58),rgba(249,168,37,.30));color:#fff;';
+  return 'background:linear-gradient(135deg,color-mix(in srgb, var(--sage) 58%, transparent),color-mix(in srgb, var(--sage-mid) 30%, transparent));color:#fff;';
 }
 
 /* ─ LOCAL STORAGE ─ */
@@ -8554,6 +8610,7 @@ async function entrarConCuentaVerificada(emailFallback) {
   } catch (e) {}
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
+  warmPybBackgrounds();
 
   document.getElementById('readonly-banner').style.display = 'none';
 
@@ -9171,7 +9228,12 @@ async function manualSync() {
   let ok = false;
   try {
     await loadFromGoogleSheets(false);
-    if (currentUser) { buildSidebar(); renderView(currentView); }
+    if (currentUser) {
+      buildSidebar();
+      const currentViewEl = document.getElementById('view-' + currentView);
+      if (currentViewEl) delete currentViewEl.dataset.pybRendered;
+      renderView(currentView);
+    }
     ok = true;
   } catch(e) { addLiveLog('[WARN] Sync falló: ' + e.message, 'err'); }
   if (loadBanner) loadBanner.style.display = 'none';
@@ -9516,6 +9578,21 @@ const BG_SCENE_BY_SERVICE = {
   DESPARASITARIOS:   'desparasitarios'   // escena propia — interior luminoso
 };
 
+let __pybBackgroundsWarmed = false;
+function warmPybBackgrounds() {
+  if (__pybBackgroundsWarmed) return;
+  __pybBackgroundsWarmed = true;
+  const urls = ['backgrounds/paseos.webp','backgrounds/alimentacion.webp','backgrounds/cuidados-domicilio.webp','backgrounds/mis-mascotas.webp','backgrounds/desparasitarios.webp','backgrounds/configuracion.webp'];
+  const start = () => urls.forEach((src) => {
+    const img = new Image();
+    try { img.fetchPriority = 'low'; } catch (e) {}
+    img.decoding = 'async';
+    img.src = src;
+  });
+  if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 1800 });
+  else setTimeout(start, 900);
+}
+
 function setBgScene(scene) {
   if (scene) document.body.setAttribute('data-bg-scene', scene);
   else document.body.removeAttribute('data-bg-scene');
@@ -9553,7 +9630,16 @@ function showView(view) {
     settings: 'Configuración'
   };
   document.getElementById('page-title').textContent = titles[view] || view;
-  renderView(view);
+
+  // Navegación instantánea: las vistas raíz son datos-driven y no necesitan
+  // reconstruir todo su DOM cada vez que el usuario vuelve a ellas. Esto es
+  // especialmente importante en Safari iOS, donde recrear varias tarjetas
+  // con backdrop-filter durante una ráfaga de taps puede bloquear el hilo
+  // de render durante varios segundos. Se vuelven a renderizar cuando un
+  // sync/acción de datos las marca explícitamente como necesarias.
+  const viewElForCache = document.getElementById('view-' + view);
+  const shouldRender = view === 'service-module' || !viewElForCache || viewElForCache.dataset.pybRendered !== '1';
+  if (shouldRender) renderView(view);
   closeSidebar();
   applyLanguageIfNeeded();
   if (view === 'mis-mascotas') {
@@ -9623,7 +9709,11 @@ function renderView(v) {
     'service-module': renderServiceModule,
     settings: renderSettingsAccount
   };
-  if (fn[v]) fn[v]();
+  if (fn[v]) {
+    fn[v]();
+    const renderedEl = document.getElementById('view-' + v);
+    if (renderedEl) renderedEl.dataset.pybRendered = '1';
+  }
 }
 
 function handlePrimaryAction() {
@@ -17491,10 +17581,12 @@ window.handleLoginAction = handleLoginAction;
         el.style.setProperty('background-attachment', 'fixed', 'important');
       });
 
-      // Keep the color only as an emergency fallback while an image/gradient
-      // is being composited. It is never the intended Safari scene tint.
-      html.style.setProperty('background-color', '#16240f', 'important');
-      body.style.setProperty('background-color', '#16240f', 'important');
+      // IMPORTANT: do not paint Safari's edge areas with a solid color.
+      // The mirrored scene artwork above is the only background. A solid
+      // fallback here is exactly what produced the dark-green bands in the
+      // previous version.
+      html.style.setProperty('background-color', 'transparent', 'important');
+      body.style.setProperty('background-color', 'transparent', 'important');
     } catch (e) {}
   }
 
