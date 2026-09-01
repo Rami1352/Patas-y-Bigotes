@@ -6837,6 +6837,24 @@ document.addEventListener('DOMContentLoaded', function () {
 </main>
 </div><!-- /app -->
 
+<script>
+/* Mobile navigation: pre-activa la pestaña en pointerdown.
+   No reemplaza showView(); solo adelanta el feedback visual al primer
+   evento de puntero soportado por Chrome/Safari y deja el render intacto. */
+(function () {
+  var nav = document.getElementById('mobile-nav');
+  if (!nav) return;
+  nav.addEventListener('pointerdown', function (e) {
+    var btn = e.target.closest('.mobile-nav-item');
+    if (!btn) return;
+    nav.querySelectorAll('.mobile-nav-item.active').forEach(function (item) {
+      item.classList.remove('active');
+    });
+    btn.classList.add('active');
+  }, { passive: true });
+})();
+</script>
+
 <!-- ── MODAL FICHA COMPLETA MASCOTA ── -->
 <div class="modal-overlay" id="modal-ficha-mascota">
   <div class="modal" style="max-width:620px">
@@ -9623,29 +9641,27 @@ function syncNavigationActive(view) {
   if (mobile) mobile.classList.add('active');
 }
 
+let __navigationToken = 0;
+
 function showView(view) {
-  // El cambio de sección es inmediato. Una vista ya renderizada no vuelve
-  // a reconstruirse al navegar hacia ella.
+  // El camino crítico de navegación es deliberadamente mínimo: el botón
+  // activo, la vista y el título se actualizan ANTES de cualquier cambio
+  // gráfico pesado. Esto permite que Chrome/Safari puedan pintar el tap
+  // inmediatamente, mientras el fondo y el render se difieren a frames
+  // posteriores. Las animaciones de las tarjetas se mantienen intactas.
   if (currentView === view) return;
-
-  setBgScene(BG_SCENE_BY_VIEW[view]);
-
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.blur());
-  syncNavigationActive(view);
 
   const viewEl = document.getElementById('view-' + view);
   if (!viewEl) return;
 
-  viewEl.classList.add('active');
-
-  const navEl = document.getElementById('nav-' + view);
-  if (navEl) navEl.classList.add('active');
-
-  const mnavEl = document.getElementById('mnav-' + view);
-  if (mnavEl) mnavEl.classList.add('active');
-
+  const token = ++__navigationToken;
   currentView = view;
+
+  // 1) Cambio visual inmediato de navegación.
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.blur());
+  syncNavigationActive(view);
+  viewEl.classList.add('active');
 
   const _isAdmin = isAdmin();
   const titles = {
@@ -9661,33 +9677,67 @@ function showView(view) {
     'service-module': currentServiceLabel || 'Servicio',
     settings: 'Configuración'
   };
-
   document.getElementById('page-title').textContent = titles[view] || view;
   closeSidebar();
 
-  // Primera visita: render después del paint. Si el usuario toca otra vista
-  // antes, este render queda invalidado por currentView.
-  if (!__renderedViews.has(view)) {
-    const requestedView = view;
-    if (window.__pendingFirstViewTimer) clearTimeout(window.__pendingFirstViewTimer);
-
-    window.__pendingFirstViewTimer = setTimeout(function () {
-      window.__pendingFirstViewTimer = null;
-      if (currentView !== requestedView) return;
-
-      renderViewOnce(requestedView);
-
-      if (requestedView === 'mis-mascotas') {
-        buildMascotaCarouselDots(getMyDogsForMascotas().length);
-        updateMascotaCarouselNav();
-      }
-    }, 0);
-  } else if (view === 'mis-mascotas') {
-    requestAnimationFrame(function () {
-      buildMascotaCarouselDots(getMyDogsForMascotas().length);
-      updateMascotaCarouselNav();
-    });
+  if (window.__pendingFirstViewTimer) {
+    clearTimeout(window.__pendingFirstViewTimer);
+    window.__pendingFirstViewTimer = null;
   }
+  if (window.__pendingNavigationRAF1) {
+    cancelAnimationFrame(window.__pendingNavigationRAF1);
+    window.__pendingNavigationRAF1 = null;
+  }
+  if (window.__pendingNavigationRAF2) {
+    cancelAnimationFrame(window.__pendingNavigationRAF2);
+    window.__pendingNavigationRAF2 = null;
+  }
+  if (window.__pendingNavigationRAF3) {
+    cancelAnimationFrame(window.__pendingNavigationRAF3);
+    window.__pendingNavigationRAF3 = null;
+  }
+
+  // 2) Primer frame: DELIBERADAMENTE no hacemos trabajo pesado acá.
+  // Este frame debe quedar libre para que el navegador pinte la pestaña activa
+  // antes de tocar el fondo, imágenes o DOM dinámico.
+  window.__pendingNavigationRAF1 = requestAnimationFrame(function () {
+    window.__pendingNavigationRAF1 = null;
+    if (token !== __navigationToken || currentView !== view) return;
+
+    // 3) Segundo frame: ya ocurrió el paint anterior. Ahora sí cambiamos la
+    // escena de fondo. El cambio de escena queda completamente fuera del
+    // camino crítico del primer feedback visual de navegación.
+    window.__pendingNavigationRAF2 = requestAnimationFrame(function () {
+      window.__pendingNavigationRAF2 = null;
+      if (token !== __navigationToken || currentView !== view) return;
+
+      setBgScene(BG_SCENE_BY_VIEW[view]);
+
+      // 4) Tercer frame: render dinámico. Se conservan todas las animaciones
+      // existentes de las tarjetas; solamente se desplazan después del primer
+      // paint de navegación. Si el usuario tocó otra pestaña, el token cancela
+      // este trabajo antes de ejecutarlo.
+      if (!__renderedViews.has(view)) {
+        window.__pendingNavigationRAF3 = requestAnimationFrame(function () {
+          window.__pendingNavigationRAF3 = null;
+          if (token !== __navigationToken || currentView !== view) return;
+
+          renderViewOnce(view);
+          if (view === 'mis-mascotas') {
+            buildMascotaCarouselDots(getMyDogsForMascotas().length);
+            updateMascotaCarouselNav();
+          }
+        });
+      } else if (view === 'mis-mascotas') {
+        window.__pendingNavigationRAF3 = requestAnimationFrame(function () {
+          window.__pendingNavigationRAF3 = null;
+          if (token !== __navigationToken || currentView !== view) return;
+          buildMascotaCarouselDots(getMyDogsForMascotas().length);
+          updateMascotaCarouselNav();
+        });
+      }
+    });
+  });
 }
 
 let currentServiceKey = null;
