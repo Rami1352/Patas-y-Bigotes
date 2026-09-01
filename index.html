@@ -869,7 +869,7 @@ body[data-bg-scene="settings"]::after {
 .nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border-radius: var(--r-sm);
-  cursor: pointer; transition: background .2s, color .2s, transform .15s, box-shadow .2s;
+  cursor: pointer; transition: none;
   color: rgba(255,255,255,.68); font-size: 13.5px; font-weight: 500;
   border: none; background: none; width: 100%; text-align: left;
   white-space: nowrap;
@@ -4094,7 +4094,7 @@ html[data-font-size="large"] .toast-container {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 6px 8px; border: none; background: none; cursor: pointer;
   color: var(--mist); font-size: 10px; font-weight: 600;
-  border-radius: var(--r-sm); transition: color .15s; min-width: 52px;
+  border-radius: var(--r-sm); transition: none; min-width: 52px;
 }
 .mobile-nav-item.active { color: var(--sage); }
 
@@ -8608,7 +8608,19 @@ async function entrarConCuentaVerificada(emailFallback) {
   document.getElementById('sidebar-role').textContent = currentUser.label;
 
   buildSidebar();
+
+  // Al terminar el login, currentView puede seguir teniendo el valor inicial
+  // "dashboard" aunque el DOM de la vista todavía esté vacío. En ese caso
+  // showView('dashboard') se salteaba por la guarda currentView===view y
+  // Mis Servicios recién aparecía al tocar otra sección.
+  // Forzamos una transición de estado explícita y hacemos el primer render
+  // en el siguiente frame, cuando #app ya está visible.
+  currentView = null;
   showView('dashboard');
+  requestAnimationFrame(function () {
+    if (currentView === 'dashboard') renderViewOnce('dashboard');
+  });
+
   runNotifCheck();
   preloadNavigationScenes();
 }
@@ -9591,7 +9603,24 @@ function renderViewOnce(view) {
   renderView(view);
   applyLanguageIfNeeded();
   __renderedViews.add(view);
+  if (window.__pendingFirstViewTimer) {
+    clearTimeout(window.__pendingFirstViewTimer);
+    window.__pendingFirstViewTimer = null;
+  }
   return true;
+}
+
+function syncNavigationActive(view) {
+  const navItems = document.querySelectorAll('.nav-item, .mobile-nav-item');
+  navItems.forEach(function (n) {
+    n.classList.remove('active');
+  });
+
+  const desktop = document.getElementById('nav-' + view);
+  if (desktop) desktop.classList.add('active');
+
+  const mobile = document.getElementById('mnav-' + view);
+  if (mobile) mobile.classList.add('active');
 }
 
 function showView(view) {
@@ -9602,11 +9631,8 @@ function showView(view) {
   setBgScene(BG_SCENE_BY_VIEW[view]);
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => {
-    n.classList.remove('active');
-    n.blur();
-  });
-  document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.blur());
+  syncNavigationActive(view);
 
   const viewEl = document.getElementById('view-' + view);
   if (!viewEl) return;
@@ -9677,7 +9703,8 @@ function openServiceModule(key) {
   currentServiceLabel = svc ? svc.label : key;
   document.getElementById('page-title').textContent = currentServiceLabel;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.blur(); });
+  document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(n => n.blur());
+  syncNavigationActive('service-module');
   const mod = document.getElementById('view-service-module');
   if (mod) mod.classList.add('active');
   const navEl = document.getElementById('nav-svc-' + key);
