@@ -8633,26 +8633,6 @@ async function entrarConCuentaVerificada(emailFallback) {
 
   buildSidebar();
 
-  // FIX: hasta acá, entrarConCuentaVerificada armaba currentUser y mostraba
-  // el dashboard, pero NUNCA volvía a pedir los datos de las hojas
-  // (Mascota Paseo/Alimentacion/Desparasitarios/CuidadoDomicilio). Los
-  // únicos datos en pantalla eran los que había traído init() al abrir la
-  // página, ANTES del login, cuando currentUser todavía era null -- por
-  // eso ese .then() (ver el IIFE de init() al final del archivo) no hacía
-  // nada útil con ellos. Resultado: el usuario entraba y no veía sus
-  // datos (o veía los de la sesión anterior) hasta tocar "Sincronizar" a
-  // mano, que sí llama a loadFromGoogleSheets con currentUser ya
-  // definido. manualSync() ya maneja el banner de carga, el estado del
-  // botón y el log de error si falla, así que se reutiliza tal cual en
-  // vez de llamar a loadFromGoogleSheets() suelto acá. No se espera con
-  // await a propósito: no debe bloquear el primer pintado del dashboard
-  // (showView('dashboard') un poco más abajo), que puede mostrarse con
-  // los datos que ya haya en `state` mientras la sincronización real
-  // corre en paralelo y re-renderiza sola al terminar (ver el bloque
-  // "if (currentUser) { buildSidebar(); ...renderView...}" dentro de
-  // manualSync/loadFromGoogleSheets).
-  manualSync();
-
   // Al terminar el login, currentView puede seguir teniendo el valor inicial
   // "dashboard" aunque el DOM de la vista todavía esté vacío. En ese caso
   // showView('dashboard') se salteaba por la guarda currentView===view y
