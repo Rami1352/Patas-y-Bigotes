@@ -8569,6 +8569,17 @@ async function entrarConCuentaVerificada(emailFallback) {
   // la escena real de entrada. Así nunca existe un frame en el que Safari
   // pueda encontrar el fondo crema de la app entre login y dashboard.
   setBgScene('services');
+  // FIX: acá SÍ hace falta forzar el pintado con el sceneHint explícito, aparte del
+  // que ya dispara el observer de data-bg-scene. En este instante login-screen todavía
+  // NO tiene la clase 'hidden' (se agrega recién dos líneas más abajo), así que
+  // copyArtworkToDocument() sin sceneHint (como lo llama el observer) vería loginVisible
+  // === true y copiaría el gradiente del login en vez de la escena 'services' que
+  // buscamos dejar preparada. Ver el fix en setBgScene() para el resto de los casos
+  // (cambios de vista ya con login oculto), donde este llamado directo era redundante
+  // y competía por el hilo principal con el pintado del nav.
+  if (typeof window.pybRefreshSafariTint === 'function') {
+    window.pybRefreshSafariTint('services');
+  }
   try {
     document.documentElement.classList.remove('pyb-login-start');
   } catch (e) {}
@@ -9542,9 +9553,19 @@ function setBgScene(scene) {
 
   // Safari iOS: mantener el canvas transparente para que el Liquid Glass del navegador
   // pueda mostrar el artwork real de la escena debajo. No se aplica ningún color artificial.
-  if (typeof window.pybRefreshSafariTint === 'function') {
-    window.pybRefreshSafariTint(scene || 'login');
-  }
+  // FIX: antes acá abajo se llamaba a window.pybRefreshSafariTint(scene) de forma
+  // síncrona y directa, en el mismo tick en que showView() está agregando/quitando
+  // .active del nav. copyArtworkToDocument() hace getComputedStyle(...).backgroundImage
+  // (fuerza reflow) y después escribe 4 propiedades con !important en <html> y <body>,
+  // con fotos pesadas en algunas escenas -- ese trabajo compitiendo por el hilo principal
+  // justo cuando el navegador tiene que pintar el nav es lo que hacía "arrastrarse" el
+  // ítem activo unos frames al cambiar de sección rápido.
+  // Ese llamado además era redundante: el document.body.setAttribute('data-bg-scene', ...)
+  // de la primera línea de esta función ya dispara el MutationObserver de más abajo (el que
+  // observa 'data-bg-scene' sobre body), que llama a copyArtworkToDocument encolado en su
+  // propio requestAnimationFrame. O sea que cada cambio de vista estaba llamando a la misma
+  // función pesada dos veces: una síncrona acá y otra un frame después vía el observer.
+  // Se saca el llamado directo y se deja al observer como único disparador.
 }
 
 function showView(view) {
