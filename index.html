@@ -8610,6 +8610,7 @@ async function entrarConCuentaVerificada(emailFallback) {
   buildSidebar();
   showView('dashboard');
   runNotifCheck();
+  preloadNavigationScenes();
 }
 
 // Traduce los códigos de error más comunes de Firebase Auth a un
@@ -9195,7 +9196,7 @@ async function manualSync() {
   let ok = false;
   try {
     await loadFromGoogleSheets(false);
-    if (currentUser) { buildSidebar(); renderView(currentView); }
+    if (currentUser) { buildSidebar(); markViewDirty(currentView); renderView(currentView); __renderedViews.add(currentView); }
     ok = true;
   } catch(e) { addLiveLog('[WARN] Sync falló: ' + e.message, 'err'); }
   if (loadBanner) loadBanner.style.display = 'none';
@@ -9540,73 +9541,77 @@ const BG_SCENE_BY_SERVICE = {
   DESPARASITARIOS:   'desparasitarios'   // escena propia — interior luminoso
 };
 
+function preloadNavigationScenes() {
+  if (window.__pybScenesPreloaded) return;
+  window.__pybScenesPreloaded = true;
+
+  const urls = [
+    'backgrounds/paseos.webp',
+    'backgrounds/alimentacion.webp',
+    'backgrounds/cuidados-domicilio.webp',
+    'backgrounds/mascotas.webp',
+    'backgrounds/desparasitarios.webp',
+    'backgrounds/configuracion.webp'
+  ];
+
+  function loadNext(index) {
+    if (index >= urls.length) return;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = img.onerror = function () {
+      setTimeout(function () { loadNext(index + 1); }, 40);
+    };
+    img.src = urls[index];
+  }
+
+  setTimeout(function () { loadNext(0); }, 250);
+}
+
 function setBgScene(scene) {
   const body = document.body;
   if (!body) return;
 
-  // Evita mutaciones inútiles: volver a la misma escena no debe disparar
-  // MutationObserver + recálculo del artwork de Safari.
+  const nextScene = scene || null;
   const currentScene = body.getAttribute('data-bg-scene') || null;
-  if (currentScene === (scene || null)) return;
+  if (currentScene === nextScene) return;
 
-  if (scene) body.setAttribute('data-bg-scene', scene);
+  if (nextScene) body.setAttribute('data-bg-scene', nextScene);
   else body.removeAttribute('data-bg-scene');
-
-  // El observer de Safari se encarga del artwork fuera del camino crítico.
-}
-let __navRenderRaf = null;
-let __navRenderTimer = null;
-let __navRenderSeq = 0;
-
-function cancelPendingViewRender() {
-  if (__navRenderRaf !== null) {
-    cancelAnimationFrame(__navRenderRaf);
-    __navRenderRaf = null;
-  }
-  if (__navRenderTimer !== null) {
-    clearTimeout(__navRenderTimer);
-    __navRenderTimer = null;
-  }
 }
 
-function scheduleViewRender(view, seq) {
-  cancelPendingViewRender();
 
-  // Primero dejamos que el navegador pinte el cambio visual del nav/vista.
-  // El render pesado queda fuera del tap y se coalescea: si se pulsan varias
-  // secciones seguidas, solo se procesa la última solicitud vigente.
-  __navRenderRaf = requestAnimationFrame(function() {
-    __navRenderRaf = null;
-    __navRenderTimer = setTimeout(function() {
-      __navRenderTimer = null;
-      if (seq !== __navRenderSeq || currentView !== view) return;
+const __renderedViews = new Set();
 
-      renderView(view);
-      applyLanguageIfNeeded();
+function markViewDirty(view) {
+  if (view) __renderedViews.delete(view);
+}
 
-      if (view === 'mis-mascotas') {
-        buildMascotaCarouselDots(getMyDogsForMascotas().length);
-        updateMascotaCarouselNav();
-      }
-    }, 0);
-  });
+function renderViewOnce(view) {
+  if (!view || __renderedViews.has(view)) return false;
+  renderView(view);
+  applyLanguageIfNeeded();
+  __renderedViews.add(view);
+  return true;
 }
 
 function showView(view) {
-  // Si ya estamos en esa sección, no reconstruimos todo el DOM otra vez.
+  // El cambio de sección es inmediato. Una vista ya renderizada no vuelve
+  // a reconstruirse al navegar hacia ella.
   if (currentView === view) return;
 
-  __navRenderSeq++;
-  const seq = __navRenderSeq;
-
-  // Camino crítico del tap: solo cambia estado/clases y título.
   setBgScene(BG_SCENE_BY_VIEW[view]);
+
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.blur(); });
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.remove('active');
+    n.blur();
+  });
   document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
 
   const viewEl = document.getElementById('view-' + view);
-  if (viewEl) viewEl.classList.add('active');
+  if (!viewEl) return;
+
+  viewEl.classList.add('active');
 
   const navEl = document.getElementById('nav-' + view);
   if (navEl) navEl.classList.add('active');
@@ -9619,9 +9624,12 @@ function showView(view) {
   const _isAdmin = isAdmin();
   const titles = {
     dashboard: 'Mis Servicios',
-    agenda: 'Agenda Semanal', dogs: _isAdmin ? 'Mascotas' : 'Mi Mascota',
-    health: 'Salud & Vacunas', food: 'Alimentación',
-    recommendations: 'Lugares Recomendados', payments: 'Cobros & Costos',
+    agenda: 'Agenda Semanal',
+    dogs: _isAdmin ? 'Mascotas' : 'Mi Mascota',
+    health: 'Salud & Vacunas',
+    food: 'Alimentación',
+    recommendations: 'Lugares Recomendados',
+    payments: 'Cobros & Costos',
     'mis-mascotas': 'Mis Mascotas',
     'admin-comprobantes': 'Comprobantes Pendientes',
     'service-module': currentServiceLabel || 'Servicio',
@@ -9630,7 +9638,30 @@ function showView(view) {
 
   document.getElementById('page-title').textContent = titles[view] || view;
   closeSidebar();
-  scheduleViewRender(view, seq);
+
+  // Primera visita: render después del paint. Si el usuario toca otra vista
+  // antes, este render queda invalidado por currentView.
+  if (!__renderedViews.has(view)) {
+    const requestedView = view;
+    if (window.__pendingFirstViewTimer) clearTimeout(window.__pendingFirstViewTimer);
+
+    window.__pendingFirstViewTimer = setTimeout(function () {
+      window.__pendingFirstViewTimer = null;
+      if (currentView !== requestedView) return;
+
+      renderViewOnce(requestedView);
+
+      if (requestedView === 'mis-mascotas') {
+        buildMascotaCarouselDots(getMyDogsForMascotas().length);
+        updateMascotaCarouselNav();
+      }
+    }, 0);
+  } else if (view === 'mis-mascotas') {
+    requestAnimationFrame(function () {
+      buildMascotaCarouselDots(getMyDogsForMascotas().length);
+      updateMascotaCarouselNav();
+    });
+  }
 }
 
 let currentServiceKey = null;
@@ -16957,7 +16988,7 @@ function syncLanguageUI() {
   loadFromGoogleSheets()
     .then(() => {
       addLiveLog('[OK] Planilla sincronizada. Listo para ingresar.', 'ok');
-      if (currentUser) { buildSidebar(); renderView(currentView); }
+      if (currentUser) { buildSidebar(); markViewDirty(currentView); renderView(currentView); __renderedViews.add(currentView); }
     })
     .catch(err => {
       // Mostrar panel de diagnóstico solo si hay error de conexión
