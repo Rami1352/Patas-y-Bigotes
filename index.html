@@ -2404,14 +2404,7 @@ body[data-bg-scene="settings"]::after {
    todas sin tocar el HTML ni #service-module-content (que conserva su
    blindaje height:auto/min-height:0 sin modificar). */
 .view { display: none; min-width: 0; padding-right: 24px; }
-.view.active { display: block; animation: viewFadeIn .28s cubic-bezier(.22,1,.36,1) both; }
-@keyframes viewFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .view.active { animation: none; }
-}
+.view.active { display: block; }
 
 /* Back button — liquid glass (mismo lenguaje que .btn-sync):
    fondo translúcido (--glass-bg-solid) + backdrop-filter real, en vez
@@ -9548,40 +9541,81 @@ const BG_SCENE_BY_SERVICE = {
 };
 
 function setBgScene(scene) {
-  if (scene) document.body.setAttribute('data-bg-scene', scene);
-  else document.body.removeAttribute('data-bg-scene');
+  const body = document.body;
+  if (!body) return;
 
-  // Safari iOS: mantener el canvas transparente para que el Liquid Glass del navegador
-  // pueda mostrar el artwork real de la escena debajo. No se aplica ningún color artificial.
-  // FIX: antes acá abajo se llamaba a window.pybRefreshSafariTint(scene) de forma
-  // síncrona y directa, en el mismo tick en que showView() está agregando/quitando
-  // .active del nav. copyArtworkToDocument() hace getComputedStyle(...).backgroundImage
-  // (fuerza reflow) y después escribe 4 propiedades con !important en <html> y <body>,
-  // con fotos pesadas en algunas escenas -- ese trabajo compitiendo por el hilo principal
-  // justo cuando el navegador tiene que pintar el nav es lo que hacía "arrastrarse" el
-  // ítem activo unos frames al cambiar de sección rápido.
-  // Ese llamado además era redundante: el document.body.setAttribute('data-bg-scene', ...)
-  // de la primera línea de esta función ya dispara el MutationObserver de más abajo (el que
-  // observa 'data-bg-scene' sobre body), que llama a copyArtworkToDocument encolado en su
-  // propio requestAnimationFrame. O sea que cada cambio de vista estaba llamando a la misma
-  // función pesada dos veces: una síncrona acá y otra un frame después vía el observer.
-  // Se saca el llamado directo y se deja al observer como único disparador.
+  // Evita mutaciones inútiles: volver a la misma escena no debe disparar
+  // MutationObserver + recálculo del artwork de Safari.
+  const currentScene = body.getAttribute('data-bg-scene') || null;
+  if (currentScene === (scene || null)) return;
+
+  if (scene) body.setAttribute('data-bg-scene', scene);
+  else body.removeAttribute('data-bg-scene');
+
+  // El observer de Safari se encarga del artwork fuera del camino crítico.
+}
+let __navRenderRaf = null;
+let __navRenderTimer = null;
+let __navRenderSeq = 0;
+
+function cancelPendingViewRender() {
+  if (__navRenderRaf !== null) {
+    cancelAnimationFrame(__navRenderRaf);
+    __navRenderRaf = null;
+  }
+  if (__navRenderTimer !== null) {
+    clearTimeout(__navRenderTimer);
+    __navRenderTimer = null;
+  }
+}
+
+function scheduleViewRender(view, seq) {
+  cancelPendingViewRender();
+
+  // Primero dejamos que el navegador pinte el cambio visual del nav/vista.
+  // El render pesado queda fuera del tap y se coalescea: si se pulsan varias
+  // secciones seguidas, solo se procesa la última solicitud vigente.
+  __navRenderRaf = requestAnimationFrame(function() {
+    __navRenderRaf = null;
+    __navRenderTimer = setTimeout(function() {
+      __navRenderTimer = null;
+      if (seq !== __navRenderSeq || currentView !== view) return;
+
+      renderView(view);
+      applyLanguageIfNeeded();
+
+      if (view === 'mis-mascotas') {
+        buildMascotaCarouselDots(getMyDogsForMascotas().length);
+        updateMascotaCarouselNav();
+      }
+    }, 0);
+  });
 }
 
 function showView(view) {
-  // Escena de fondo según la vista; la transición suave ya la da el CSS
-  // (transition en body::before/::after).
+  // Si ya estamos en esa sección, no reconstruimos todo el DOM otra vez.
+  if (currentView === view) return;
+
+  __navRenderSeq++;
+  const seq = __navRenderSeq;
+
+  // Camino crítico del tap: solo cambia estado/clases y título.
   setBgScene(BG_SCENE_BY_VIEW[view]);
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.blur(); });
   document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
+
   const viewEl = document.getElementById('view-' + view);
   if (viewEl) viewEl.classList.add('active');
+
   const navEl = document.getElementById('nav-' + view);
   if (navEl) navEl.classList.add('active');
+
   const mnavEl = document.getElementById('mnav-' + view);
   if (mnavEl) mnavEl.classList.add('active');
+
   currentView = view;
+
   const _isAdmin = isAdmin();
   const titles = {
     dashboard: 'Mis Servicios',
@@ -9593,18 +9627,10 @@ function showView(view) {
     'service-module': currentServiceLabel || 'Servicio',
     settings: 'Configuración'
   };
+
   document.getElementById('page-title').textContent = titles[view] || view;
-  renderView(view);
   closeSidebar();
-  applyLanguageIfNeeded();
-  if (view === 'mis-mascotas') {
-    // El contenedor recién se hace visible acá, así que clientWidth (usado
-    // para calcular páginas del carrusel) todavía valía 0 durante el render.
-    requestAnimationFrame(function() {
-      buildMascotaCarouselDots(getMyDogsForMascotas().length);
-      updateMascotaCarouselNav();
-    });
-  }
+  scheduleViewRender(view, seq);
 }
 
 let currentServiceKey = null;
@@ -17561,11 +17587,18 @@ window.handleLoginAction = handleLoginAction;
   }
 
   var body = document.body;
+  var safariArtworkTimer = null;
   if (body && window.MutationObserver) {
     new MutationObserver(function (records) {
       for (var i = 0; i < records.length; i++) {
         if (records[i].type === 'attributes' && records[i].attributeName === 'data-bg-scene') {
-          requestAnimationFrame(copyArtworkToDocument);
+          // Coalesce rapid scene changes y mueve el getComputedStyle()/writes
+          // pesados fuera del camino crítico del tap.
+          if (safariArtworkTimer !== null) clearTimeout(safariArtworkTimer);
+          safariArtworkTimer = setTimeout(function () {
+            safariArtworkTimer = null;
+            copyArtworkToDocument();
+          }, 0);
           break;
         }
       }
