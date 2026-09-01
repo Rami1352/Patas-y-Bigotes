@@ -1587,6 +1587,12 @@ body[data-bg-scene="settings"]::after {
   50% { opacity: .6; transform: scale(.8); }
 }
 
+
+.welcome-status-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.welcome-status-list .welcome-status-msg { margin-top:0; }
+.welcome-status-msg.pet-status-danger { background:var(--red-light, #fdecec); color:var(--red); border-color:rgba(180,60,60,.18); }
+.welcome-status-msg.pet-status-warning { background:var(--amber-light); color:var(--amber); border-color:var(--svc-food-border); }
+
 /* ── MODAL FICHA MASCOTA ── */
 .pet-ficha-modal-header {
   display: flex; align-items: center; gap: 18px;
@@ -8627,6 +8633,26 @@ async function entrarConCuentaVerificada(emailFallback) {
 
   buildSidebar();
 
+  // FIX: hasta acá, entrarConCuentaVerificada armaba currentUser y mostraba
+  // el dashboard, pero NUNCA volvía a pedir los datos de las hojas
+  // (Mascota Paseo/Alimentacion/Desparasitarios/CuidadoDomicilio). Los
+  // únicos datos en pantalla eran los que había traído init() al abrir la
+  // página, ANTES del login, cuando currentUser todavía era null -- por
+  // eso ese .then() (ver el IIFE de init() al final del archivo) no hacía
+  // nada útil con ellos. Resultado: el usuario entraba y no veía sus
+  // datos (o veía los de la sesión anterior) hasta tocar "Sincronizar" a
+  // mano, que sí llama a loadFromGoogleSheets con currentUser ya
+  // definido. manualSync() ya maneja el banner de carga, el estado del
+  // botón y el log de error si falla, así que se reutiliza tal cual en
+  // vez de llamar a loadFromGoogleSheets() suelto acá. No se espera con
+  // await a propósito: no debe bloquear el primer pintado del dashboard
+  // (showView('dashboard') un poco más abajo), que puede mostrarse con
+  // los datos que ya haya en `state` mientras la sincronización real
+  // corre en paralelo y re-renderiza sola al terminar (ver el bloque
+  // "if (currentUser) { buildSidebar(); ...renderView...}" dentro de
+  // manualSync/loadFromGoogleSheets).
+  manualSync();
+
   // Al terminar el login, currentView puede seguir teniendo el valor inicial
   // "dashboard" aunque el DOM de la vista todavía esté vacío. En ese caso
   // showView('dashboard') se salteaba por la guarda currentView===view y
@@ -8828,10 +8854,51 @@ function normalizeServiceKey(raw) {
   return s;
 }
 
+function getCurrentClientDogs() {
+  if (!currentUser) return [];
+  const cid = String(currentUser.clienteId || '').trim();
+  const email = String(currentUser.email || '').trim().toLowerCase();
+  return state.dogs.filter(d => {
+    const dogCid = String(d.clienteId || '').trim();
+    const dogMail = String(d.mail || '').trim().toLowerCase();
+    if (cid && dogCid) return dogCid === cid;
+    return !!email && dogMail === email;
+  });
+}
+
+function getPetDashboardStatus(dog) {
+  const services = (dog.servicios_activos || '')
+    .split(/[,;|]+/)
+    .map(s => normalizeServiceKey(s))
+    .filter(Boolean);
+
+  if (!services.length) {
+    return { type: 'neutral', text: dog.name + ' no tiene servicios contratados' };
+  }
+
+  const dogId = dog.id;
+  const now = new Date();
+  const dates = [];
+  state.health.filter(h => h.dogId === dogId && h.next).forEach(h => dates.push({ next: h.next, label: 'registro' }));
+  state.food.filter(f => f.dogId === dogId && f.next).forEach(f => dates.push({ next: f.next, label: 'alimentación' }));
+
+  let overdue = 0;
+  let upcoming = 0;
+  dates.forEach(item => {
+    const d = daysUntil(item.next);
+    if (d < 0) overdue++;
+    else if (d <= 30) upcoming++;
+  });
+
+  if (overdue) return { type: 'danger', text: dog.name + ' tiene ' + overdue + ' servicio' + (overdue !== 1 ? 's' : '') + ' vencido' + (overdue !== 1 ? 's' : '') };
+  if (upcoming) return { type: 'warning', text: dog.name + ' tiene ' + upcoming + ' servicio' + (upcoming !== 1 ? 's' : '') + ' próximo' + (upcoming !== 1 ? 's' : '') };
+  return { type: 'ok', text: dog.name + ' tiene todos sus servicios al día' };
+}
+
 function getMyServices() {
   // Admin siempre tiene todos los servicios activos
   if (!currentUser || currentUser.role === 'admin') return Object.keys(SERVICE_CONFIG);
-  const myDogs = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  const myDogs = getCurrentClientDogs();
   const allServices = new Set();
   myDogs.forEach(d => {
     (d.servicios_activos || '')
@@ -9149,6 +9216,7 @@ function processSheetData(rawRows) {
         id: dc++, name, breed, age,
         weight: parseFloat(weight) || 12,
         owner, phone, neighborhood: barrio || 'Santa Isabel',
+        clienteId: clienteId || '',
         cost: costo || 5000, notes, sexo, lote, cumple,
         mail, rol: rol || 'usuario',
         servicios_activos: serviciosActivosFinal || '',
@@ -9163,6 +9231,7 @@ function processSheetData(rawRows) {
       if (costo > 0) dog.cost = costo;
       if (age) dog.age = age;
       if (mail) dog.mail = mail;
+      if (clienteId) dog.clienteId = clienteId;
       if (rol) dog.rol = rol;
       if (serviciosActivosFinal) dog.servicios_activos = serviciosActivosFinal;
       dog.photo = photoUrl || photoOverride || dog.photo;
@@ -9839,53 +9908,47 @@ function attachServiceCardSpotlight(container) {
 function renderDashboard() {
   const _isAdmin = isAdmin();
 
-  // Todos los usuarios ven el mismo portal de servicios
   document.getElementById('admin-stats-strip').style.display   = 'none';
   document.getElementById('admin-dash-grid').style.display     = 'none';
   document.getElementById('client-portal-content').style.display = 'block';
   document.getElementById('dashboard-alerts').innerHTML = '';
 
-  let myDogs = _isAdmin ? state.dogs : state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  // El portal del cliente se identifica por CLIENTE_ID y, durante la
+  // migración, por Mail. Nunca usamos el nombre hardcodeado del admin para
+  // una cuenta que tenga mascotas vinculadas.
+  const myDogs = _isAdmin ? state.dogs : getCurrentClientDogs();
 
-  // Bienvenida personalizada
-  const ownerName = _isAdmin ? 'Ramiro' :
-    (myDogs.length > 0 ? (myDogs[0].owner || 'Cliente') : 'Cliente');
+  const ownerName = !_isAdmin && myDogs.length > 0
+    ? (myDogs[0].owner || 'Cliente')
+    : (_isAdmin ? 'Ramiro' : (currentUser?.username || 'Cliente'));
   const firstName = ownerName.split(' ')[0];
-  document.getElementById('portal-welcome-name').textContent = 'Hola, ' + firstName + ' '; document.getElementById('portal-welcome-name').insertAdjacentHTML('beforeend', '<i class="fa-solid fa-hand" style="color:var(--amber)"></i>');
+  const welcomeEl = document.getElementById('portal-welcome-name');
+  if (welcomeEl) {
+    welcomeEl.textContent = 'Hola, ' + firstName + ' ';
+    welcomeEl.insertAdjacentHTML('beforeend', '<i class="fa-solid fa-hand" style="color:var(--amber)"></i>');
+  }
 
-  // Mensaje de estado personalizado según mascota
   const welcomeStatusEl = document.getElementById('portal-welcome-status');
   if (welcomeStatusEl) {
-    if (!_isAdmin && myDogs.length > 0) {
-      // Armar nombre(s): "Mike", "Mike y Rocky", "Mike, Rocky y Luna"
-      const names = myDogs.map(d => d.name);
-      const petNames = names.length === 1
-        ? names[0]
-        : names.slice(0, -1).join(', ') + ' y ' + names[names.length - 1];
-      const verb = myDogs.length === 1 ? 'tiene' : 'tienen';
-      const dogIds = myDogs.map(d => d.id);
-      const activeAlertCount = state.health.filter(h => dogIds.includes(h.dogId) && daysUntil(h.next) <= 30).length;
-      if (activeAlertCount > 0) {
-        welcomeStatusEl.innerHTML = `<span class="ws-dot" style="background:var(--amber)"></span> ${petNames} ${verb} ${activeAlertCount} aviso${activeAlertCount!==1?'s':''} próximos`;
-        welcomeStatusEl.style.background = 'var(--amber-light)';
-        welcomeStatusEl.style.color = 'var(--amber)';
-        welcomeStatusEl.style.borderColor = 'var(--svc-food-border)';
-      } else {
-        welcomeStatusEl.innerHTML = `<span class="ws-dot"></span> ${petNames} ${verb} todos sus servicios al día`;
-        welcomeStatusEl.style.background = '';
-        welcomeStatusEl.style.color = '';
-        welcomeStatusEl.style.borderColor = '';
-      }
+    if (_isAdmin) {
+      welcomeStatusEl.innerHTML = '<span class="ws-dot"></span> Panel de administración activo';
+      welcomeStatusEl.className = 'welcome-status-msg';
       welcomeStatusEl.style.display = 'inline-flex';
-    } else if (_isAdmin) {
-      welcomeStatusEl.innerHTML = `<span class="ws-dot"></span> Panel de administración activo`;
-      welcomeStatusEl.style.display = 'inline-flex';
+    } else if (myDogs.length) {
+      welcomeStatusEl.className = 'welcome-status-list';
+      welcomeStatusEl.innerHTML = myDogs.map(dog => {
+        const st = getPetDashboardStatus(dog);
+        const dotColor = st.type === 'danger' ? 'var(--red)' : (st.type === 'warning' ? 'var(--amber)' : 'var(--sage)');
+        return '<div class="welcome-status-msg pet-status-' + st.type + '"><span class="ws-dot" style="background:' + dotColor + '"></span>' + st.text + '</div>';
+      }).join('');
+      welcomeStatusEl.style.display = 'flex';
     } else {
-      welcomeStatusEl.style.display = 'none';
+      welcomeStatusEl.className = 'welcome-status-msg';
+      welcomeStatusEl.innerHTML = '<span class="ws-dot"></span> Cuenta todavía sin mascotas vinculadas';
+      welcomeStatusEl.style.display = 'inline-flex';
     }
   }
 
-  // Grid de servicios
   const grid = document.getElementById('service-portal-grid');
   grid.innerHTML = Object.values(SERVICE_CONFIG).map(svc => {
     const active = hasService(svc.key);
@@ -9904,22 +9967,21 @@ function renderDashboard() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
         </div>
       </div>`;
-    } else {
-      return `<div class="service-card ${svc.cssClass} not-contracted" onclick="openServiceModule('${svc.key}')" role="button" tabindex="0" aria-label="${svc.label} — servicio no contratado, ver detalles">
-        <div class="service-card-watermark" aria-hidden="true">${svc.watermark}</div>
-        <div class="service-card-icon">${svc.icon}<span class="service-card-icon-lock" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
-        <div class="service-card-label">${svc.label}</div>
-        <div class="service-card-desc">${svc.desc}</div>
-        <div class="service-card-status inactive">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
-          No contratado
-        </div>
-        <div class="service-card-arrow discover">
-          Descubrir servicio
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-        </div>
-      </div>`;
     }
+    return `<div class="service-card ${svc.cssClass} not-contracted" onclick="openServiceModule('${svc.key}')" role="button" tabindex="0" aria-label="${svc.label} — servicio no contratado, ver detalles">
+      <div class="service-card-watermark" aria-hidden="true">${svc.watermark}</div>
+      <div class="service-card-icon">${svc.icon}<span class="service-card-icon-lock" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span></div>
+      <div class="service-card-label">${svc.label}</div>
+      <div class="service-card-desc">${svc.desc}</div>
+      <div class="service-card-status inactive">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        No contratado
+      </div>
+      <div class="service-card-arrow discover">
+        Descubrir servicio
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </div>
+    </div>`;
   }).join('');
   attachServiceCardSpotlight(grid);
 }
