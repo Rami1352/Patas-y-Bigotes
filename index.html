@@ -8641,6 +8641,28 @@ async function entrarConCuentaVerificada(emailFallback) {
 
   runNotifCheck();
   preloadNavigationScenes();
+
+  // SINCRONIZACIÓN AUTOMÁTICA POST-LOGIN:
+  // antes el login solo armaba currentUser y mostraba el dashboard,
+  // pero los datos de servicios podían haber quedado cargados como locales
+  // porque la carga inicial ocurrió antes de existir un idToken.
+  // Ahora, una vez autenticado y con currentUser resuelto, hacemos una
+  // sincronización real contra Apps Script usando el token de Firebase.
+  // Si falla, no rompemos el login: el usuario conserva los datos locales
+  // y puede usar el botón Sincronizar manualmente.
+  loadFromGoogleSheets(false)
+    .then(function () {
+      if (currentUser) {
+        buildSidebar();
+        markViewDirty(currentView);
+        renderView(currentView);
+        __renderedViews.add(currentView);
+      }
+      addLiveLog('[OK] Sincronización automática post-login completada.', 'ok');
+    })
+    .catch(function (err) {
+      addLiveLog('[WARN] Sincronización automática post-login falló: ' + err.message, 'err');
+    });
 }
 
 // Traduce los códigos de error más comunes de Firebase Auth a un
