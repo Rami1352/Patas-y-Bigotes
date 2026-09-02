@@ -6405,14 +6405,20 @@ document.addEventListener('DOMContentLoaded', function () {
   //  currentUser por su cuenta (vía entrarConCuentaVerificada) y este
   //  listener no debe pisarlo ni duplicar trabajo.
   PYB_AUTH.onChange(function (user) {
-    if (!user) return; // sin sesión: se queda en la pantalla de login, como ya pasaba
-    if (currentUser) return; // ya se armó (login manual en curso o recién hecho)
-    entrarConCuentaVerificada(user.email || '').catch(function (err) {
-      console.warn('[restaurar sesión] No se pudo verificar la cuenta:', err);
-      // No se fuerza logout ni se muestra error: se deja al usuario en
-      // la pantalla de login para que reintente manualmente, mismo
-      // comportamiento que ya existía cuando currentUser quedaba null.
-    });
+    if (!user) return; // sin sesión: se queda en la pantalla de login
+    // El login manual ya está verificando esta misma cuenta. Firebase dispara
+    // onAuthStateChanged como consecuencia del signIn; no debemos procesarla
+    // por segunda vez porque eso duplica getMiCuenta + sincronización.
+    if (currentUser || authFlowInProgress) return;
+
+    authFlowInProgress = true;
+    entrarConCuentaVerificada(user.email || '')
+      .catch(function (err) {
+        console.warn('[restaurar sesión] No se pudo verificar la cuenta:', err);
+      })
+      .finally(function () {
+        authFlowInProgress = false;
+      });
   });
 });
 </script>
@@ -8310,6 +8316,12 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw2-ejzErqaoHav
 
 let currentUser = null;
 let activeLoginTab = 'login';
+// Guard: evita que el login manual y onAuthStateChanged procesen la misma
+// autenticación dos veces en paralelo.
+let authFlowInProgress = false;
+// Generación del estado privado: invalida cualquier sincronización vieja
+// que termine después de un cambio de usuario.
+let userStateEpoch = 0;
 
 /* ══════════════════════════════════
    LOGIN
@@ -8444,18 +8456,14 @@ async function doLogin() {
 
   btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Ingresando…'; btn.disabled = true;
 
+  authFlowInProgress = true;
   try {
     // 1) Firebase valida email + contraseña.
     await PYB_AUTH.login(email, pass);
 
-    // 2) El resto (armar currentUser, preguntarle al backend, mostrar
-    //    la app) es EXACTAMENTE lo mismo que hace entrarConCuentaVerificada
-    //    cuando restaura una sesión ya persistida al recargar la página
-    //    (ver PYB_AUTH.onChange más abajo) -- se extrajo a una función
-    //    aparte para que las dos rutas (login manual y sesión persistida)
-    //    dejen currentUser en el mismo estado siempre, en vez de que
-    //    currentUser solo se complete si el usuario tipeó el form de
-    //    login en ESTA carga de página.
+    // 2) Una sola ejecución completa de verificación + carga posterior.
+    //    onAuthStateChanged queda bloqueado por authFlowInProgress durante
+    //    esta transición y no duplica el proceso.
     await entrarConCuentaVerificada(email);
 
     btn.textContent = 'Ingresar'; btn.disabled = false;
@@ -8464,6 +8472,8 @@ async function doLogin() {
     btn.textContent = 'Ingresar'; btn.disabled = false;
     errEl.textContent = firebaseErrorToSpanish(err);
     errEl.classList.add('show');
+  } finally {
+    authFlowInProgress = false;
   }
 }
 
@@ -8491,6 +8501,10 @@ async function doLogin() {
    información de la sesión anterior mientras llega la sincronización nueva.
    No toca recomendaciones ni catálogos públicos. ── */
 function clearUserScopedState() {
+  // Incrementar la generación invalida cualquier sincronización asíncrona
+  // anterior que todavía esté en vuelo. Sin esto, una respuesta vieja podría
+  // volver a escribir datos del usuario anterior después del logout/login.
+  userStateEpoch++;
   state.dogs = [];
   state.walks = [];
   state.health = [];
@@ -8682,8 +8696,10 @@ async function entrarConCuentaVerificada(emailFallback) {
   // sincronización real contra Apps Script usando el token de Firebase.
   // Si falla, no rompemos el login: el usuario conserva los datos locales
   // y puede usar el botón Sincronizar manualmente.
-  loadFromGoogleSheets(false)
+  const loginEpoch = userStateEpoch;
+  loadFromGoogleSheets(false, loginEpoch)
     .then(function () {
+      if (loginEpoch !== userStateEpoch) return;
       if (currentUser) {
         buildSidebar();
         markViewDirty(currentView);
@@ -9038,16 +9054,21 @@ async function notifyAdmin(seccion, accion, petName, detalle) {
 //  (getCatalogoAlimentos / getCatalogoDesparasitarios) sin cambios,
 //  porque ese sí es información pensada para ser pública.
 // ═══════════════════════════════════════════════════════════════
-async function loadFromGoogleSheets(showToastAfter) {
+async function loadFromGoogleSheets(showToastAfter, expectedEpoch) {
+  const syncEpoch = (expectedEpoch === undefined || expectedEpoch === null) ? userStateEpoch : expectedEpoch;
   addLiveLog('[INFO] Conectando con la planilla…');
   try {
     const json = await fetchJSONP(APPS_SCRIPT_URL + '?action=getDatos');
+    if (syncEpoch !== userStateEpoch) throw new Error('Sincronización descartada por cambio de usuario');
     if (!Array.isArray(json) || json.length === 0) throw new Error('Respuesta vacía');
     if (json[0] && json[0].error) throw new Error(json[0].error);
     addLiveLog('[OK] Planilla cargada: ' + json.length + ' filas.', 'ok');
     processSheetDataJSON(json);
-    await initMocks(); lastSyncTime = new Date(); updateSyncBadge(showToastAfter); return;
+    await initMocks(syncEpoch);
+    if (syncEpoch !== userStateEpoch) throw new Error('Sincronización descartada por cambio de usuario');
+    lastSyncTime = new Date(); updateSyncBadge(showToastAfter); return;
   } catch(e) {
+    if (syncEpoch !== userStateEpoch && e && e.message && e.message.indexOf('Sincronización descartada') === 0) throw e;
     addLiveLog('[ERR] No se pudo conectar con la planilla: ' + e.message, 'err');
     throw new Error('No se pudo conectar');
   }
@@ -9290,13 +9311,15 @@ function updateSyncBadge(showToastAfter) {
 }
 
 async function manualSync() {
+  const syncEpoch = userStateEpoch;
   const btn = document.getElementById('sync-btn');
   const loadBanner = document.getElementById('loading-banner');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin"></i> Sincronizando…'; }
   if (loadBanner) loadBanner.style.display = 'flex';
   let ok = false;
   try {
-    await loadFromGoogleSheets(false);
+    await loadFromGoogleSheets(false, syncEpoch);
+    if (syncEpoch !== userStateEpoch) throw new Error('La sesión cambió durante la sincronización.');
     if (currentUser) { buildSidebar(); markViewDirty(currentView); renderView(currentView); __renderedViews.add(currentView); }
     ok = true;
   } catch(e) { addLiveLog('[WARN] Sync falló: ' + e.message, 'err'); }
@@ -9370,7 +9393,8 @@ function matchDogByNombreMail(nombre, mail) {
    suma de las 3. allSettled (no all) porque si UNA falla (ver los
    try/catch individuales de abajo, que se conservan intactos) las otras
    dos igual tienen que completarse y devolver sus datos. ── */
-async function loadHealthFoodHomeCareFromSheet() {
+async function loadHealthFoodHomeCareFromSheet(expectedEpoch) {
+  const syncEpoch = (expectedEpoch === undefined || expectedEpoch === null) ? userStateEpoch : expectedEpoch;
   const out = { health: null, food: null, homeCare: null };
 
   /* FIX v4: una sola llamada al backend para las tres secciones.
@@ -9401,6 +9425,7 @@ async function loadHealthFoodHomeCareFromSheet() {
       batchIdToken
     );
 
+    if (syncEpoch !== userStateEpoch) throw new Error('Sincronización descartada por cambio de usuario');
     if (!res || typeof res !== 'object' || Array.isArray(res) || res.error) {
       throw new Error((res && res.error) || 'Respuesta inválida de servicios');
     }
@@ -9450,14 +9475,18 @@ async function loadHealthFoodHomeCareFromSheet() {
     }
 
   } catch (e) {
+    if (syncEpoch !== userStateEpoch && e && e.message && e.message.indexOf('Sincronización descartada') === 0) throw e;
     addLiveLog('[WARN] No se pudieron leer Alimentacion/Desparasitarios/CuidadoDomicilio de la planilla: ' + e.message, 'err');
   }
 
+  if (syncEpoch !== userStateEpoch) throw new Error('Sincronización descartada por cambio de usuario');
   return out;
 }
 
-async function initMocks() {
-  const fromSheet = await loadHealthFoodHomeCareFromSheet();
+async function initMocks(expectedEpoch) {
+  const syncEpoch = (expectedEpoch === undefined || expectedEpoch === null) ? userStateEpoch : expectedEpoch;
+  const fromSheet = await loadHealthFoodHomeCareFromSheet(syncEpoch);
+  if (syncEpoch !== userStateEpoch) throw new Error('Sincronización descartada por cambio de usuario');
 
   const savedH = (() => { try { const r=localStorage.getItem(LS_HEALTH);   return r ? JSON.parse(r) : null; } catch(e){return null;} })();
   const savedF = (() => { try { const r=localStorage.getItem(LS_FOOD);     return r ? JSON.parse(r) : null; } catch(e){return null;} })();
