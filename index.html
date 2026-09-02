@@ -8883,20 +8883,24 @@ function fetchWithTimeout(url, ms) {
   ]);
 }
 
-async function fetchJSONP(url, cbName) {
-  /* ── Autenticación: se adjunta el idToken de Firebase si hay sesión ──
-     Este es el único punto por el que pasan las 19 llamadas al backend
-     (lecturas Y escrituras), así que alcanza con hacerlo acá.
+async function fetchJSONP(url, cbName, explicitIdToken) {
+  /* ── Autenticación centralizada ───────────────────────────────────────
+     fetchJSONP sigue siendo el punto único por el que pasan las llamadas
+     al backend. La diferencia importante es que ahora puede recibir un
+     idToken YA OBTENIDO por el llamador (3er parámetro).
 
-     Si no hay sesión (o Firebase no está configurado todavía) la URL
-     queda EXACTAMENTE igual que antes y el backend responde en modo
-     `legacy`: por eso este cambio no rompe el portal actual.
+     Esto evita que una tanda de cargas dispare varias llamadas concurrentes
+     a Firebase para resolver el mismo token. Cuando el 3er parámetro no se
+     entrega, se mantiene el comportamiento anterior y fetchJSONP obtiene
+     el token por su cuenta. Así, las demás llamadas del portal no cambian.
 
-     El try/catch es deliberado: un fallo al obtener el token nunca debe
-     impedir la llamada, solo hace que se envíe sin credencial. */
+     Si no hay sesión (o Firebase no está configurado todavía), la URL queda
+     sin idToken y el backend conserva su comportamiento de compatibilidad
+     (`legacy`) mientras AUTH_ENFORCE no esté activo. */
   try {
     if (typeof PYB_AUTH !== 'undefined' && url.indexOf('idToken=') === -1) {
-      const _tok = await PYB_AUTH.getIdToken();
+      const hasExplicitToken = arguments.length >= 3;
+      const _tok = hasExplicitToken ? explicitIdToken : await PYB_AUTH.getIdToken();
       if (_tok) url += (url.includes('?') ? '&' : '?') + 'idToken=' + encodeURIComponent(_tok);
     }
   } catch (_e) { /* se continúa sin token */ }
@@ -9309,33 +9313,29 @@ function matchDogByNombreMail(nombre, mail) {
 async function loadHealthFoodHomeCareFromSheet() {
   const out = { health: null, food: null, homeCare: null };
 
-  /* ── FIX SYNC (v2): las 3 llamadas de abajo (Alimentación,
-     Desparasitarios, Cuidado a Domicilio) dependen de fetchJSONP, que
-     internamente llama a PYB_AUTH.getIdToken() → Firebase → y en el
-     backend, getAuthContext() hace un UrlFetchApp.fetch en vivo contra
-     identitytoolkit.googleapis.com para verificar ese token (cacheado
-     5 min por CacheService, pero SOLO después del primer hit).
-     Al lanzarlas las 3 en Promise.allSettled EXACTAMENTE al mismo
-     tiempo, las 3 llegan al Apps Script sin nada todavía en caché, así
-     que las 3 ejecuciones intentan verificar el token en simultáneo
-     contra Google. Bajo carga (varias pestañas, red lenta, Apps Script
-     con cola), una o más de esas 3 ejecuciones puede no devolver nada
-     dentro de los 14s de fetchJSONP: el <script> nunca dispara su
-     callback y cae como "JSONP timeout", exactamente el síntoma del
-     panel de diagnóstico (auth ok una vez, después timeout en la
-     planilla).
-     Fix: se dispara primero SOLO getAlimentacion y se espera a que
-     resuelva (paga el costo de verificar el token una vez, lo deja en
-     caché), y recién después se lanzan getDesparasitarios y
-     getCuidadoDomicilio en paralelo entre sí — esas dos ya encuentran
-     el token cacheado y no vuelven a pegarle a Google. El tiempo total
-     sigue siendo mejor que las 3 secuenciales (que sería ~3× el costo
-     de red), pero ya no dispara 3 verificaciones concurrentes contra
-     Google en el peor momento (justo al cargar la página). ── */
+  /* ── FIX SYNC (v3): capturar el idToken UNA SOLA VEZ por tanda ────────
+     Las tres lecturas (Alimentación, Desparasitarios y Cuidado a Domicilio)
+     usan la MISMA sesión de Firebase. Antes, cada fetchJSONP() llamaba por
+     separado a PYB_AUTH.getIdToken(); eso podía generar varias operaciones
+     concurrentes de Firebase al arrancar.
+
+     Ahora obtenemos el token una sola vez acá y se lo pasamos explícitamente
+     a las tres llamadas. Así el backend recibe exactamente la misma
+     credencial en toda la tanda y fetchJSONP no vuelve a consultar Firebase.
+     Si no hay token, se pasa null y el comportamiento queda compatible con
+     AUTH_ENFORCE=false (backend en modo legacy). ── */
+  let batchIdToken = null;
+  try {
+    if (typeof PYB_AUTH !== 'undefined') {
+      batchIdToken = await PYB_AUTH.getIdToken();
+    }
+  } catch (_e) {
+    batchIdToken = null;
+  }
 
   const cargarAlimentacion = async () => {
   try {
-    const rowsF = await fetchJSONP(APPS_SCRIPT_URL + '?action=getAlimentacion');
+    const rowsF = await fetchJSONP(APPS_SCRIPT_URL + '?action=getAlimentacion', undefined, batchIdToken);
     addLiveLog('[DEBUG] getAlimentacion crudo: ' + JSON.stringify(rowsF).slice(0, 300), 'ok');
     if (Array.isArray(rowsF)) {
       let sinIdCount = 0;
@@ -9368,7 +9368,7 @@ async function loadHealthFoodHomeCareFromSheet() {
 
   const cargarDesparasitarios = async () => {
   try {
-    const rowsD = await fetchJSONP(APPS_SCRIPT_URL + '?action=getDesparasitarios');
+    const rowsD = await fetchJSONP(APPS_SCRIPT_URL + '?action=getDesparasitarios', undefined, batchIdToken);
     addLiveLog('[DEBUG] getDesparasitarios crudo: ' + JSON.stringify(rowsD).slice(0, 300), 'ok');
     if (Array.isArray(rowsD)) {
       let sinIdCountD = 0;
@@ -9417,7 +9417,7 @@ async function loadHealthFoodHomeCareFromSheet() {
 
   const cargarCuidadoDomicilio = async () => {
   try {
-    const rowsC = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCuidadoDomicilio');
+    const rowsC = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCuidadoDomicilio', undefined, batchIdToken);
     if (Array.isArray(rowsC)) {
       let sinIdCountC = 0;
       out.homeCare = rowsC.map((r, i) => {
@@ -9444,46 +9444,12 @@ async function loadHealthFoodHomeCareFromSheet() {
   } catch (e) { addLiveLog('[WARN] No se pudo leer CuidadoDomicilio de la planilla: ' + e.message, 'err'); }
   };
 
-  // Las 3 tareas son independientes entre sí — ninguna lee lo que escribe
-  // otra — así que se lanzan JUNTAS y se espera a que las 3 terminen
-  // (Promise.allSettled, no Promise.all: si una revienta, las otras dos
-  // igual completan y sus datos quedan en `out` normalmente). El tiempo
-  // total pasa de ~7s (2.3s + 2.3s + 2.3s en cadena) a ~2.3s (la más
-  // lenta de las 3, corriendo en simultáneo).
-  //
-  // FIX (confirmado con prueba manual: pegar la URL de getAlimentacion
-  // directo en el navegador responde rápido y con JSON correcto, así que
-  // Apps Script/el deployment están sanos): el timeout de "JSONP timeout"
-  // en Alimentación/Desparasitarios/Cuidado a Domicilio aparecía porque
-  // las 3 llamadas pegaban al MISMO endpoint de Apps Script en el mismo
-  // instante exacto. Apps Script re-ejecuta el script completo por cada
-  // hit a /exec, y 3 ejecuciones concurrentes contra el mismo proyecto
-  // se apilan del lado de Google, empujando a algunas por encima del
-  // timeout del cliente aunque cada una por separado sea rápida.
-  // Solución: mantener las 3 en paralelo real (no volver a secuencial de
-  // ~7s) pero escalonar el DISPARO de cada una con 250ms de por medio,
-  // para que no lleguen a Apps Script en el mismo milisegundo. Esto no
-  // cambia qué se pide ni cómo se procesa la respuesta — cada llamada
-  // sigue siendo independiente y su try/catch individual se conserva
-  // intacto (ver cargarAlimentacion/cargarDesparasitarios/
-  // cargarCuidadoDomicilio más arriba, sin tocar).
-  // FIX v2 (reemplaza el escalonamiento por delay fijo de 250ms/500ms):
-  // un delay fijo solo corre el HORARIO de disparo, no garantiza que la
-  // primera llamada ya haya terminado de verificar+cachear el idToken
-  // del lado de Apps Script (CacheService, TTL 5 min, ver
-  // verifyFirebaseToken en el backend). Si getAlimentacion tarda más de
-  // 250/500ms en resolver ese primer lookup contra Google (cold start,
-  // red lenta, Apps Script con cola), las otras 2 igual salen antes de
-  // que el cache esté escrito y las 3 vuelven a pegarle a
-  // identitytoolkit.googleapis.com en simultáneo — mismo bug, solo que
-  // menos frecuente.
-  // Se espera la resolución REAL de cargarAlimentacion (que paga el
-  // costo de verificar el token una única vez y lo deja cacheado) antes
-  // de lanzar las otras 2, que ya van a encontrar el token en caché del
-  // lado del backend y no vuelven a golpear a Google. Sigue sin ser
-  // secuencial-de-3 (~7s): es 1 llamada + 2 en paralelo, así que el
-  // tiempo total es (tiempo de la 1ª) + (el más lento de las otras 2),
-  // no la suma de las 3.
+  // Las tres tareas son independientes entre sí. Se mantiene el patrón
+  // 1 + 2 en paralelo para que la primera respuesta complete la verificación
+  // y el cache del lado de Apps Script antes de abrir las otras dos. La
+  // diferencia clave de esta versión es que LAS TRES reciben exactamente el
+  // mismo idToken ya capturado arriba, por lo que no hay tres llamadas
+  // separadas a Firebase desde el navegador.
   await cargarAlimentacion();
   await Promise.allSettled([
     cargarDesparasitarios(),
