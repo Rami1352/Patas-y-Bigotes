@@ -8689,14 +8689,15 @@ async function entrarConCuentaVerificada(emailFallback) {
   preloadNavigationScenes();
 
   // SINCRONIZACIÓN AUTOMÁTICA POST-LOGIN:
-  // Si la carga base de Mascota Paseo ya terminó correctamente antes del login,
-  // no hace falta volver a descargar las mismas ~36 mascotas: alcanza con
-  // refrescar las 3 hojas de servicios usando el token recién autenticado.
-  // Eso deja el login sensiblemente más rápido sin cambiar el comportamiento
-  // cuando la carga base todavía no terminó o fue descartada por cambio de usuario.
+  // antes el login solo armaba currentUser y mostraba el dashboard,
+  // pero los datos de servicios podían haber quedado cargados como locales
+  // porque la carga inicial ocurrió antes de existir un idToken.
+  // Ahora, una vez autenticado y con currentUser resuelto, hacemos una
+  // sincronización real contra Apps Script usando el token de Firebase.
+  // Si falla, no rompemos el login: el usuario conserva los datos locales
+  // y puede usar el botón Sincronizar manualmente.
   const loginEpoch = userStateEpoch;
-  const fastPath = Array.isArray(state.dogs) && state.dogs.length > 0 && !!lastSyncTime;
-  (fastPath ? syncServicesOnlyForCurrentUser(loginEpoch) : loadFromGoogleSheets(false, loginEpoch))
+  loadFromGoogleSheets(false, loginEpoch)
     .then(function () {
       if (loginEpoch !== userStateEpoch) return;
       if (currentUser) {
@@ -8979,7 +8980,7 @@ async function fetchJSONP(url, cbName, explicitIdToken) {
 
   return new Promise((resolve, reject) => {
     const name = cbName || ('_pyb_cb_' + Date.now());
-    // Timeout subido de 20s a 30s: aun con el fix de
+    // Timeout configurado en 30s: aun con el fix de
     // loadHealthFoodHomeCareFromSheet (esperar a que getAlimentacion
     // resuelva y cachee el idToken antes de lanzar las otras 2), en la
     // práctica getDesparasitarios seguía timeouteando a los 20s en cold
@@ -8990,7 +8991,7 @@ async function fetchJSONP(url, cbName, explicitIdToken) {
     // cuello de botella no es el timeout sino algo en la ejecución
     // puntual de handleGetDesparasitarios en Apps Script — ver el
     // comentario de auditoría en Code.gs sobre este mismo síntoma.
-    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 20000);
+    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 30000);
     window[name] = data => { clearTimeout(timer); delete window[name]; resolve(data); };
     const s = document.createElement('script');
     s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + name;
@@ -9053,35 +9054,6 @@ async function notifyAdmin(seccion, accion, petName, detalle) {
 //  (getCatalogoAlimentos / getCatalogoDesparasitarios) sin cambios,
 //  porque ese sí es información pensada para ser pública.
 // ═══════════════════════════════════════════════════════════════
-async function syncServicesOnlyForCurrentUser(expectedEpoch) {
-  const syncEpoch = (expectedEpoch === undefined || expectedEpoch === null) ? userStateEpoch : expectedEpoch;
-  addLiveLog('[INFO] Actualizando servicios tras el login…');
-  try {
-    const fromSheet = await loadHealthFoodHomeCareFromSheet(syncEpoch);
-    if (syncEpoch !== userStateEpoch) throw new Error('Sincronización descartada por cambio de usuario');
-
-    const savedH = (() => { try { const r=localStorage.getItem(LS_HEALTH); return r ? JSON.parse(r) : null; } catch(e){return null;} })();
-    const savedF = (() => { try { const r=localStorage.getItem(LS_FOOD); return r ? JSON.parse(r) : null; } catch(e){return null;} })();
-    const savedC = (() => { try { const r=localStorage.getItem(LS_HOMECARE); return r ? JSON.parse(r) : null; } catch(e){return null;} })();
-
-    state.health   = fromSheet.health   !== null ? fromSheet.health   : (savedH || []);
-    state.food     = fromSheet.food     !== null ? fromSheet.food     : (savedF || []);
-    state.homeCare = fromSheet.homeCare !== null ? fromSheet.homeCare : (savedC || []);
-
-    if (fromSheet.health   !== null) saveHealthToLS();
-    if (fromSheet.food     !== null) saveFoodToLS();
-    if (fromSheet.homeCare !== null) saveHomeCareToLS();
-
-    lastSyncTime = new Date();
-    updateSyncBadge(false);
-    addLiveLog('[OK] Servicios actualizados tras el login.', 'ok');
-  } catch (e) {
-    if (syncEpoch !== userStateEpoch && e && e.message && e.message.indexOf('Sincronización descartada') === 0) throw e;
-    addLiveLog('[WARN] No se pudieron actualizar los servicios tras el login: ' + e.message, 'err');
-    throw e;
-  }
-}
-
 async function loadFromGoogleSheets(showToastAfter, expectedEpoch) {
   const syncEpoch = (expectedEpoch === undefined || expectedEpoch === null) ? userStateEpoch : expectedEpoch;
   addLiveLog('[INFO] Conectando con la planilla…');
@@ -17124,19 +17096,13 @@ function syncLanguageUI() {
   translateApp(getLanguagePref());
   syncLanguageUI();
   seedData();
-  addLiveLog('[INFO] Sistema iniciado. Conectando con Google Sheets…', 'ok');
-  loadFromGoogleSheets()
-    .then(() => {
-      addLiveLog('[OK] Planilla sincronizada. Listo para ingresar.', 'ok');
-      if (currentUser) { buildSidebar(); markViewDirty(currentView); renderView(currentView); __renderedViews.add(currentView); }
-    })
-    .catch(err => {
-      // Mostrar panel de diagnóstico solo si hay error de conexión
-      const panel = document.getElementById('diagnostics-panel');
-      if (panel) panel.style.display = 'block';
-      addLiveLog('[WARN] No se pudo conectar con Google Sheets: ' + err.message, 'err');
-      addLiveLog('[INFO] Usando datos locales. Podés iniciar sesión igualmente.', 'ok');
-    });
+  addLiveLog('[INFO] Sistema iniciado. Esperando autenticación para sincronizar…', 'ok');
+
+  // No consultamos datos privados de Google Sheets antes de autenticar al
+  // usuario con Firebase. Con la autenticación reforzada activa, ese request
+  // previo podía devolver una respuesta vacía y generar un error falso antes
+  // del login. La sincronización automática real se dispara desde
+  // entrarConCuentaVerificada(), apenas la cuenta queda validada.
 })();
 </script>
 
