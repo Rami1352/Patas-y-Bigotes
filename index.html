@@ -8918,7 +8918,7 @@ async function fetchJSONP(url, cbName, explicitIdToken) {
     // cuello de botella no es el timeout sino algo en la ejecución
     // puntual de handleGetDesparasitarios en Apps Script — ver el
     // comentario de auditoría en Code.gs sobre este mismo síntoma.
-    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 30000);
+    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 20000);
     window[name] = data => { clearTimeout(timer); delete window[name]; resolve(data); };
     const s = document.createElement('script');
     s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + name;
@@ -9313,17 +9313,18 @@ function matchDogByNombreMail(nombre, mail) {
 async function loadHealthFoodHomeCareFromSheet() {
   const out = { health: null, food: null, homeCare: null };
 
-  /* ── FIX SYNC (v3): capturar el idToken UNA SOLA VEZ por tanda ────────
-     Las tres lecturas (Alimentación, Desparasitarios y Cuidado a Domicilio)
-     usan la MISMA sesión de Firebase. Antes, cada fetchJSONP() llamaba por
-     separado a PYB_AUTH.getIdToken(); eso podía generar varias operaciones
-     concurrentes de Firebase al arrancar.
+  /* FIX v4: una sola llamada al backend para las tres secciones.
+     Antes se hacían tres requests independientes (y aun con el mismo token,
+     cada uno levantaba una ejecución separada de Apps Script). Eso dejaba
+     abierta la posibilidad de que Desparasitarios quedara esperando mientras
+     otra ejecución hacía la verificación de Firebase / cold start.
 
-     Ahora obtenemos el token una sola vez acá y se lo pasamos explícitamente
-     a las tres llamadas. Así el backend recibe exactamente la misma
-     credencial en toda la tanda y fetchJSONP no vuelve a consultar Firebase.
-     Si no hay token, se pasa null y el comportamiento queda compatible con
-     AUTH_ENFORCE=false (backend en modo legacy). ── */
+     Ahora:
+       1) obtenemos el idToken UNA SOLA VEZ;
+       2) hacemos UN SOLO request getServiciosCliente;
+       3) Apps Script verifica el token UNA SOLA VEZ y lee las tres hojas en
+          la misma ejecución;
+       4) el timeout máximo de esta llamada es 20 s. */
   let batchIdToken = null;
   try {
     if (typeof PYB_AUTH !== 'undefined') {
@@ -9333,128 +9334,64 @@ async function loadHealthFoodHomeCareFromSheet() {
     batchIdToken = null;
   }
 
-  const cargarAlimentacion = async () => {
   try {
-    const rowsF = await fetchJSONP(APPS_SCRIPT_URL + '?action=getAlimentacion', undefined, batchIdToken);
-    addLiveLog('[DEBUG] getAlimentacion crudo: ' + JSON.stringify(rowsF).slice(0, 300), 'ok');
-    if (Array.isArray(rowsF)) {
-      let sinIdCount = 0;
-      out.food = rowsF.map((r) => {
-        const dog = matchDogByNombreMail(r.Nombre, r.Mail);
-        if (!dog) return null;
-        // El id viene de la columna "Id" de la hoja (ver Apps Script:
-        // handleAddAlimentacion / handleGetAlimentacion). Antes acá se
-        // generaba con Date.now()+i en cada carga de página, lo cual
-        // producía un id DISTINTO cada vez que se refrescaba: por eso
-        // "Eliminar" nunca pegaba en la planilla, no había forma de saber
-        // qué fila borrar. Si una fila todavía no tiene Id (hoja vieja,
-        // sin migrar todavía con migrarIdAlimentacion() en el Apps
-        // Script), se genera uno temporal de sesión: se ve bien en
-        // pantalla, pero esa fila puntual no se podrá eliminar hasta
-        // correr la migración, porque su Id no existe en la hoja real.
-        let id = String(r.Id || '').trim();
-        if (!id) { id = genFoodId(); sinIdCount++; }
-        return { id, dogId: dog.id, brand: r.Marca || '', portion: parseFloat(r.Porcion) || 0, freq: r.Frecuencia || '1 vez al día', last: r.Ultima || '', next: r.Proxima || '', notes: r.Notas || '' };
-      }).filter(Boolean);
-      if (sinIdCount > 0) {
-        addLiveLog('[WARN] ' + sinIdCount + ' registro(s) de Alimentación sin columna Id en la hoja: no se van a poder eliminar hasta correr migrarIdAlimentacion() en el Apps Script.', 'err');
-      }
-      addLiveLog('[DEBUG] Alimentacion procesada: ' + out.food.length + ' registros', 'ok');
-    } else {
-      addLiveLog('[WARN] getAlimentacion no devolvió un array: ' + typeof rowsF, 'err');
-    }
-  } catch (e) { addLiveLog('[WARN] No se pudo leer Alimentacion de la planilla: ' + e.message, 'err'); }
-  };
+    const res = await fetchJSONP(
+      APPS_SCRIPT_URL + '?action=getServiciosCliente',
+      undefined,
+      batchIdToken
+    );
 
-  const cargarDesparasitarios = async () => {
-  try {
-    const rowsD = await fetchJSONP(APPS_SCRIPT_URL + '?action=getDesparasitarios', undefined, batchIdToken);
-    addLiveLog('[DEBUG] getDesparasitarios crudo: ' + JSON.stringify(rowsD).slice(0, 300), 'ok');
-    if (Array.isArray(rowsD)) {
-      let sinIdCountD = 0;
-      out.health = rowsD.map((r, i) => {
-        const dog = matchDogByNombreMail(r.Nombre, r.Mail);
-        if (!dog) return null;
-        // El id viene de la columna "Id" de la hoja (ver Apps Script:
-        // handleAddDesparasitario / handleGetDesparasitarios), mismo
-        // patrón que Alimentacion más arriba. Antes acá se generaba un id
-        // con Date.now()+1000+i en cada carga de página —distinto cada
-        // vez—, así que editDeworm/deleteDeworm nunca podían identificar
-        // de forma estable una fila ya existente después de un refresh.
-        // Si una fila todavía no tiene Id (hoja vieja, sin migrar todavía
-        // con migrarIdDesparasitarios() en el Apps Script), se genera uno
-        // temporal de sesión: se ve bien en pantalla, pero esa fila
-        // puntual no se podrá editar ni eliminar hasta correr la migración.
-        let id = String(r.Id || '').trim();
-        if (!id) { id = genDewormId(); sinIdCountD++; }
-        // FIX: el filtro de renderModuleDesparasitarios (línea ~7528) y el
-        // de las notificaciones (línea ~8848) exigen literalmente
-        // h.type === 'Desparasitación'. Antes esta línea guardaba
-        // r.Producto (p.ej. "Bravecto", "NexGard") en 'type', así que
-        // para cualquier fila con Producto cargado —que es casi todas,
-        // Producto es obligatorio en el alta— el filtro nunca matcheaba
-        // y el registro desaparecía de renderModuleDesparasitarios, aunque
-        // dogId y myDogs estuvieran perfectos.
-        // 'type' NO se puede pisar con un valor fijo: otra vista (la
-        // tabla genérica de historial médico, ~línea 7929, columna
-        // "Tipo") muestra h.type tal cual esperando ver el nombre del
-        // producto, así que sigue guardando r.Producto igual que antes.
-        // En cambio se agrega 'category', dedicado solo a la comparación
-        // de categoría, siempre fijo en 'Desparasitación' (mismo valor
-        // que ya usan los altas/ediciones manuales en líneas ~7146/7158,
-        // que ahora también setean category para quedar consistentes).
-        return { id, dogId: dog.id, type: r.Producto || 'Desparasitación', category: 'Desparasitación', desc: r.Descripcion || '', last: r.Ultima || '', next: r.Proxima || '' };
-      }).filter(Boolean);
-      if (sinIdCountD > 0) {
-        addLiveLog('[WARN] ' + sinIdCountD + ' registro(s) de Desparasitarios sin columna Id en la hoja: no se van a poder editar/eliminar hasta correr migrarIdDesparasitarios() en el Apps Script.', 'err');
-      }
-      addLiveLog('[DEBUG] Desparasitarios procesado: ' + out.health.length + ' registros', 'ok');
-    } else {
-      addLiveLog('[WARN] getDesparasitarios no devolvió un array: ' + typeof rowsD, 'err');
+    if (!res || typeof res !== 'object' || Array.isArray(res) || res.error) {
+      throw new Error((res && res.error) || 'Respuesta inválida de servicios');
     }
-  } catch (e) { addLiveLog('[WARN] No se pudo leer Desparasitarios de la planilla: ' + e.message, 'err'); }
-  };
 
-  const cargarCuidadoDomicilio = async () => {
-  try {
-    const rowsC = await fetchJSONP(APPS_SCRIPT_URL + '?action=getCuidadoDomicilio', undefined, batchIdToken);
-    if (Array.isArray(rowsC)) {
-      let sinIdCountC = 0;
-      out.homeCare = rowsC.map((r, i) => {
-        const dog = matchDogByNombreMail(r.Nombre, r.Mail);
-        if (!dog) return null;
-        // El id tiene que ser el mismo que la columna "Id" de la hoja
-        // (ver handleAddCuidadoDomicilio/handleDeleteCuidadoDomicilio en
-        // el Apps Script), NO uno inventado acá con Date.now(): si se
-        // inventa un id nuevo en cada carga, deleteHomeCare() nunca va a
-        // poder decirle a la planilla "borrá la fila con este Id" porque
-        // ese id no existe en ningún lado más que en esta sesión del
-        // navegador. Si la fila vieja no tiene columna Id todavía (hoja
-        // sin migrar), se cae a un id local de sesión y se avisa, para
-        // no dejar de mostrar el registro pero dejando claro que su
-        // borrado remoto no va a funcionar hasta migrar la hoja.
-        const realId = String(r.Id || '').trim();
-        if (!realId) sinIdCountC++;
-        return { id: realId || ('local-' + (Date.now() + 2000 + i)), dogId: dog.id, description: r.Descripcion || '', dateStart: r.FechaInicio || '', dateEnd: r.FechaFin || '', status: r.Estado || 'pending' };
-      }).filter(Boolean);
-      if (sinIdCountC > 0) {
-        addLiveLog('[WARN] ' + sinIdCountC + ' registro(s) de Cuidado a Domicilio sin columna Id en la hoja: no se van a poder eliminar hasta correr migrarIdCuidadoDomicilio() en el Apps Script.', 'err');
-      }
+    const rowsF = Array.isArray(res.food) ? res.food : [];
+    const rowsD = Array.isArray(res.health) ? res.health : [];
+    const rowsC = Array.isArray(res.homeCare) ? res.homeCare : [];
+
+    addLiveLog('[DEBUG] getServiciosCliente: Alimentacion=' + rowsF.length + ' · Desparasitarios=' + rowsD.length + ' · CuidadoDomicilio=' + rowsC.length, 'ok');
+
+    let sinIdCount = 0;
+    out.food = rowsF.map((r) => {
+      const dog = matchDogByNombreMail(r.Nombre, r.Mail);
+      if (!dog) return null;
+      let id = String(r.Id || '').trim();
+      if (!id) { id = genFoodId(); sinIdCount++; }
+      return { id, dogId: dog.id, brand: r.Marca || '', portion: parseFloat(r.Porcion) || 0, freq: r.Frecuencia || '1 vez al día', last: r.Ultima || '', next: r.Proxima || '', notes: r.Notas || '' };
+    }).filter(Boolean);
+    if (sinIdCount > 0) {
+      addLiveLog('[WARN] ' + sinIdCount + ' registro(s) de Alimentación sin columna Id en la hoja: no se van a poder eliminar hasta correr migrarIdAlimentacion() en el Apps Script.', 'err');
     }
-  } catch (e) { addLiveLog('[WARN] No se pudo leer CuidadoDomicilio de la planilla: ' + e.message, 'err'); }
-  };
+    addLiveLog('[DEBUG] Alimentacion procesada: ' + out.food.length + ' registros', 'ok');
 
-  // Las tres tareas son independientes entre sí. Se mantiene el patrón
-  // 1 + 2 en paralelo para que la primera respuesta complete la verificación
-  // y el cache del lado de Apps Script antes de abrir las otras dos. La
-  // diferencia clave de esta versión es que LAS TRES reciben exactamente el
-  // mismo idToken ya capturado arriba, por lo que no hay tres llamadas
-  // separadas a Firebase desde el navegador.
-  await cargarAlimentacion();
-  await Promise.allSettled([
-    cargarDesparasitarios(),
-    cargarCuidadoDomicilio()
-  ]);
+    let sinIdCountD = 0;
+    out.health = rowsD.map((r) => {
+      const dog = matchDogByNombreMail(r.Nombre, r.Mail);
+      if (!dog) return null;
+      let id = String(r.Id || '').trim();
+      if (!id) { id = genDewormId(); sinIdCountD++; }
+      return { id, dogId: dog.id, type: r.Producto || 'Desparasitación', category: 'Desparasitación', desc: r.Descripcion || '', last: r.Ultima || '', next: r.Proxima || '' };
+    }).filter(Boolean);
+    if (sinIdCountD > 0) {
+      addLiveLog('[WARN] ' + sinIdCountD + ' registro(s) de Desparasitarios sin columna Id en la hoja: no se van a poder editar/eliminar hasta correr migrarIdDesparasitarios() en el Apps Script.', 'err');
+    }
+    addLiveLog('[DEBUG] Desparasitarios procesado: ' + out.health.length + ' registros', 'ok');
+
+    let sinIdCountC = 0;
+    out.homeCare = rowsC.map((r, i) => {
+      const dog = matchDogByNombreMail(r.Nombre, r.Mail);
+      if (!dog) return null;
+      const realId = String(r.Id || '').trim();
+      if (!realId) sinIdCountC++;
+      return { id: realId || ('local-' + (Date.now() + 2000 + i)), dogId: dog.id, description: r.Descripcion || '', dateStart: r.FechaInicio || '', dateEnd: r.FechaFin || '', status: r.Estado || 'pending' };
+    }).filter(Boolean);
+    if (sinIdCountC > 0) {
+      addLiveLog('[WARN] ' + sinIdCountC + ' registro(s) de Cuidado a Domicilio sin columna Id en la hoja: no se van a poder eliminar hasta correr migrarIdCuidadoDomicilio() en el Apps Script.', 'err');
+    }
+
+  } catch (e) {
+    addLiveLog('[WARN] No se pudieron leer Alimentacion/Desparasitarios/CuidadoDomicilio de la planilla: ' + e.message, 'err');
+  }
 
   return out;
 }
