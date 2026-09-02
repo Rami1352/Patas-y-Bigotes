@@ -8903,17 +8903,18 @@ async function fetchJSONP(url, cbName) {
 
   return new Promise((resolve, reject) => {
     const name = cbName || ('_pyb_cb_' + Date.now());
-    // Timeout subido de 14s a 20s: con el fix de loadHealthFoodHomeCareFromSheet
-    // (esperar a que getAlimentacion termine y cachee el idToken antes de
-    // lanzar las otras 2), ya no deberían dispararse verificaciones
-    // concurrentes contra Google, pero la PRIMERA llamada de la sesión
-    // sigue pagando ese costo entero (verifyFirebaseToken → UrlFetchApp.fetch
-    // en vivo a identitytoolkit.googleapis.com, sin nada en caché todavía)
-    // sumado al propio cold start de Apps Script. 14s podía quedar corto
-    // para esa primera llamada bajo mala conexión; 20s da margen sin
-    // dejar al usuario esperando de más en el caso normal (que sigue
-    // resolviendo en ~2-3s).
-    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 20000);
+    // Timeout subido de 20s a 30s: aun con el fix de
+    // loadHealthFoodHomeCareFromSheet (esperar a que getAlimentacion
+    // resuelva y cachee el idToken antes de lanzar las otras 2), en la
+    // práctica getDesparasitarios seguía timeouteando a los 20s en cold
+    // start de Apps Script, aunque probada a mano (pegando la URL con
+    // idToken directo en el navegador) responde bien en 5-10s. 30s da
+    // margen extra sin afectar el caso normal, que sigue resolviendo en
+    // ~2-3s. NOTA: si el timeout sigue saltando incluso con 30s, el
+    // cuello de botella no es el timeout sino algo en la ejecución
+    // puntual de handleGetDesparasitarios en Apps Script — ver el
+    // comentario de auditoría en Code.gs sobre este mismo síntoma.
+    const timer = setTimeout(() => { delete window[name]; reject(new Error('JSONP timeout')); }, 30000);
     window[name] = data => { clearTimeout(timer); delete window[name]; resolve(data); };
     const s = document.createElement('script');
     s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + name;
