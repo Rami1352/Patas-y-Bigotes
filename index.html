@@ -9848,7 +9848,14 @@ function renderDashboard() {
   let myDogs = _isAdmin ? state.dogs : state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
 
   // Bienvenida personalizada
-  const ownerName = _isAdmin ? 'Ramiro' :
+  // FIX: antes acá había 'Ramiro' hardcodeado para CUALQUIER admin, así
+  // que todo usuario con Rol=admin en la hoja veía "Hola, Ramiro" sin
+  // importar de quién fuera la cuenta. Ahora se usa el nombre propio de
+  // currentUser (derivado de su email real via PYB_AUTH/getMiCuenta),
+  // igual que ya se hacía para clientes normales con myDogs[0].owner.
+  // El mensaje "Panel de administración activo" (welcomeStatusEl más
+  // abajo) no se toca: sigue mostrándose igual para cualquier admin.
+  const ownerName = _isAdmin ? (currentUser.username || 'Admin') :
     (myDogs.length > 0 ? (myDogs[0].owner || 'Cliente') : 'Cliente');
   const firstName = ownerName.split(' ')[0];
   document.getElementById('portal-welcome-name').textContent = 'Hola, ' + firstName + ' '; document.getElementById('portal-welcome-name').insertAdjacentHTML('beforeend', '<i class="fa-solid fa-hand" style="color:var(--amber)"></i>');
