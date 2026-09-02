@@ -8485,6 +8485,25 @@ async function doLogin() {
 //  backend no devuelve uno (mismo comportamiento que ya tenía el login
 //  manual, que usaba el "email" tipeado en el form como fallback).
 // ═══════════════════════════════════════════════════════════════
+
+/* ── Limpia toda la información dependiente del usuario autenticado.
+   Se ejecuta al cambiar de cuenta para que nunca se muestre en pantalla
+   información de la sesión anterior mientras llega la sincronización nueva.
+   No toca recomendaciones ni catálogos públicos. ── */
+function clearUserScopedState() {
+  state.dogs = [];
+  state.walks = [];
+  state.health = [];
+  state.food = [];
+  state.homeCare = [];
+  lastSyncTime = null;
+  try {
+    if (typeof __renderedViews !== 'undefined' && __renderedViews && __renderedViews.clear) {
+      __renderedViews.clear();
+    }
+  } catch (e) {}
+}
+
 async function entrarConCuentaVerificada(emailFallback) {
   // Se le pregunta al backend quién es este idToken (CLIENTE_ID, rol,
   // estado de vinculación). currentUser sale de acá, NUNCA de una
@@ -8525,6 +8544,12 @@ async function entrarConCuentaVerificada(emailFallback) {
     initials:  email.split('@')[0].substring(0,2).toUpperCase(),
     estado:    cuenta.estado || ''
   };
+
+  // FIX v30: al cambiar de cuenta NO se puede reutilizar en pantalla el
+  // state de la sesión anterior. Se limpia antes de cualquier render y se
+  // deja que la sincronización autenticada vuelva a poblarlo desde Sheets.
+  clearUserScopedState();
+
   addLiveLog('[OK] Acceso concedido: ' + currentUser.username + (currentUser.clienteId ? ' (' + currentUser.clienteId + ')' : ''), 'ok');
 
   // FIX MOBILE (recuadro gris en login, ver Imagen 1 del usuario — franja
@@ -8615,7 +8640,14 @@ async function entrarConCuentaVerificada(emailFallback) {
      mascotas" sin importar qué campo se use acá para buscar el nombre
      a mostrar. El campo mail se mantiene como dato de contacto legible,
      no como mecanismo de autorización. */
-  const myDogs = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  const normalizedSidebarMail = String(currentUser.email || '').trim().toLowerCase();
+  const normalizedSidebarClienteId = String(currentUser.clienteId || '').trim();
+  const myDogs = state.dogs.filter(d => {
+    const dogClienteId = String(d.clienteId || '').trim();
+    const dogMail = String(d.mail || '').trim().toLowerCase();
+    if (normalizedSidebarClienteId && dogClienteId) return dogClienteId === normalizedSidebarClienteId;
+    return normalizedSidebarMail !== '' && dogMail === normalizedSidebarMail;
+  });
   if (myDogs.length > 0) {
     document.getElementById('sidebar-username').textContent = myDogs[0].owner || currentUser.username || 'Cliente';
   } else if (isAdmin()) {
@@ -8687,6 +8719,9 @@ function firebaseErrorToSpanish(err) {
 }
 
 function doLogout() {
+  // FIX v30: limpiar inmediatamente los datos privados del usuario anterior,
+  // antes incluso de terminar el signOut de Firebase.
+  clearUserScopedState();
   currentUser = null;
   // Antes esta función no llamaba a PYB_AUTH.logout(): solo limpiaba
   // currentUser y la UI, pero la sesión real de Firebase (persistida con
@@ -9184,6 +9219,7 @@ function processSheetData(rawRows) {
         owner, phone, neighborhood: barrio || 'Santa Isabel',
         cost: costo || 5000, notes, sexo, lote, cumple,
         mail, rol: rol || 'usuario',
+        clienteId: col(row, 'clienteid', 'cliente_id', 'clientid'),
         servicios_activos: serviciosActivosFinal || '',
         photo: photoUrl || photoOverride || '',
         emoji: emojis[Math.floor(Math.random() * emojis.length)]
@@ -9197,6 +9233,8 @@ function processSheetData(rawRows) {
       if (age) dog.age = age;
       if (mail) dog.mail = mail;
       if (rol) dog.rol = rol;
+      const rowClienteId = col(row, 'clienteid', 'cliente_id', 'clientid');
+      if (rowClienteId) dog.clienteId = rowClienteId;
       if (serviciosActivosFinal) dog.servicios_activos = serviciosActivosFinal;
       dog.photo = photoUrl || photoOverride || dog.photo;
     }
@@ -9815,19 +9853,33 @@ function renderDashboard() {
   document.getElementById('client-portal-content').style.display = 'block';
   document.getElementById('dashboard-alerts').innerHTML = '';
 
-  let myDogs = _isAdmin ? state.dogs : state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
+  // Mascotas que pertenecen a la identidad autenticada. Para un admin NO
+  // usamos state.dogs completo para determinar el nombre de bienvenida: el
+  // admin puede ver todas las mascotas, pero el saludo debe representar al
+  // dueño real de su propia cuenta. Se prioriza CLIENTE_ID y luego Mail.
+  const normalizedUserMail = String(currentUser.email || '').trim().toLowerCase();
+  const normalizedUserClienteId = String(currentUser.clienteId || '').trim();
+  const identityDogs = state.dogs.filter(d => {
+    const dogClienteId = String(d.clienteId || '').trim();
+    const dogMail = String(d.mail || '').trim().toLowerCase();
+    if (normalizedUserClienteId && dogClienteId) return dogClienteId === normalizedUserClienteId;
+    return normalizedUserMail !== '' && dogMail === normalizedUserMail;
+  });
 
-  // Bienvenida personalizada
-  // FIX: antes acá había 'Ramiro' hardcodeado para CUALQUIER admin, así
-  // que todo usuario con Rol=admin en la hoja veía "Hola, Ramiro" sin
-  // importar de quién fuera la cuenta. Ahora se usa el nombre propio de
-  // currentUser (derivado de su email real via PYB_AUTH/getMiCuenta),
-  // igual que ya se hacía para clientes normales con myDogs[0].owner.
-  // El mensaje "Panel de administración activo" (welcomeStatusEl más
-  // abajo) no se toca: sigue mostrándose igual para cualquier admin.
-  const ownerName = _isAdmin ? (currentUser.username || 'Admin') :
-    (myDogs.length > 0 ? (myDogs[0].owner || 'Cliente') : 'Cliente');
-  const firstName = ownerName.split(' ')[0];
+  // Para el contenido del dashboard, los admins siguen viendo todas las
+  // mascotas/servicios exactamente como antes; los clientes solo las suyas.
+  let myDogs = _isAdmin ? state.dogs : identityDogs;
+
+  // Bienvenida personalizada basada en el Dueño real de "Mascota Paseo".
+  // Esto evita mostrar "ramiro.marin2006" o el email del usuario.
+  // Para un cliente normal y para un admin propietario de mascotas, el nombre
+  // sale directamente de la columna Dueño/dueno que ya procesamos en state.dogs.
+  // Si por alguna razón la cuenta todavía no tiene una mascota vinculada,
+  // usamos un fallback humano legible a partir del alias del email.
+  const ownerName = identityDogs.length > 0
+    ? (identityDogs.find(d => String(d.owner || '').trim())?.owner || 'Cliente')
+    : ((currentUser.username || 'Cliente').split(/[._-]+/)[0]);
+  const firstName = ownerName.split(/\s+/)[0] || 'Cliente';
   document.getElementById('portal-welcome-name').textContent = 'Hola, ' + firstName + ' '; document.getElementById('portal-welcome-name').insertAdjacentHTML('beforeend', '<i class="fa-solid fa-hand" style="color:var(--amber)"></i>');
 
   // Mensaje de estado personalizado según mascota
