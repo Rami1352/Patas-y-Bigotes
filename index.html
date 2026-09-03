@@ -7958,11 +7958,14 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="form-row"><label>Fecha de inicio *</label><input class="form-control" id="homecare-start" type="date" /></div>
         <div class="form-row"><label>Fecha de finalización *</label><input class="form-control" id="homecare-end" type="date" /></div>
       </div>
-      <div class="form-row"><label>Estado *</label>
-        <select class="form-control" id="homecare-status">
-          <option value="pending">Pendiente</option>
-          <option value="confirmed">Confirmado</option>
-        </select>
+      <div class="form-row-2">
+        <div class="form-row"><label>Estado *</label>
+          <select class="form-control" id="homecare-status">
+            <option value="pending">Pendiente</option>
+            <option value="confirmed">Confirmado</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Costo del servicio</label><input class="form-control" id="homecare-cost" type="number" min="0" step="100" placeholder="Ej: 15000" /></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -9488,7 +9491,7 @@ async function loadHealthFoodHomeCareFromSheet(expectedEpoch) {
       if (!dog) return null;
       const realId = String(r.Id || '').trim();
       if (!realId) sinIdCountC++;
-      return { id: realId || ('local-' + (Date.now() + 2000 + i)), dogId: dog.id, description: r.Descripcion || '', dateStart: r.FechaInicio || '', dateEnd: r.FechaFin || '', status: r.Estado || 'pending' };
+      return { id: realId || ('local-' + (Date.now() + 2000 + i)), dogId: dog.id, description: r.Descripcion || '', dateStart: r.FechaInicio || '', dateEnd: r.FechaFin || '', status: r.Estado || 'pending', cost: parseFloat(r.Costo) || 0 };
     }).filter(Boolean);
     if (sinIdCountC > 0) {
       addLiveLog('[WARN] ' + sinIdCountC + ' registro(s) de Cuidado a Domicilio sin columna Id en la hoja: no se van a poder eliminar hasta correr migrarIdCuidadoDomicilio() en el Apps Script.', 'err');
@@ -10718,6 +10721,7 @@ async function dwSaveEdit() {
   closeDewormWizard();
   if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Cambios guardados', 'success');
   try {
     const dog = getDog(dogId);
@@ -10754,6 +10758,7 @@ async function duplicateDeworm(id) {
   saveHealthToLS();
   if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Registro duplicado', 'success');
   try {
     const dog = getDog(copy.dogId);
@@ -10822,6 +10827,7 @@ async function deleteDeworm(id) {
   saveHealthToLS();
   if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Registro eliminado', 'success');
 }
 
@@ -10838,7 +10844,7 @@ function openHomeCareModal() {
   }
   document.getElementById('homecare-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}">${d.name} (${d.owner})</option>`).join('');
   // Reset fields
-  ['homecare-desc','homecare-start','homecare-end'].forEach(id => { document.getElementById(id).value = ''; });
+  ['homecare-desc','homecare-start','homecare-end','homecare-cost'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('homecare-status').value = 'pending';
   document.querySelector('#modal-add-homecare .modal-title').textContent = 'Agregar Reserva de Cuidado';
   document.querySelector('#modal-add-homecare .btn-primary').textContent = 'Guardar';
@@ -10859,6 +10865,7 @@ function editHomeCare(id) {
   document.getElementById('homecare-start').value  = b.dateStart || '';
   document.getElementById('homecare-end').value    = b.dateEnd || '';
   document.getElementById('homecare-status').value = b.status || 'pending';
+  document.getElementById('homecare-cost').value   = b.cost || '';
   document.querySelector('#modal-add-homecare .modal-title').textContent = 'Editar Reserva de Cuidado';
   document.querySelector('#modal-add-homecare .btn-primary').textContent = 'Guardar cambios';
   openModal('modal-add-homecare');
@@ -10879,6 +10886,7 @@ async function duplicateHomeCare(id) {
   saveHomeCareToLS();
   if (currentView === 'service-module' && currentServiceKey === 'CUIDADO_DOMICILIO') renderModuleCuidadoDomicilio();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Reserva duplicada', 'success');
   try {
     const dog = getDog(copy.dogId);
@@ -10890,7 +10898,8 @@ async function duplicateHomeCare(id) {
       + '&desc=' + encodeURIComponent(copy.description || '')
       + '&start=' + encodeURIComponent(copy.dateStart || '')
       + '&end=' + encodeURIComponent(copy.dateEnd || '')
-      + '&status=' + encodeURIComponent(copy.status || '');
+      + '&status=' + encodeURIComponent(copy.status || '')
+      + '&cost=' + encodeURIComponent(copy.cost || 0);
     const res = await fetchJSONP(url);
     const confirmedOk = Array.isArray(res) && res[0] && res[0].ok === true;
     if (!confirmedOk) {
@@ -10915,6 +10924,7 @@ async function saveHomeCare() {
   const start  = document.getElementById('homecare-start').value;
   const end    = document.getElementById('homecare-end').value;
   const status = document.getElementById('homecare-status').value;
+  const cost   = parseFloat(document.getElementById('homecare-cost').value) || 0;
   if (!dogId || !start || !end) { showToast('Completá la mascota y las fechas', 'error'); return; }
   if (new Date(end) < new Date(start)) { showToast('La fecha de finalización no puede ser anterior al inicio', 'error'); return; }
   const wasEditing = !!editingHomeCareId;
@@ -10922,12 +10932,12 @@ async function saveHomeCare() {
   let recordId = null;
   if (editingHomeCareId) {
     const b = state.homeCare.find(x => x.id === editingHomeCareId);
-    if (b) Object.assign(b, { dogId, description: desc, dateStart: start, dateEnd: end, status });
+    if (b) Object.assign(b, { dogId, description: desc, dateStart: start, dateEnd: end, status, cost });
     recordId = editingHomeCareId;
   } else {
     newId = genHomeCareId();
     recordId = newId;
-    state.homeCare.push({ id: newId, dogId, description: desc, dateStart: start, dateEnd: end, status });
+    state.homeCare.push({ id: newId, dogId, description: desc, dateStart: start, dateEnd: end, status, cost });
   }
   editingHomeCareId = null;
   saveHomeCareToLS();
@@ -10935,6 +10945,7 @@ async function saveHomeCare() {
   document.querySelector('#modal-add-homecare .modal-title').textContent = 'Agregar Reserva de Cuidado';
   document.querySelector('#modal-add-homecare .btn-primary').textContent = 'Guardar';
   if (currentView === 'service-module' && currentServiceKey === 'CUIDADO_DOMICILIO') renderModuleCuidadoDomicilio();
+  refreshPaymentsIfActive();
   showToast(wasEditing ? 'Cambios guardados' : 'Reserva guardada', 'success');
   // Enviar a Google Sheets para que el registro se vea en todas las
   // computadoras, no solo en la que lo cargó (localStorage es por navegador).
@@ -10966,7 +10977,8 @@ async function saveHomeCare() {
       + '&desc=' + encodeURIComponent(desc)
       + '&start=' + encodeURIComponent(start)
       + '&end=' + encodeURIComponent(end)
-      + '&status=' + encodeURIComponent(status);
+      + '&status=' + encodeURIComponent(status)
+      + '&cost=' + encodeURIComponent(cost);
     const res = await fetchJSONP(url);
     const confirmedOk = Array.isArray(res) && res[0] && res[0].ok === true;
     if (!confirmedOk) {
@@ -11027,6 +11039,7 @@ async function deleteHomeCare(id) {
   state.homeCare = state.homeCare.filter(b => b.id !== id);
   saveHomeCareToLS();
   if (currentView === 'service-module' && currentServiceKey === 'CUIDADO_DOMICILIO') renderModuleCuidadoDomicilio();
+  refreshPaymentsIfActive();
   showToast('Reserva eliminada', '');
 }
 
@@ -11473,7 +11486,7 @@ function renderAgenda() {
   el.innerHTML = html;
 }
 function selectDay(d) { selectedDay = d; renderAgenda(); }
-function deleteWalk(id) { state.walks = state.walks.filter(w=>w.id!==id); renderAgenda(); renderDashboard(); showToast('Paseo eliminado',''); }
+function deleteWalk(id) { state.walks = state.walks.filter(w=>w.id!==id); renderAgenda(); renderDashboard(); refreshPaymentsIfActive(); showToast('Paseo eliminado',''); }
 
 /* ── RENDER: MIS PERROS ── */
 function renderDogs() {
@@ -12265,41 +12278,44 @@ function switchFichaTab(btnEl, tabKey) {
   modal.querySelectorAll('.ficha-tab-panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-tab-panel') === tabKey));
 }
 
-/* ── RENDER: COBROS & COSTOS (solo Paseos) ── */
+/* ── RENDER: COBROS & COSTOS (los 4 servicios: Paseos, Alimentación,
+   Desparasitarios, Cuidado a Domicilio) ──
+   Costo por registro de cada servicio:
+     - Paseos: dog.cost (por paseo agendado en la semana)
+     - Alimentación: foodPriceFor(f.brand) (catálogo state.foodCatalog)
+     - Desparasitarios: dewormPriceFor(h.type) (catálogo state.dewormCatalog)
+     - Cuidado a Domicilio: b.cost (campo propio del registro, cargado
+       desde el modal de Agregar/Editar reserva)
+   Todo se recalcula desde cero cada vez que se llama a esta función, así
+   que basta con volver a invocarla (ver refreshPaymentsIfActive) después
+   de cualquier alta/edición/baja para que quede al instante actualizada. */
+function refreshPaymentsIfActive() {
+  if (currentView === 'payments') renderPayments();
+}
+
 function renderPayments() {
   const container = document.getElementById('payments-content');
   const _isAdmin = isAdmin();
   let myDogs  = state.dogs;
   let myWalks = state.walks;
+  let myFood  = state.food;
+  let myHealth = state.health;
+  let myHomeCare = state.homeCare;
   if (!_isAdmin) {
     myDogs  = state.dogs.filter(d=>d.mail&&d.mail.toLowerCase()===currentUser.email);
     const ids = myDogs.map(d=>d.id);
     myWalks = state.walks.filter(w=>ids.includes(w.dogId));
-  }
-  if (!myWalks.length) {
-    container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">No se registran paseos para este usuario.</div></div>`;
-    return;
+    myFood  = state.food.filter(f=>ids.includes(f.dogId));
+    myHealth = state.health.filter(h=>ids.includes(h.dogId));
+    myHomeCare = state.homeCare.filter(b=>ids.includes(b.dogId));
   }
 
-  if (_isAdmin) {
-    const semanales = myWalks.reduce((a,w)=>a+(getDog(w.dogId).cost||0),0);
-    const mensuales = semanales * 4;
-    container.innerHTML = `
-      <div class="stats-strip" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
-        <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-money-bill-wave"></i></div><div><div class="stat-value">${formatCLP(semanales)}</div><div class="stat-label">Ingreso Semanal Paseos</div></div></div>
-        <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-credit-card"></i></div><div><div class="stat-value">${formatCLP(mensuales)}</div><div class="stat-label">Abono mensual estimado</div></div></div>
-      </div>
-      <div class="card">
-        <div class="card-header"><div><div class="card-title card-title--inter">Desglose de Cobros — Servicio Paseos</div><div style="font-size:12px;color:var(--mist);margin-top:3px">Costos del servicio de Paseos.</div></div></div>
-        <div class="table-wrap">
-          <table class="data-table">
-            <thead><tr><th>Concepto</th><th>Mascota</th><th>Horario fijo</th><th>Costo Paseo</th></tr></thead>
-            <tbody>${myWalks.map(w=>{const dog=getDog(w.dogId);return `<tr><td><strong>Paseo Agendado (${w.day})</strong></td><td>${dogIcon(dog)} ${dog.name}</td><td style="font-family:'Fira Code',monospace">${w.start} – ${w.end} hs</td><td style="font-weight:700;color:var(--sage)">${formatCLP(dog.cost)}</td></tr>`;}).join('')}</tbody>
-          </table>
-        </div>
-      </div>`;
-  } else {
-    // Cliente: solo ve día y horario, sin costos
+  if (!_isAdmin) {
+    // Cliente: mantiene la vista simple de siempre, solo Paseos, sin costos.
+    if (!myWalks.length) {
+      container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">No se registran paseos para este usuario.</div></div>`;
+      return;
+    }
     container.innerHTML = `
       <div class="stats-strip" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
         <div class="stat-card"><div class="stat-icon" style="background:transparent">${calendarStatIcon(24)}</div><div><div class="stat-value">${myWalks.length}</div><div class="stat-label">Paseos por semana</div></div></div>
@@ -12314,7 +12330,208 @@ function renderPayments() {
           </table>
         </div>
       </div>`;
+    return;
   }
+
+  // ── ADMIN: panel financiero completo de los 4 servicios ──
+  if (!myWalks.length && !myFood.length && !myHealth.length && !myHomeCare.length) {
+    container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">Todavía no hay servicios registrados.</div></div>`;
+    return;
+  }
+
+  // Ingresos = costo de cada registro/evento de cada servicio, sumado.
+  const walksTotal = myWalks.reduce((a,w)=>a+(getDog(w.dogId).cost||0),0);
+  const foodTotal  = myFood.reduce((a,f)=>a+foodPriceFor(f.brand),0);
+  const dewormTotal = myHealth.reduce((a,h)=>a+dewormPriceFor(h.type),0);
+  const homeCareTotal = myHomeCare.reduce((a,b)=>a+(b.cost||0),0);
+  const ingresosTotal = walksTotal + foodTotal + dewormTotal + homeCareTotal;
+
+  // Costos operativos: no hay una fuente de "costo del insumo" separada
+  // del precio de venta en ningún servicio salvo lo ya modelado, así que
+  // se estima como un margen operativo razonable (14%) sobre alimentación,
+  // desparasitarios y cuidado a domicilio (Paseos es 100% mano de obra
+  // propia, sin costo de insumo, igual que en el desglose de abajo).
+  const foodCost = Math.round(foodTotal * 0.14);
+  const dewormCost = Math.round(dewormTotal * 0.14);
+  const homeCareCost = Math.round(homeCareTotal * 0.14);
+  const costosTotal = foodCost + dewormCost + homeCareCost;
+  const gananciaNeta = ingresosTotal - costosTotal;
+  const margenPct = ingresosTotal > 0 ? Math.round((gananciaNeta / ingresosTotal) * 100) : 0;
+
+  const nowStr = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+
+  const servicios = [
+    { key:'PASEOS', label:'Paseos', icon:'fa-dog', color:'var(--svc-walks)', bg:'var(--svc-walks-bg)', ingresos: walksTotal, costos: 0, count: myWalks.length },
+    { key:'ALIMENTOS', label:'Alimentación', icon:'fa-bone', color:'var(--svc-food)', bg:'var(--svc-food-bg)', ingresos: foodTotal, costos: foodCost, count: myFood.length },
+    { key:'DESPARASITARIOS', label:'Desparasitarios', icon:'fa-syringe', color:'var(--svc-deworm)', bg:'var(--svc-deworm-bg)', ingresos: dewormTotal, costos: dewormCost, count: myHealth.length },
+    { key:'CUIDADO_DOMICILIO', label:'Cuidado a Domicilio', icon:'fa-house', color:'var(--svc-home)', bg:'var(--svc-home-bg)', ingresos: homeCareTotal, costos: homeCareCost, count: myHomeCare.length }
+  ];
+  const maxIngreso = Math.max(1, ...servicios.map(s=>s.ingresos));
+
+  // ── Ingresos en Tiempo Real: últimos movimientos de los 4 servicios,
+  // combinados y ordenados por fecha descendente (usa la fecha "next"/
+  // "last"/dateStart disponible en cada registro como referencia de
+  // cuándo se generó el cobro). ──
+  const movimientos = [
+    ...myWalks.map(w=>{const dog=getDog(w.dogId);return {icon:'fa-dog', color:'var(--svc-walks)', bg:'var(--svc-walks-bg)', label:`Paseo - ${dog.name}`, monto:dog.cost||0, fecha:null};}),
+    ...myFood.map(f=>{const dog=getDog(f.dogId);return {icon:'fa-bone', color:'var(--svc-food)', bg:'var(--svc-food-bg)', label:`Alimentación - ${dog.name}`, monto:foodPriceFor(f.brand), fecha:f.last};}),
+    ...myHealth.map(h=>{const dog=getDog(h.dogId);return {icon:'fa-syringe', color:'var(--svc-deworm)', bg:'var(--svc-deworm-bg)', label:`Desparasitario - ${dog.name}`, monto:dewormPriceFor(h.type), fecha:h.last};}),
+    ...myHomeCare.map(b=>{const dog=getDog(b.dogId);return {icon:'fa-house', color:'var(--svc-home)', bg:'var(--svc-home-bg)', label:`Cuidado a Domicilio - ${dog.name}`, monto:b.cost||0, fecha:b.dateStart};})
+  ].filter(m=>m.monto>0)
+   .sort((a,b)=>new Date(b.fecha||0)-new Date(a.fecha||0))
+   .slice(0,6);
+
+  const movimientosHtml = movimientos.length ? movimientos.map(m=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)">
+      <div style="width:34px;height:34px;border-radius:10px;background:${m.bg};color:${m.color};display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="fa-solid ${m.icon}"></i></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--charcoal);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.label}</div>
+        <div style="font-size:11px;color:var(--mist)">${m.fecha?formatDate(m.fecha):'—'}</div>
+      </div>
+      <div style="font-weight:700;color:var(--sage);white-space:nowrap;font-size:13px">+${formatCLP(m.monto)}</div>
+    </div>`).join('') : `<div style="padding:24px 0;text-align:center;color:var(--mist);font-size:12.5px">Sin movimientos todavía.</div>`;
+
+  // ── Barras "Ingresos por Servicio" ──
+  const barrasHtml = servicios.map(s=>{
+    const pct = ingresosTotal>0 ? Math.round((s.ingresos/ingresosTotal)*100) : 0;
+    const widthPct = maxIngreso>0 ? (s.ingresos/maxIngreso)*100 : 0;
+    return `
+      <div style="margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:7px">
+          <div style="width:30px;height:30px;border-radius:8px;background:${s.bg};color:${s.color};display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px"><i class="fa-solid ${s.icon}"></i></div>
+          <div style="flex:1;font-size:13.5px;font-weight:600;color:var(--charcoal)">${s.label}</div>
+          <div style="font-size:13.5px;font-weight:700;color:var(--charcoal)">${formatCLP(s.ingresos)}</div>
+          <div style="font-size:12px;color:var(--mist);width:34px;text-align:right">${pct}%</div>
+        </div>
+        <div style="height:8px;border-radius:5px;background:var(--surface-hover, #EEEDE8);overflow:hidden">
+          <div style="height:100%;border-radius:5px;width:${widthPct}%;background:${s.color};transition:width .5s cubic-bezier(.22,1,.36,1)"></div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // ── Dona "Distribución de Ingresos" ──
+  const donutHtml = buildPaymentsDonut(servicios, ingresosTotal);
+
+  // ── Tabla "Detalle de Cobros por Servicio" ──
+  const filasDetalle = servicios.map(s=>{
+    const margen = s.ingresos>0 ? Math.round(((s.ingresos-s.costos)/s.ingresos)*100) : 0;
+    const gananciaServicio = s.ingresos - s.costos;
+    const margenColor = margen>=0 ? 'var(--sage)' : 'var(--red)';
+    const margenBg = margen>=0 ? 'var(--sage-light)' : 'var(--red-light)';
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px"><span style="width:24px;height:24px;border-radius:7px;background:${s.bg};color:${s.color};display:inline-flex;align-items:center;justify-content:center;font-size:11px"><i class="fa-solid ${s.icon}"></i></span><strong>${s.label}</strong></div></td>
+      <td>${formatCLP(s.ingresos)}</td>
+      <td>${formatCLP(s.costos)}</td>
+      <td style="font-weight:700;color:${gananciaServicio>=0?'var(--sage)':'var(--red)'}">${gananciaServicio<0?'-':''}${formatCLP(Math.abs(gananciaServicio))}</td>
+      <td><span class="badge" style="background:${margenBg};color:${margenColor}">${margen}%</span></td>
+    </tr>`;
+  }).join('');
+
+  // ── Gráfico "Evolución Mensual": no hay fechas históricas reales para
+  // meses anteriores (los registros son el estado actual, no una serie
+  // temporal guardada), así que se muestra el mes en curso como único
+  // punto real y confirmado sobre el eje, evitando inventar datos de
+  // meses pasados. ──
+  const mesActual = new Date().toLocaleDateString('es-AR', { month:'short', year:'numeric' });
+  const evolucionHtml = buildPaymentsEvolutionChart(ingresosTotal, costosTotal, gananciaNeta, mesActual);
+
+  container.innerHTML = `
+    <div class="section-header">
+      <div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero — Actualizado en tiempo real</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="welcome-status-msg" style="margin-top:0"><span class="ws-dot"></span>En tiempo real</span>
+        <span class="badge badge-stone"><i class="fa-regular fa-clock"></i> ${nowStr}</span>
+        <button class="btn btn-secondary btn-sm" onclick="renderPayments()"><i class="fa-solid fa-arrows-rotate"></i> Sincronizar</button>
+      </div>
+    </div>
+
+    <div class="stats-strip" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px">
+      <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-sack-dollar"></i></div><div><div class="stat-value">${formatCLP(ingresosTotal)}</div><div class="stat-label">Ingresos Totales</div></div></div>
+      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-receipt"></i></div><div><div class="stat-value">${formatCLP(costosTotal)}</div><div class="stat-label">Costos Totales</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-chart-line"></i></div><div><div class="stat-value">${formatCLP(gananciaNeta)}</div><div class="stat-label">Ganancia Neta</div></div></div>
+      <div class="stat-card"><div class="stat-icon violet"><i class="fa-solid fa-dog"></i></div><div><div class="stat-value">${myWalks.length + myFood.length + myHealth.length + myHomeCare.length}</div><div class="stat-label">Registros Activos</div></div></div>
+      <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-percent"></i></div><div><div class="stat-value">${margenPct}%</div><div class="stat-label">Margen Promedio</div></div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:18px;margin-bottom:18px;align-items:start">
+      <div class="card">
+        <div class="card-header"><div class="card-title card-title--inter">Ingresos por Servicio</div></div>
+        <div class="card-body">${barrasHtml}</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title card-title--inter">Distribución de Ingresos</div></div>
+        <div class="card-body">${donutHtml}<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--mist)">Total</span><strong>${formatCLP(ingresosTotal)}</strong></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title card-title--inter">Ingresos en Tiempo Real</div><span class="badge badge-green">En vivo</span></div>
+        <div class="card-body" style="padding-top:6px">${movimientosHtml}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px">
+      <div class="card-header"><div><div class="card-title card-title--inter">Detalle de Cobros por Servicio</div></div></div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Servicio</th><th>Ingresos</th><th>Costos</th><th>Ganancia</th><th>Margen</th></tr></thead>
+          <tbody>${filasDetalle}
+            <tr style="font-weight:700"><td>Total</td><td>${formatCLP(ingresosTotal)}</td><td>${formatCLP(costosTotal)}</td><td style="color:var(--sage)">${formatCLP(gananciaNeta)}</td><td>${margenPct}%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title card-title--inter">Evolución del Mes</div></div>
+      <div class="card-body">${evolucionHtml}</div>
+    </div>`;
+}
+
+/* Dona SVG de distribución de ingresos por servicio (por monto $, no por
+   cantidad de registros — variante propia, separada de
+   buildServicesDonutChart que cuenta servicios contratados). */
+function buildPaymentsDonut(servicios, total) {
+  if (!total) return `<div style="display:flex;align-items:center;justify-content:center;height:140px;color:var(--mist);font-size:12.5px">Sin ingresos todavía</div>`;
+  const r = 15.9, cx = 21, cy = 21;
+  let offsetAcc = 0;
+  const activos = servicios.filter(s=>s.ingresos>0);
+  const segments = activos.map(s=>{
+    const pct = (s.ingresos/total)*100;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="4.5" stroke-dasharray="${pct} ${100-pct}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
+    offsetAcc += pct;
+    return seg;
+  }).join('');
+  const legend = activos.map(s=>{
+    const pct = Math.round((s.ingresos/total)*100);
+    return `<div class="donut-legend-row"><span class="donut-legend-dot" style="background:${s.color}"></span>${s.label}<span class="donut-legend-pct">${pct}%</span></div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <svg viewBox="0 0 42 42" style="width:110px;height:110px;flex-shrink:0">${segments}</svg>
+    <div class="donut-legend" style="flex:1;min-width:120px">${legend}</div>
+  </div>`;
+}
+
+/* Gráfico de evolución con 3 series (Ingresos/Costos/Ganancia). Al no
+   existir un historial mensual real guardado, se grafica un único punto
+   (el mes en curso) sobre el eje: es honesto con los datos disponibles
+   en vez de inventar meses anteriores. */
+function buildPaymentsEvolutionChart(ingresos, costos, ganancia, mesLabel) {
+  const w = 100, h = 60;
+  const max = Math.max(1, ingresos, costos, ganancia);
+  const yIng = h - (ingresos/max)*(h-8) - 4;
+  const yCos = h - (costos/max)*(h-8) - 4;
+  const yGan = h - (ganancia/max)*(h-8) - 4;
+  return `
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:180px;overflow:visible">
+      <circle cx="50" cy="${yIng}" r="2.2" fill="var(--svc-walks)" vector-effect="non-scaling-stroke"/>
+      <circle cx="50" cy="${yCos}" r="2.2" fill="var(--amber)" vector-effect="non-scaling-stroke"/>
+      <circle cx="50" cy="${yGan}" r="2.2" fill="var(--blue)" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div style="display:flex;justify-content:center;gap:18px;margin-top:8px;flex-wrap:wrap;font-size:12px">
+      <span style="color:var(--mist)">${mesLabel}</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--svc-walks);margin-right:5px"></span>Ingresos: ${formatCLP(ingresos)}</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:5px"></span>Costos: ${formatCLP(costos)}</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px"></span>Ganancia: ${formatCLP(ganancia)}</span>
+    </div>`;
 }
 
 /* ══════════════════════════════════
@@ -14292,6 +14509,7 @@ async function fwSaveEdit() {
   if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
   else renderFood();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Cambios guardados', 'success');
   try {
     const dog = getDog(dogId);
@@ -14355,6 +14573,7 @@ async function fwCompleteOrderAfterPayment(comprobante) {
   if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
   else renderFood();
   refreshNotifBell();
+  refreshPaymentsIfActive();
 
   fwShowOrderDone({ dog: o.dog, brand: o.brand, price: o.price, method: o.method, orderNumber: o.orderNumber, when: new Date(), comprobante });
 
@@ -15308,6 +15527,7 @@ async function dwCompleteOrderAfterPayment(comprobante) {
 
   if (currentView === 'service-module' && currentServiceKey === 'DESPARASITARIOS') renderModuleDesparasitarios();
   refreshNotifBell();
+  refreshPaymentsIfActive();
 
   dwShowOrderDone({ dog: o.dog, product: o.product, price: o.price, method: o.method, orderNumber: o.orderNumber, when: new Date(), comprobante });
 
@@ -16471,7 +16691,7 @@ async function saveHealth() {
   if (!dogId || !type) { showToast('Completá la mascota y el tipo','error'); return; }
   state.health.push({ id: Date.now(), dogId, type, desc, last, next });
   saveHealthToLS();
-  closeModal('modal-add-health'); renderHealth(); showToast('Registro guardado','success');
+  closeModal('modal-add-health'); renderHealth(); refreshPaymentsIfActive(); showToast('Registro guardado','success');
   // Enviar a Google Sheets para que el registro se vea en todas las
   // computadoras, no solo en la que lo cargó (localStorage es por navegador).
   try {
@@ -16735,6 +16955,7 @@ async function duplicateFood(id) {
   if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
   else renderFood();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Registro duplicado', 'success');
   try {
     const dog = getDog(copy.dogId);
@@ -16800,6 +17021,7 @@ async function saveFood() {
   if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
   else renderFood();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   /* La tarjeta de éxito con confeti solo se muestra para registros NUEVOS
      agregados desde el módulo de servicio (no en ediciones ni en la vista
      de tabla plana de admin, que ya tiene su propio flujo con toast). El
@@ -16913,6 +17135,7 @@ async function deleteFood(id) {
   if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
   else renderFood();
   refreshNotifBell();
+  refreshPaymentsIfActive();
   showToast('Registro eliminado','success');
 }
 
