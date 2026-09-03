@@ -1663,18 +1663,49 @@ body[data-bg-scene="settings"]::after {
 .payments-quick-action-title { font-size: 12.5px; font-weight: 600; color: var(--charcoal); }
 .payments-quick-action-sub { font-size: 10.5px; color: var(--mist); line-height: 1.3; }
 
-/* Selector de período (Semanal/Mensual/Anual) en Cobros & Costos. */
+/* Selector de período (Semanal/Mensual/Anual) en Cobros & Costos.
+   Liquid glass: mismo patrón que .dog-card (línea ~2319) -- gradiente
+   rgba translúcido + backdrop-filter + --glass-border/--glass-shadow,
+   en vez del fondo sólido plano que tenía antes. */
 .payments-period-tabs {
-  display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px;
-  background: var(--surface-hover, #EEEDE8); margin-bottom: 16px;
+  display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
 }
 .payments-period-tab {
   border: none; background: transparent; cursor: pointer; font-family: inherit;
   font-size: 12.5px; font-weight: 600; color: var(--mist);
-  padding: 7px 16px; border-radius: 7px; transition: background .15s, color .15s;
+  padding: 7px 16px; border-radius: 8px; transition: background .15s, color .15s;
 }
 .payments-period-tab:hover { color: var(--charcoal); }
-.payments-period-tab.active { background: var(--surface); color: var(--charcoal); box-shadow: var(--shadow-sm); }
+.payments-period-tab.active {
+  color: var(--charcoal);
+  background: linear-gradient(135deg, rgba(255,255,255,.75) 0%, rgba(255,255,255,.45) 100%);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  box-shadow: var(--glass-shadow);
+}
+[data-theme="dark"] .payments-period-tab.active { background: linear-gradient(135deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.06) 100%); }
+
+/* Badge de hora ("08:48 p. m.") en el header de Cobros & Costos. Clase
+   propia (no se toca .badge-stone directamente porque esa clase se
+   reutiliza en otros 4 lugares del portal -- rol de usuario, barrio,
+   costo de paseo, etc. -- y cambiarla ahí afectaría todos esos usos).
+   Mismo patrón liquid glass que .payments-period-tabs. */
+.payments-clock-badge {
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%) !important;
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+[data-theme="dark"] .payments-clock-badge {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%) !important;
+}
 [data-theme="dark"] .stat-label { color: var(--mist); }
 .stat-trend { font-size: 11px; font-weight: 700; margin-top: 4px; }
 .stat-trend.up { color: var(--green-ok); }
@@ -6703,11 +6734,14 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="rec-grid" id="rec-grid"></div>
     </div>
 
-    <!-- ── COBROS & COSTOS ── -->
+    <!-- ── COBROS & COSTOS ──
+         El section-header con título/subtítulo vive DENTRO de
+         payments-content (ver renderPayments), no acá afuera -- antes
+         había uno estático acá (subtítulo desactualizado "Servicio de
+         Paseos") que quedaba apilado arriba del que genera
+         renderPayments(), duplicando título, reloj y botón Sincronizar
+         en pantalla. -->
     <div class="view" id="view-payments">
-      <div class="section-header">
-        <div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero — Servicio de Paseos</div></div>
-      </div>
       <div id="payments-content"></div>
     </div>
 
@@ -12375,6 +12409,64 @@ function filterByPaymentsPeriod(records, dateField) {
   });
 }
 
+// Agrupa ingresos reales (food/health/homeCare, con su fecha propia) en
+// buckets a lo largo del período elegido, para el gráfico de área de
+// "Evolución": weekly -> 7 buckets diarios, monthly -> 4 buckets
+// semanales, yearly -> 12 buckets mensuales (buckets de calendario, no
+// de ancho fijo, para que "año" agrupe por mes-calendario real).
+// walksTotalProjected (el total de Paseos ya proyectado al período, ver
+// PAYMENTS_WALKS_PROJECTION) se reparte en partes iguales entre los
+// buckets: Paseos no tiene fecha por registro, así que repartir parejo
+// es la única distribución honesta sin inventar cuándo "ocurrió" cada
+// paseo dentro del período.
+function buildPaymentsBuckets(myFoodPeriod, myHealthPeriod, myHomeCarePeriod, walksTotalProjected) {
+  const now = new Date();
+  let bucketCount, bucketMs, labelFn;
+  if (paymentsPeriod === 'weekly') {
+    bucketCount = 7; bucketMs = 24*60*60*1000;
+    labelFn = (d) => d.toLocaleDateString('es-AR', { weekday: 'short' });
+  } else if (paymentsPeriod === 'yearly') {
+    bucketCount = 12; bucketMs = null; // buckets de calendario (por mes), ancho variable
+    labelFn = (d) => d.toLocaleDateString('es-AR', { month: 'short' });
+  } else {
+    bucketCount = 4; bucketMs = 7*24*60*60*1000;
+    labelFn = (d, i, total) => i === total-1 ? 'Esta sem.' : `Sem -${total-1-i}`;
+  }
+
+  // Límite inferior de cada bucket, del más viejo (índice 0) al más
+  // nuevo (último índice = período actual).
+  const bucketStarts = [];
+  if (paymentsPeriod === 'yearly') {
+    for (let i = bucketCount - 1; i >= 0; i--) bucketStarts.push(new Date(now.getFullYear(), now.getMonth() - i, 1));
+  } else {
+    for (let i = bucketCount - 1; i >= 0; i--) bucketStarts.push(new Date(now.getTime() - (i+1)*bucketMs));
+  }
+
+  const buckets = bucketStarts.map((start, i) => {
+    const end = paymentsPeriod === 'yearly' ? new Date(start.getFullYear(), start.getMonth()+1, 1) : new Date(start.getTime() + bucketMs);
+    const label = paymentsPeriod === 'monthly' ? labelFn(start, i, bucketStarts.length) : labelFn(start);
+    return { start, end, label, total: 0 };
+  });
+
+  function addToBucket(dateRaw, amount) {
+    if (!amount) return;
+    const d = dateRaw ? new Date(dateRaw) : null;
+    // Sin fecha (o fecha inválida): se reparte parejo entre todos los
+    // buckets, mismo criterio que walksTotalProjected -- no hay forma
+    // honesta de saber en qué momento del período cayó.
+    if (!d || isNaN(d)) { buckets.forEach(b => b.total += amount / buckets.length); return; }
+    const b = buckets.find(b => d >= b.start && d < b.end);
+    if (b) b.total += amount; else buckets[buckets.length-1].total += amount; // fuera de rango por huso horario: al bucket más reciente
+  }
+
+  myFoodPeriod.forEach(f => addToBucket(f.last, foodPriceFor(f.brand)));
+  myHealthPeriod.forEach(h => addToBucket(h.last, dewormPriceFor(h.type)));
+  myHomeCarePeriod.forEach(b => addToBucket(b.dateStart, b.cost||0));
+  if (walksTotalProjected > 0) buckets.forEach(b => b.total += walksTotalProjected / buckets.length);
+
+  return buckets;
+}
+
 function renderPayments() {
   const container = document.getElementById('payments-content');
   const _isAdmin = isAdmin();
@@ -12580,7 +12672,7 @@ function renderPayments() {
       <div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero — Actualizado en tiempo real</div></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span class="welcome-status-msg" style="margin-top:0"><span class="ws-dot"></span>En tiempo real</span>
-        <span class="badge badge-stone"><i class="fa-regular fa-clock"></i> ${nowStr}</span>
+        <span class="badge badge-stone payments-clock-badge"><i class="fa-regular fa-clock"></i> ${nowStr}</span>
         <button class="btn btn-secondary btn-sm" onclick="renderPayments()"><i class="fa-solid fa-arrows-rotate"></i> Sincronizar</button>
       </div>
     </div>
@@ -12711,27 +12803,89 @@ function buildPaymentsDonut(servicios, total) {
   </div>`;
 }
 
-/* Gráfico de evolución con 3 series (Ingresos/Costos/Ganancia). Al no
-   existir un historial mensual real guardado, se grafica un único punto
-   (el mes en curso) sobre el eje: es honesto con los datos disponibles
-   en vez de inventar meses anteriores. */
-function buildPaymentsEvolutionChart(ingresos, costos, ganancia, mesLabel) {
-  const w = 100, h = 60;
-  const max = Math.max(1, ingresos, costos, ganancia);
-  const yIng = h - (ingresos/max)*(h-8) - 4;
-  const yCos = h - (costos/max)*(h-8) - 4;
-  const yGan = h - (ganancia/max)*(h-8) - 4;
+/* Gráfico de evolución "Ingresos por Servicio" — SVG de área con 3
+   series (Ingresos/Costos/Ganancia), curva suave (Catmull-Rom -> Bézier,
+   igual criterio de suavizado que dewormSparkline más arriba en el
+   archivo) sobre los buckets reales de buildPaymentsBuckets. A
+   diferencia de la versión anterior (un único punto en el centro del
+   viewBox), acá cada punto de la curva es un bucket real del período
+   elegido -- días para semanal, semanas para mensual, meses para anual
+   -- así que la curva refleja distribución real dentro del período en
+   vez de ser puramente decorativa. Tooltip flotante sobre el último
+   punto (el bucket más reciente = "ahora"), como en el diseño de
+   referencia del dashboard. */
+function buildPaymentsEvolutionChart(buckets, costosTotal, ganLabel) {
+  const w = 600, h = 220, padL = 6, padR = 6, padT = 18, padB = 26;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const ingresosArr = buckets.map(b => b.total);
+  const gananciaArr = buckets.map(b => b.total * (buckets.reduce((a,x)=>a+x.total,0) > 0 ? (1 - costosTotal / buckets.reduce((a,x)=>a+x.total,0)) : 1));
+  const costoLevel = buckets.length ? costosTotal / buckets.length : 0; // costos se muestra como nivel promedio por bucket, no hay costo real por bucket
+  const maxVal = Math.max(1, ...ingresosArr, ...gananciaArr, costoLevel);
+
+  const xAt = (i) => padL + (buckets.length<=1 ? innerW/2 : (i/(buckets.length-1))*innerW);
+  const yAt = (v) => padT + innerH - (v/maxVal)*innerH;
+
+  // Catmull-Rom -> Bézier cúbico: da la curva orgánica de la referencia
+  // en vez de segmentos rectos entre buckets.
+  function smoothPath(values) {
+    const pts = values.map((v,i)=>({x:xAt(i), y:yAt(v)}));
+    if (pts.length < 2) return pts.length ? `M${pts[0].x},${pts[0].y}` : '';
+    let d = `M${pts[0].x},${pts[0].y}`;
+    for (let i=0; i<pts.length-1; i++) {
+      const p0 = pts[i-1] || pts[i], p1 = pts[i], p2 = pts[i+1], p3 = pts[i+2] || p2;
+      const c1x = p1.x + (p2.x-p0.x)/6, c1y = p1.y + (p2.y-p0.y)/6;
+      const c2x = p2.x - (p3.x-p1.x)/6, c2y = p2.y - (p3.y-p1.y)/6;
+      d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+    }
+    return d;
+  }
+
+  const ingresosLine = smoothPath(ingresosArr);
+  const gananciaLine = smoothPath(gananciaArr);
+  const ingresosArea = ingresosLine ? `${ingresosLine} L${xAt(buckets.length-1)},${padT+innerH} L${xAt(0)},${padT+innerH} Z` : '';
+  const costoY = yAt(costoLevel);
+  const uid = 'pay-evo-' + (_capsule3dSeq++);
+
+  const lastIdx = buckets.length - 1;
+  const lastPt = lastIdx >= 0 ? { x: xAt(lastIdx), y: yAt(ingresosArr[lastIdx]) } : null;
+  const gridLines = buckets.map((b,i)=>`<line x1="${xAt(i)}" y1="${padT}" x2="${xAt(i)}" y2="${padT+innerH}" stroke="var(--line)" stroke-width="1" opacity=".35"/>`).join('');
+  const xLabels = buckets.map((b,i)=>`<text x="${xAt(i)}" y="${h-8}" text-anchor="middle" font-size="11" fill="var(--mist)">${b.label}</text>`).join('');
+
+  // Tooltip flotante sobre el último punto real, ajustado para no salirse
+  // del viewBox si cae muy cerca del borde derecho.
+  const tipW = 168, tipH = 74;
+  const tipX = lastPt ? Math.min(Math.max(lastPt.x - tipW/2, padL), w - padR - tipW) : 0;
+  const tipY = lastPt ? Math.max(lastPt.y - tipH - 14, padT) : 0;
+  const tooltipHtml = lastPt ? `
+    <g transform="translate(${tipX},${tipY})">
+      <rect width="${tipW}" height="${tipH}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
+      <text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${ganLabel}</text>
+      <circle cx="17" cy="32" r="3.5" fill="var(--svc-walks)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Ingresos: ${formatCLP(ingresosArr[lastIdx])}</text>
+      <circle cx="17" cy="47" r="3.5" fill="var(--amber)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Costos: ${formatCLP(Math.round(costoLevel))}</text>
+      <circle cx="17" cy="62" r="3.5" fill="var(--blue)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Ganancia: ${formatCLP(Math.round(gananciaArr[lastIdx]))}</text>
+    </g>` : '';
+
   return `
-    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:180px;overflow:visible">
-      <circle cx="50" cy="${yIng}" r="2.2" fill="var(--svc-walks)" vector-effect="non-scaling-stroke"/>
-      <circle cx="50" cy="${yCos}" r="2.2" fill="var(--amber)" vector-effect="non-scaling-stroke"/>
-      <circle cx="50" cy="${yGan}" r="2.2" fill="var(--blue)" vector-effect="non-scaling-stroke"/>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:220px;overflow:visible">
+      <defs>
+        <linearGradient id="${uid}-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--svc-walks)" stop-opacity=".28"/>
+          <stop offset="100%" stop-color="var(--svc-walks)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${gridLines}
+      <path d="${ingresosArea}" fill="url(#${uid}-fill)"/>
+      <path d="${ingresosLine}" fill="none" stroke="var(--svc-walks)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="${gananciaLine}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+      <line x1="${padL}" y1="${costoY}" x2="${w-padR}" y2="${costoY}" stroke="var(--amber)" stroke-width="2" stroke-dasharray="4 3" opacity=".8"/>
+      ${lastPt ? `<circle cx="${lastPt.x}" cy="${lastPt.y}" r="4.5" fill="var(--surface-card,#fff)" stroke="var(--svc-walks)" stroke-width="2.5"/>` : ''}
+      ${xLabels}
+      ${tooltipHtml}
     </svg>
-    <div style="display:flex;justify-content:center;gap:18px;margin-top:8px;flex-wrap:wrap;font-size:12px">
-      <span style="color:var(--mist)">${mesLabel}</span>
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--svc-walks);margin-right:5px"></span>Ingresos: ${formatCLP(ingresos)}</span>
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:5px"></span>Costos: ${formatCLP(costos)}</span>
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px"></span>Ganancia: ${formatCLP(ganancia)}</span>
+    <div style="display:flex;justify-content:center;gap:18px;margin-top:6px;flex-wrap:wrap;font-size:12px">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--svc-walks);margin-right:5px"></span>Ingresos</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:5px"></span>Costos</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px"></span>Ganancia Neta</span>
     </div>`;
 }
 
