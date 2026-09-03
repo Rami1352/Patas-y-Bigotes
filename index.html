@@ -1190,6 +1190,26 @@ body[data-bg-scene="settings"]::after {
 .badge-blue   { background: var(--blue-light);  color: var(--blue); }
 [data-theme="dark"] .badge-stone { background: #2A2A2A; }
 
+/* Liquid glass real (chip de precio en Paseos, ver renderModulePaseos):
+   --glass-bg-liquid ya existía definida en :root (línea ~5487, mismo
+   patrón que las columnas sticky de Desparasitarios) pero no se usaba
+   en ningún selector todavía. Antes el precio usaba .badge-stone, que
+   es #EFEFEF sólido sin backdrop-filter -- por eso se veía como chip
+   blanco liso en vez de vidrio esmerilado, a diferencia del chip de
+   zona (.badge-neighborhood) al lado, que sí tiene su propio
+   tratamiento. Custom properties resuelven en pintado, no en orden de
+   parseo, así que no importa que --glass-bg-liquid se declare más
+   abajo en el archivo. */
+.badge-glass {
+  background: var(--glass-bg-liquid);
+  color: var(--charcoal);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+[data-theme="dark"] .badge-glass { color: #fff; }
+.badge-glass:active { background: var(--glass-bg-liquid-active); }
+
 /* Barrios */
 .badge-neighborhood { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-block; transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
 .nbhd-canton-islas  { background: var(--color-canton-islas);  color: var(--color-canton-islas-text); }
@@ -10217,7 +10237,7 @@ function renderModulePaseos() {
       <div class="walks-day-label" style="font-size:10.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;padding-left:4px">${day}</div>`;
     byDay[day].forEach(w => {
       const dog = getDog(w.dogId);
-      const costBadge = _isAdmin ? `<span style="margin-left:8px" class="badge badge-stone">${formatCLP(dog.cost)}</span>` : '';
+      const costBadge = _isAdmin ? `<span style="margin-left:8px" class="badge badge-glass">${formatCLP(dog.cost)}</span>` : '';
       html += `<div class="timeline-row">
         <div class="time-range">${w.start} → ${w.end}</div>
         <div class="timeline-dot"></div>
