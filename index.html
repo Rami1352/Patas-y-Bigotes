@@ -17546,14 +17546,42 @@ async function fwPagarEnEfectivo(monto, descripcion, mailComprador, referenciaEx
 //  había receiptFile (nunca tira: un fallo acá NO debe impedir que el
 //  pago se registre igual -- ver comentario en fwPagarPorTransferencia
 //  sobre por qué la subida no es bloqueante).
+//
+//  FIX (comprobanteUrl nunca llegaba a la columna N/Comprobante_URL
+//  de la hoja Pagos): esta llamada era la única de las ~19 que arma
+//  este archivo hacia APPS_SCRIPT_URL que no agregaba idToken al
+//  payload. Con AUTH_ENFORCE=true en Propiedades del Script,
+//  checkWriteAuth (Apps Script) rechaza CUALQUIER acción de escritura
+//  -- 'subirComprobante' incluida, ver WRITE_ACTION_SHEET -- que
+//  llegue sin idToken válido, así que handleSubirComprobante ni
+//  llegaba a ejecutarse: devolvía { ok:false, error:'No autorizado:
+//  falta un idToken válido.' } directamente desde checkWriteAuth. El
+//  catch de este try nunca se disparaba (no era un fallo de red/CORS,
+//  la respuesta HTTP volvía 200 igual), así que el flujo seguía sin
+//  avisar nada visible: el warn de más abajo quedaba solo en la
+//  consola del navegador, comprobante volvía null, y
+//  fwPagarPorTransferencia/dwPagarPorTransferencia mandaban
+//  confirmarPagoTransferencia sin comprobanteUrl -- el pago se
+//  registraba igual (por eso el resto de la fila en Pagos sí se
+//  completaba), solo la columna del comprobante quedaba vacía.
+//  Se resuelve pidiendo el idToken con PYB_AUTH.getIdToken() (mismo
+//  método que ya usan register/miCuenta más arriba en este archivo, y
+//  el mismo que fetchJSONP agrega solo a las llamadas GET) antes de
+//  armar el body. PYB_AUTH.getIdToken() ya devuelve null sin tirar si
+//  no hay sesión o Firebase no está configurado, así que
+//  `idToken: idToken || ''` preserva el modo `legacy` de
+//  AUTH_ENFORCE=false para quien no tenga sesión iniciada, igual que
+//  ya hacía register() en la línea ~6144.
 // ─────────────────────────────────────────────────────────────
 async function subirComprobanteAlBackend(receiptFile, clienteId, firebaseUid, mailComprador, referenciaExterna) {
   if (!receiptFile) return null;
   try {
+    const idToken = await PYB_AUTH.getIdToken();
     const resp = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify({
         action: 'subirComprobante',
+        idToken: idToken || '',
         comprobanteBase64: receiptFile.dataUrl,
         comprobanteNombre: receiptFile.name,
         clienteId: clienteId || '',
