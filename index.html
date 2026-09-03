@@ -1643,6 +1643,38 @@ body[data-bg-scene="settings"]::after {
 .stat-icon.teal   { background: var(--svc-home-bg); }
 .stat-value { font-size: 26px; font-weight: 700; color: var(--charcoal); line-height: 1; }
 .stat-label { font-size: 11.5px; color: var(--stone); margin-top: 3px; }
+
+/* Botones de "Acciones Rápidas" en Cobros & Costos (renderPayments).
+   Mismo lenguaje visual que .stat-card pero pensado como botón: cursor
+   pointer, foco accesible, y el ícono/título/subtítulo apilados en
+   vertical en vez de en fila. */
+.payments-quick-action {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface); cursor: pointer; text-align: left;
+  font-family: inherit; transition: box-shadow .2s, transform .2s, border-color .2s;
+}
+.payments-quick-action:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); border-color: var(--sage); }
+.payments-quick-action:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+.payments-quick-action-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+.payments-quick-action-title { font-size: 12.5px; font-weight: 600; color: var(--charcoal); }
+.payments-quick-action-sub { font-size: 10.5px; color: var(--mist); line-height: 1.3; }
+
+/* Selector de período (Semanal/Mensual/Anual) en Cobros & Costos. */
+.payments-period-tabs {
+  display: inline-flex; gap: 4px; padding: 4px; border-radius: 10px;
+  background: var(--surface-hover, #EEEDE8); margin-bottom: 16px;
+}
+.payments-period-tab {
+  border: none; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: 12.5px; font-weight: 600; color: var(--mist);
+  padding: 7px 16px; border-radius: 7px; transition: background .15s, color .15s;
+}
+.payments-period-tab:hover { color: var(--charcoal); }
+.payments-period-tab.active { background: var(--surface); color: var(--charcoal); box-shadow: var(--shadow-sm); }
 [data-theme="dark"] .stat-label { color: var(--mist); }
 .stat-trend { font-size: 11px; font-weight: 700; margin-top: 4px; }
 .stat-trend.up { color: var(--green-ok); }
@@ -12293,6 +12325,56 @@ function refreshPaymentsIfActive() {
   if (currentView === 'payments') renderPayments();
 }
 
+// Meta de ingresos del mes para la tarjeta "Meta Mensual" del panel de
+// Cobros & Costos. Ver comentario junto a metaMensual en renderPayments.
+var META_MENSUAL_CLP = 3500000;
+
+// Período seleccionado en el panel de Cobros & Costos: 'weekly' | 'monthly'
+// | 'yearly'. Se guarda en una variable de módulo (no en localStorage a
+// propósito) para que sea una preferencia de la sesión actual, igual que
+// currentServiceKey -- no tiene sentido persistirla entre sesiones porque
+// lo más probable es que el admin siempre quiera arrancar viendo el mes
+// en curso al volver a entrar.
+var paymentsPeriod = 'monthly';
+var PAYMENTS_PERIOD_LABEL = { weekly: 'Semanal', monthly: 'Mensual', yearly: 'Anual' };
+// Factor de proyección para Paseos: es el único servicio sin fecha propia
+// por registro (myWalks es un horario semanal recurrente, no un evento
+// fechado como food.last/health.last/homeCare.dateStart), así que en vez
+// de dejarlo fuera del filtro de período se proyecta la recurrencia
+// semanal ya conocida (walksTotal = suma semanal real) al período
+// elegido: x1 en semanal (tal cual), x(52/12) en mensual (52 semanas al
+// año / 12 meses, más preciso que x4), x52 en anual.
+var PAYMENTS_WALKS_PROJECTION = { weekly: 1, monthly: 52/12, yearly: 52 };
+
+function setPaymentsPeriod(period) {
+  if (!PAYMENTS_PERIOD_LABEL[period] || period === paymentsPeriod) return;
+  paymentsPeriod = period;
+  renderPayments();
+}
+
+// Filtra registros con fecha propia (food/health/homeCare) al rango del
+// período elegido, tomando 'hoy' como el final del rango. dateField es
+// el nombre del campo de fecha a usar en cada colección (last/last/
+// dateStart, ver llamadas más abajo). Un registro sin fecha cargada
+// (dateField vacío) se excluye del período semanal/anual pero se
+// mantiene en el total "todo el historial" que ya usaba el resto del
+// panel -- no se pierde el dato, encaja en 'monthly' como aproximación
+// razonable por ser el período por defecto.
+function filterByPaymentsPeriod(records, dateField) {
+  const now = new Date();
+  const from = new Date(now);
+  if (paymentsPeriod === 'weekly') from.setDate(now.getDate() - 7);
+  else if (paymentsPeriod === 'yearly') from.setFullYear(now.getFullYear() - 1);
+  else from.setMonth(now.getMonth() - 1); // monthly
+  return records.filter(r => {
+    const raw = r[dateField];
+    if (!raw) return true; // sin fecha cargada: no se descarta, se cuenta igual (ver comentario de la función)
+    const d = new Date(raw);
+    if (isNaN(d)) return true;
+    return d >= from && d <= now;
+  });
+}
+
 function renderPayments() {
   const container = document.getElementById('payments-content');
   const _isAdmin = isAdmin();
@@ -12339,11 +12421,57 @@ function renderPayments() {
     return;
   }
 
-  // Ingresos = costo de cada registro/evento de cada servicio, sumado.
-  const walksTotal = myWalks.reduce((a,w)=>a+(getDog(w.dogId).cost||0),0);
-  const foodTotal  = myFood.reduce((a,f)=>a+foodPriceFor(f.brand),0);
-  const dewormTotal = myHealth.reduce((a,h)=>a+dewormPriceFor(h.type),0);
-  const homeCareTotal = myHomeCare.reduce((a,b)=>a+(b.cost||0),0);
+  // FIX: Alimentación y Desparasitarios resuelven su ingreso contra
+  // foodPriceFor()/dewormPriceFor(), que a su vez leen de
+  // state.foodCatalog/state.dewormCatalog. Esos catálogos NO se cargan
+  // solos: hasta ahora solo se disparaban al entrar al módulo de
+  // Alimentación o Desparasitarios (ver ensureFoodCatalogLoaded en
+  // renderModuleAlimentos / ensureDewormCatalogLoaded en
+  // renderModuleDesparasitarios), nunca al entrar directo a Cobros &
+  // Costos. Si un admin entraba a esta vista sin haber pasado antes por
+  // esos dos módulos en la sesión, ambos catálogos estaban undefined,
+  // foodPriceFor/dewormPriceFor devolvían 0 para todos los registros, y
+  // el panel mostraba ingresos en $0 para Alimentación y Desparasitarios
+  // -- por eso "solo calculaba lo de los paseos" (Paseos usa dog.cost,
+  // ya en memoria; Cuidado a Domicilio usa b.cost, también propio del
+  // registro; ninguno de los dos pasa por catálogo). Mismo patrón exacto
+  // que renderModuleAlimentos (línea ~10276): dispara la carga en
+  // segundo plano sin bloquear este render (por eso NO se usa await acá:
+  // renderPayments es síncrona y ya se llama justo después de cada
+  // alta/edición/baja vía refreshPaymentsIfActive, así que bloquearla
+  // retrasaría innecesariamente esa actualización) y, si trae datos
+  // nuevos, se vuelve a llamar a sí misma una sola vez -- pero solo si
+  // el admin sigue en esta vista, para no re-renderizar una pantalla que
+  // ya abandonó. ensureFoodCatalogLoaded/ensureDewormCatalogLoaded ya
+  // deduplican llamadas concurrentes, así que esto es seguro de llamar
+  // aunque el módulo de Alimentación o Desparasitarios también lo esté
+  // pidiendo en simultáneo.
+  if (!state.foodCatalog || !state.foodCatalog.length) {
+    ensureFoodCatalogLoaded().then(() => {
+      if (currentView === 'payments') renderPayments();
+    });
+  }
+  if (!state.dewormCatalog || !state.dewormCatalog.length) {
+    ensureDewormCatalogLoaded().then(() => {
+      if (currentView === 'payments') renderPayments();
+    });
+  }
+
+  // Ingresos = costo de cada registro/evento de cada servicio, sumado,
+  // filtrado al período elegido (paymentsPeriod). Food/Health/HomeCare
+  // tienen fecha propia por registro y se filtran con filterByPaymentsPeriod;
+  // Paseos no tiene fecha por registro (ver comentario junto a
+  // PAYMENTS_WALKS_PROJECTION), así que se proyecta su recurrencia
+  // semanal real al período elegido.
+  const myFoodPeriod = filterByPaymentsPeriod(myFood, 'last');
+  const myHealthPeriod = filterByPaymentsPeriod(myHealth, 'last');
+  const myHomeCarePeriod = filterByPaymentsPeriod(myHomeCare, 'dateStart');
+
+  const walksWeekly = myWalks.reduce((a,w)=>a+(getDog(w.dogId).cost||0),0);
+  const walksTotal = Math.round(walksWeekly * PAYMENTS_WALKS_PROJECTION[paymentsPeriod]);
+  const foodTotal  = myFoodPeriod.reduce((a,f)=>a+foodPriceFor(f.brand),0);
+  const dewormTotal = myHealthPeriod.reduce((a,h)=>a+dewormPriceFor(h.type),0);
+  const homeCareTotal = myHomeCarePeriod.reduce((a,b)=>a+(b.cost||0),0);
   const ingresosTotal = walksTotal + foodTotal + dewormTotal + homeCareTotal;
 
   // Costos operativos: no hay una fuente de "costo del insumo" separada
@@ -12358,13 +12486,23 @@ function renderPayments() {
   const gananciaNeta = ingresosTotal - costosTotal;
   const margenPct = ingresosTotal > 0 ? Math.round((gananciaNeta / ingresosTotal) * 100) : 0;
 
+  // Meta: se ajusta al mismo período elegido para que sea comparable con
+  // ingresosTotal (META_MENSUAL_CLP es la base mensual; semanal la divide
+  // por 52/12 semanas-por-mes, anual la multiplica por 12). El nombre de
+  // la variable quedó como "metaMensual" por ser el caso por defecto,
+  // pero representa la meta del período activo, no siempre un mes.
+  const metaMensual = paymentsPeriod === 'weekly' ? Math.round(META_MENSUAL_CLP / (52/12))
+    : paymentsPeriod === 'yearly' ? META_MENSUAL_CLP * 12
+    : META_MENSUAL_CLP;
+  const metaPct = metaMensual > 0 ? Math.min(100, Math.round((ingresosTotal / metaMensual) * 100)) : 0;
+
   const nowStr = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
 
   const servicios = [
     { key:'PASEOS', label:'Paseos', icon:'fa-dog', color:'var(--svc-walks)', bg:'var(--svc-walks-bg)', ingresos: walksTotal, costos: 0, count: myWalks.length },
-    { key:'ALIMENTOS', label:'Alimentación', icon:'fa-bone', color:'var(--svc-food)', bg:'var(--svc-food-bg)', ingresos: foodTotal, costos: foodCost, count: myFood.length },
-    { key:'DESPARASITARIOS', label:'Desparasitarios', icon:'fa-syringe', color:'var(--svc-deworm)', bg:'var(--svc-deworm-bg)', ingresos: dewormTotal, costos: dewormCost, count: myHealth.length },
-    { key:'CUIDADO_DOMICILIO', label:'Cuidado a Domicilio', icon:'fa-house', color:'var(--svc-home)', bg:'var(--svc-home-bg)', ingresos: homeCareTotal, costos: homeCareCost, count: myHomeCare.length }
+    { key:'ALIMENTOS', label:'Alimentación', icon:'fa-bone', color:'var(--svc-food)', bg:'var(--svc-food-bg)', ingresos: foodTotal, costos: foodCost, count: myFoodPeriod.length },
+    { key:'DESPARASITARIOS', label:'Desparasitarios', icon:'fa-syringe', color:'var(--svc-deworm)', bg:'var(--svc-deworm-bg)', ingresos: dewormTotal, costos: dewormCost, count: myHealthPeriod.length },
+    { key:'CUIDADO_DOMICILIO', label:'Cuidado a Domicilio', icon:'fa-house', color:'var(--svc-home)', bg:'var(--svc-home-bg)', ingresos: homeCareTotal, costos: homeCareCost, count: myHomeCarePeriod.length }
   ];
   const maxIngreso = Math.max(1, ...servicios.map(s=>s.ingresos));
 
@@ -12427,13 +12565,15 @@ function renderPayments() {
     </tr>`;
   }).join('');
 
-  // ── Gráfico "Evolución Mensual": no hay fechas históricas reales para
-  // meses anteriores (los registros son el estado actual, no una serie
-  // temporal guardada), así que se muestra el mes en curso como único
-  // punto real y confirmado sobre el eje, evitando inventar datos de
-  // meses pasados. ──
-  const mesActual = new Date().toLocaleDateString('es-AR', { month:'short', year:'numeric' });
-  const evolucionHtml = buildPaymentsEvolutionChart(ingresosTotal, costosTotal, gananciaNeta, mesActual);
+  // ── Gráfico "Evolución": no hay una serie histórica real guardada por
+  // día/semana/mes (los registros son el estado actual, no snapshots en
+  // el tiempo), así que se muestra el total del período elegido
+  // (paymentsPeriod) como único punto real y confirmado sobre el eje, en
+  // vez de inventar puntos intermedios sin datos reales detrás. ──
+  const periodoLabel = paymentsPeriod === 'weekly' ? 'Últimos 7 días'
+    : paymentsPeriod === 'yearly' ? 'Últimos 12 meses'
+    : new Date().toLocaleDateString('es-AR', { month:'long', year:'numeric' });
+  const evolucionHtml = buildPaymentsEvolutionChart(ingresosTotal, costosTotal, gananciaNeta, periodoLabel);
 
   container.innerHTML = `
     <div class="section-header">
@@ -12445,11 +12585,15 @@ function renderPayments() {
       </div>
     </div>
 
+    <div class="payments-period-tabs" role="tablist" aria-label="Período">
+      ${['weekly','monthly','yearly'].map(p=>`<button type="button" role="tab" aria-selected="${paymentsPeriod===p}" class="payments-period-tab${paymentsPeriod===p?' active':''}" onclick="setPaymentsPeriod('${p}')">${PAYMENTS_PERIOD_LABEL[p]}</button>`).join('')}
+    </div>
+
     <div class="stats-strip" style="grid-template-columns:repeat(5,1fr);margin-bottom:20px">
-      <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-sack-dollar"></i></div><div><div class="stat-value">${formatCLP(ingresosTotal)}</div><div class="stat-label">Ingresos Totales</div></div></div>
-      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-receipt"></i></div><div><div class="stat-value">${formatCLP(costosTotal)}</div><div class="stat-label">Costos Totales</div></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-sack-dollar"></i></div><div><div class="stat-value">${formatCLP(ingresosTotal)}</div><div class="stat-label">Ingresos ${PAYMENTS_PERIOD_LABEL[paymentsPeriod]}es</div></div></div>
+      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-receipt"></i></div><div><div class="stat-value">${formatCLP(costosTotal)}</div><div class="stat-label">Costos ${PAYMENTS_PERIOD_LABEL[paymentsPeriod]}es</div></div></div>
       <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-chart-line"></i></div><div><div class="stat-value">${formatCLP(gananciaNeta)}</div><div class="stat-label">Ganancia Neta</div></div></div>
-      <div class="stat-card"><div class="stat-icon violet"><i class="fa-solid fa-dog"></i></div><div><div class="stat-value">${myWalks.length + myFood.length + myHealth.length + myHomeCare.length}</div><div class="stat-label">Registros Activos</div></div></div>
+      <div class="stat-card"><div class="stat-icon violet"><i class="fa-solid fa-dog"></i></div><div><div class="stat-value">${myWalks.length + myFoodPeriod.length + myHealthPeriod.length + myHomeCarePeriod.length}</div><div class="stat-label">Registros Activos</div></div></div>
       <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-percent"></i></div><div><div class="stat-value">${margenPct}%</div><div class="stat-label">Margen Promedio</div></div></div>
     </div>
 
@@ -12481,8 +12625,65 @@ function renderPayments() {
     </div>
 
     <div class="card">
-      <div class="card-header"><div class="card-title card-title--inter">Evolución del Mes</div></div>
+      <div class="card-header"><div class="card-title card-title--inter">Evolución — ${PAYMENTS_PERIOD_LABEL[paymentsPeriod]}</div></div>
       <div class="card-body">${evolucionHtml}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:18px;margin-top:18px;align-items:stretch">
+      <div class="card">
+        <div class="card-header"><div class="card-title card-title--inter">Acciones Rápidas</div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">
+            <button type="button" class="payments-quick-action" onclick="openServiceModule('ALIMENTOS')">
+              <span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bone"></i></span>
+              <span class="payments-quick-action-title">Registrar Cobro</span>
+              <span class="payments-quick-action-sub">Alimentación / Desparasitarios</span>
+            </button>
+            <button type="button" class="payments-quick-action" onclick="openServiceModule('CUIDADO_DOMICILIO')">
+              <span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span>
+              <span class="payments-quick-action-title">Registrar Costo</span>
+              <span class="payments-quick-action-sub">Nueva reserva de cuidado</span>
+            </button>
+            <button type="button" class="payments-quick-action" onclick="openServiceModule('DESPARASITARIOS')">
+              <span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-file-arrow-up"></i></span>
+              <span class="payments-quick-action-title">Subir Comprobante</span>
+              <span class="payments-quick-action-sub">Adjuntar comprobante</span>
+            </button>
+            <button type="button" class="payments-quick-action" onclick="showView('agenda')">
+              <span class="payments-quick-action-icon" style="background:var(--blue-light);color:var(--blue)"><i class="fa-solid fa-chart-pie"></i></span>
+              <span class="payments-quick-action-title">Ver Reportes</span>
+              <span class="payments-quick-action-sub">Análisis detallado</span>
+            </button>
+            <button type="button" class="payments-quick-action" onclick="renderPayments()">
+              <span class="payments-quick-action-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-download"></i></span>
+              <span class="payments-quick-action-title">Exportar Datos</span>
+              <span class="payments-quick-action-sub">Descargar información</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title card-title--inter">Meta ${PAYMENTS_PERIOD_LABEL[paymentsPeriod]}</div></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px;height:100%">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:44px;height:44px;border-radius:12px;background:var(--sage-light);color:var(--sage);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px"><i class="fa-solid fa-bullseye"></i></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11.5px;color:var(--mist)">Meta</div>
+              <div style="font-size:19px;font-weight:700;color:var(--charcoal)">${formatCLP(metaMensual)}</div>
+            </div>
+          </div>
+          <div>
+            <div style="height:8px;border-radius:5px;background:var(--surface-hover, #EEEDE8);overflow:hidden">
+              <div style="height:100%;border-radius:5px;width:${metaPct}%;background:var(--sage);transition:width .5s cubic-bezier(.22,1,.36,1)"></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <span style="font-size:12px;color:var(--mist)">${formatCLP(Math.max(0, metaMensual - ingresosTotal))} para alcanzar la meta</span>
+            <strong style="font-size:13px;color:var(--sage)">${metaPct}%</strong>
+          </div>
+        </div>
+      </div>
     </div>`;
 }
 
