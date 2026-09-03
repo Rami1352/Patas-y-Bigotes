@@ -13974,7 +13974,7 @@ function fwValidateStep(step) {
     if (!document.getElementById('fw-next').value) { showToast('Completá la fecha de próxima compra', 'error'); return false; }
     return true;
   }
-  if (step === 5) {
+  if (step === 5 && !editingFoodId) {
     if (!fwSelectedPaymentKey) { showToast('Elegí un método de pago', 'error'); return false; }
     // Con transferencia, no se puede avanzar (ni al paso de Comprobante
     // ni, salteado ese paso, a Confirmación) sin haber presionado antes
@@ -13986,10 +13986,10 @@ function fwValidateStep(step) {
     }
     return true;
   }
-  if (step === 6) {
+  if (step === 6 && !editingFoodId) {
     // Este paso solo se valida cuando efectivamente se está parado en
     // él, lo cual solo pasa con método 'transfer' (fwGoStep salta este
-    // paso para 'cash'/'mp' en ambas direcciones).
+    // paso para 'cash'/'mp' y en modo edición, en ambas direcciones).
     if (!fwReceiptFile) {
       showToast('Subí el comprobante para continuar', 'error');
       return false;
@@ -13999,16 +13999,30 @@ function fwValidateStep(step) {
   return true;
 }
 
+// A diferencia del alta nueva (7 pasos lineales, con Pago/Comprobante
+// intermedios), en modo edición (editingFoodId seteado) los pasos 5
+// (Método de pago) y 6 (Comprobante) se saltan por completo: un
+// registro ya pagado no vuelve a cobrarse ni a pedir comprobante solo
+// por corregir una fecha o la porción diaria. Mismo criterio EXACTO
+// que dwGoStep con editingDewormId (ver ese comentario para más
+// detalle) -- acá el salto es 4 → 7 (notas → confirmación) en vez de
+// 3 → 6 porque el wizard de Alimentación tiene un paso extra (Precio,
+// paso 2) que Desparasitación no tiene.
 function fwGoStep(dir) {
   if (dir > 0 && !fwValidateStep(fwCurrentStep)) return;
   let next = fwCurrentStep + dir;
+  if (editingFoodId) {
+    if (dir > 0 && fwCurrentStep === 4) next = 7; // notas → confirmación, salteando método de pago y comprobante
+    if (dir < 0 && fwCurrentStep === 7) next = 4; // confirmación → notas
+  } else if (next === 6 && fwSelectedPaymentKey !== 'transfer') {
   // El paso 6 (Comprobante) solo existe para transferencia -- para
   // 'cash'/'mp' se salta en ambas direcciones (avanzando de 5 va
   // directo a 7; retrocediendo de 7 vuelve directo a 5), igual que ya
   // hacía este wizard con Mercado Pago ocultando "Confirmar pedido"
   // en fwRenderStep: el paso queda en el DOM pero fuera del recorrido
   // cuando no aplica.
-  if (next === 6 && fwSelectedPaymentKey !== 'transfer') next = dir > 0 ? 7 : 5;
+    next = dir > 0 ? 7 : 5;
+  }
   if (next < 1) return;
   // Antes: if (next > FW_TOTAL_STEPS) { saveFoodOrder(); return; }
   // saveFoodOrder() guardaba el pedido directo, sin pasar por ninguna
@@ -14018,7 +14032,11 @@ function fwGoStep(dir) {
   // fwSelectedPaymentKey, y saveFoodOrder (más abajo, renombrada
   // internamente pero misma firma) se dispara recién cuando ese pago
   // resuelve -- nunca antes.
-  if (next > FW_TOTAL_STEPS) { fwSubmitPayment(); return; }
+  if (next > FW_TOTAL_STEPS) {
+    if (editingFoodId) { fwSaveEdit(); return; }
+    fwSubmitPayment();
+    return;
+  }
   fwCurrentStep = next;
   if (fwCurrentStep === 2) fwSyncDogSummary();
   if (fwCurrentStep === 7) fwRenderConfirmSummary();
@@ -14114,6 +14132,18 @@ function scrollActiveWizardStepIntoView(stepsContainerId) {
 function fwRenderStep() {
   document.querySelectorAll('#fw-steps .wizard-step').forEach(el => {
     const s = Number(el.dataset.fwstep);
+    // En modo edición, el paso 5 (Pago) no forma parte del recorrido:
+    // se lo pinta "hecho" en vez de "activo" para que la barra de pasos
+    // no muestre un paso vacío en medio del camino. OJO: esto solo debe
+    // aplicar una vez que el recorrido ya superó ese paso
+    // (fwCurrentStep > 5, o sea parado en Confirmación/7), porque
+    // fwGoStep salta 4 → 7 sin pasar fwCurrentStep por el 5. Sin el
+    // chequeo de fwCurrentStep, este paso quedaba pintado "hecho" desde
+    // el arranque mismo del modo edición (fwCurrentStep = 1, ver
+    // editFood), como si el usuario ya hubiera pasado por ahí -- mismo
+    // bug que tenía dwRenderStep con el paso "Método de pago" en
+    // Desparasitación, corregido ahí con el mismo criterio.
+    if (editingFoodId && s === 5) { el.classList.remove('active'); el.classList.toggle('done', fwCurrentStep > 5); return; }
     el.classList.toggle('active', s === fwCurrentStep);
     el.classList.toggle('done', s < fwCurrentStep);
   });
@@ -14136,19 +14166,25 @@ function fwRenderStep() {
     // se oculta "Confirmar pedido" en el paso de confirmación (6) para
     // ese método específico -- para transferencia y efectivo el flujo
     // sigue igual que siempre, "Confirmar pedido" es el único disparador.
-    if (fwCurrentStep === FW_TOTAL_STEPS && fwSelectedPaymentKey === 'mp') {
+    // En modo edición nunca aplica (nunca pasa por Método de pago), así
+    // que este ocultamiento queda excluido con !editingFoodId, mismo
+    // criterio que dwRenderStep con editingDewormId.
+    if (fwCurrentStep === FW_TOTAL_STEPS && fwSelectedPaymentKey === 'mp' && !editingFoodId) {
       nextBtn.style.display = 'none';
     } else if (fwCurrentStep === FW_TOTAL_STEPS) {
       nextBtn.style.display = '';
-      nextBtn.innerHTML = '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
+      nextBtn.innerHTML = editingFoodId
+        ? '<i class="fa-solid fa-check" style="font-size:11px;margin-right:4px"></i> Guardar cambios'
+        : '<i class="fa-solid fa-lock" style="font-size:11px;margin-right:4px"></i> Confirmar pedido';
       // Defensivo: con transferencia, fwValidateStep(6) ya exige
       // fwReceiptFile antes de poder LLEGAR a este paso, así que en
       // uso normal esto nunca debería aplicar -- se agrega igual para
       // que "Enviar pedido" quede visualmente deshabilitado si el
       // estado en memoria se perdiera por algún motivo (ver imagen de
       // referencia: "El botón 'Enviar pedido' se habilita solo cuando
-      // hay una imagen cargada").
-      nextBtn.disabled = (fwSelectedPaymentKey === 'transfer' && !fwReceiptFile);
+      // hay una imagen cargada"). Excluido en modo edición, igual que
+      // dwRenderStep.
+      nextBtn.disabled = (!editingFoodId && fwSelectedPaymentKey === 'transfer' && !fwReceiptFile);
     } else if (fwCurrentStep === 4) {
       // Paso "Notas (opcional)": el texto del botón deja explícito que
       // se puede avanzar sin cargar nada, igual que dice el encabezado.
@@ -14182,13 +14218,83 @@ function fwRenderConfirmSummary() {
   const iconEl = document.getElementById('fw-sum-pay-icon');
   const nameEl = document.getElementById('fw-sum-pay-name');
   const aliasEl = document.getElementById('fw-sum-pay-alias');
-  if (method) {
-    if (iconEl) iconEl.innerHTML = `<i class="fa-solid ${method.icon}"></i>`;
-    if (nameEl) nameEl.textContent = method.title;
-    if (aliasEl) {
-      if (method.alias) { aliasEl.style.display = ''; aliasEl.textContent = `${method.aliasLabel}: ${method.alias}`; }
-      else { aliasEl.style.display = 'none'; }
+  // En modo edición no hay método de pago que mostrar (no se pasó por
+  // el paso 5): la fila y su título quedan ocultos, mismo patrón que
+  // dwRenderConfirmSummary con editingDewormId.
+  const payRow = document.querySelector('#modal-wizard-food .food-wizard-pay-selected-row');
+  const payTitle = document.querySelector('#modal-wizard-food .food-wizard-summary-section-title:last-of-type');
+  if (editingFoodId) {
+    if (payRow) payRow.style.display = 'none';
+    if (payTitle) payTitle.style.display = 'none';
+  } else {
+    if (payRow) payRow.style.display = '';
+    if (payTitle) payTitle.style.display = '';
+    if (method) {
+      if (iconEl) iconEl.innerHTML = `<i class="fa-solid ${method.icon}"></i>`;
+      if (nameEl) nameEl.textContent = method.title;
+      if (aliasEl) {
+        if (method.alias) { aliasEl.style.display = ''; aliasEl.textContent = `${method.aliasLabel}: ${method.alias}`; }
+        else { aliasEl.style.display = 'none'; }
+      }
     }
+  }
+}
+
+// Guarda una edición existente del wizard de Alimentación. A
+// diferencia del alta nueva (que pasa por fwSubmitPayment → método de
+// pago → fwCompleteOrderAfterPayment), una edición NO vuelve a cobrar
+// nada: el pago ya se hizo la primera vez que se dio de alta el
+// registro. fwGoStep salta directo del paso 4 (notas) al 7
+// (confirmación) cuando editingFoodId está seteado (ver fwGoStep), y
+// este es el botón "Guardar cambios" de ESE resumen en modo edición.
+// Mismo patrón EXACTO que dwSaveEdit() (Desparasitación), incluida la
+// sincronización con la planilla vía updateAlimentacion -- mismo
+// endpoint y mismos parámetros que ya usaba saveFood() en su rama
+// wasEditing, así que el backend (Apps Script) no necesita ningún
+// cambio para este flujo.
+async function fwSaveEdit() {
+  const dogId   = parseInt(document.getElementById('fw-dog').value);
+  const brand   = document.getElementById('fw-brand').value.trim();
+  const portion = parseFloat(document.getElementById('fw-portion').value) || 0;
+  const freq    = document.getElementById('fw-freq').value;
+  const last    = document.getElementById('fw-last').value;
+  const next    = document.getElementById('fw-next').value;
+  const notes   = (document.getElementById('fw-notes').value || '').trim();
+  if (!dogId || !brand) { showToast('Completá la mascota y el alimento', 'error'); return; }
+  if (!last || !next) { showToast('Completá ambas fechas', 'error'); return; }
+
+  const f = state.food.find(x => x.id === editingFoodId);
+  if (f) Object.assign(f, { dogId, brand, portion, freq, last, next, notes });
+  const recordId = editingFoodId;
+  editingFoodId = null;
+  saveFoodToLS();
+  closeFoodWizard();
+  if (currentView === 'service-module' && currentServiceKey === 'ALIMENTOS') renderModuleAlimentos();
+  else renderFood();
+  refreshNotifBell();
+  showToast('Cambios guardados', 'success');
+  try {
+    const dog = getDog(dogId);
+    const url = APPS_SCRIPT_URL
+      + '?action=updateAlimentacion'
+      + '&id=' + encodeURIComponent(recordId)
+      + '&name=' + encodeURIComponent(dog.name || '')
+      + '&mail=' + encodeURIComponent(dog.mail || '')
+      + '&brand=' + encodeURIComponent(brand)
+      + '&portion=' + encodeURIComponent(portion)
+      + '&freq=' + encodeURIComponent(freq)
+      + '&last=' + encodeURIComponent(last)
+      + '&next=' + encodeURIComponent(next)
+      + '&notes=' + encodeURIComponent(notes);
+    const res = await fetchJSONP(url);
+    const confirmedOk = Array.isArray(res) && res[0] && res[0].ok === true;
+    if (!confirmedOk) {
+      const errMsg = (Array.isArray(res) && res[0] && res[0].error) ? res[0].error : 'la planilla no confirmó el guardado';
+      addLiveLog('[WARN] No se pudo sincronizar Alimentación con la planilla: ' + errMsg, 'err');
+    }
+    notifyAdmin('alimentacion', 'modificacion', dog.name || '', 'Marca: ' + brand);
+  } catch (e) {
+    addLiveLog('[WARN] Alimentación guardada solo local (sin conexión a planilla): ' + e.message, 'err');
   }
 }
 
@@ -15061,7 +15167,13 @@ function dwRenderStep() {
     // En modo edición, el paso 4 (Método de pago) no forma parte del
     // recorrido: se lo pinta "hecho" en vez de "activo" para que la
     // barra de pasos no muestre un paso vacío en medio del camino.
-    if (editingDewormId && s === 4) { el.classList.remove('active'); el.classList.add('done'); return; }
+    // OJO: esto solo debe aplicar una vez que el recorrido ya superó
+    // ese paso (dwCurrentStep > 4, o sea parado en Confirmación/6),
+    // porque dwGoStep salta 3 → 6 sin pasar dwCurrentStep por el 4. Sin
+    // el chequeo de dwCurrentStep, este paso quedaba pintado "hecho"
+    // desde el arranque mismo del modo edición (dwCurrentStep = 1, ver
+    // editDeworm), como si el usuario ya hubiera pasado por ahí.
+    if (editingDewormId && s === 4) { el.classList.remove('active'); el.classList.toggle('done', dwCurrentStep > 4); return; }
     el.classList.toggle('active', s === dwCurrentStep);
     el.classList.toggle('done', s < dwCurrentStep);
   });
@@ -16511,39 +16623,77 @@ document.addEventListener('click', function(e) {
   if (!e.target.closest('.row-actions-wrap')) closeFoodRowActions();
 });
 
+// editFood() — MIGRADO al wizard nuevo (modal-wizard-food), mismo
+// patrón que editDeworm()/modal-wizard-deworm: antes precargaba el
+// modal simple viejo (#modal-add-food), que no tiene la barra de pasos
+// y quedaba visualmente distinto de "Agregar registro" (que sí usa el
+// wizard desde que se migró, ver openFoodWizard más arriba). Ahora
+// "Editar" abre el mismo modal-wizard-food, arrancando siempre en el
+// paso 1 (fwCurrentStep = 1) -- fwGoStep/fwRenderStep saltan los pasos
+// de pago (5) y comprobante (6) cuando editingFoodId está seteado,
+// igual que ya hacen dwGoStep/dwRenderStep con editingDewormId: un
+// registro ya pagado no vuelve a cobrarse ni a pedir comprobante solo
+// por corregir una fecha o la porción diaria.
+// #modal-add-food NO se borra del DOM (queda como openFoodModalLegacy,
+// sin puntos de entrada activos por ahora) por si hace falta volver a
+// él, pero editFood ya no lo usa.
 function editFood(id) {
   const f = state.food.find(x => x.id === id);
   if (!f) return;
   editingFoodId = id;
+  fwCurrentStep = 1;
+  fwSelectedPaymentKey = null;
+  fwTransferConfirmed = false;
+  fwReceiptFile = null;
+  fwMountedPaymentBrick = null;
+
+  // Mismo restore defensivo que openFoodWizard: si la última apertura
+  // de este wizard (alta nueva) terminó en la pantalla "Pedido
+  // confirmado" (fwShowOrderDone reemplaza el innerHTML de
+  // #fw-body-wrap entero), acá hace falta volver a los 7 wizard-panel
+  // originales antes de poder precargar nada -- si no, document.getElementById('fw-dog') (unas líneas más abajo) daría null.
+  const wrap = document.getElementById('fw-body-wrap');
+  if (wrap) {
+    if (fwBodyWrapOriginalHtml === null) fwBodyWrapOriginalHtml = wrap.innerHTML;
+    else wrap.innerHTML = fwBodyWrapOriginalHtml;
+  }
+  const steps = document.getElementById('fw-steps');
+  const nav = document.getElementById('fw-nav');
+  if (steps) steps.style.display = '';
+  if (nav) nav.style.display = '';
+
   let dogsToShow = state.dogs;
   if (!isAdmin()) dogsToShow = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
-  document.getElementById('food-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}"${d.id===f.dogId?' selected':''}>${d.name} (${d.owner})</option>`).join('');
-  // setFoodPickerValue (en vez de asignar el hidden #food-brand directo)
-  // para que, al editar un registro cuyo alimento SÍ está en
-  // state.foodCatalog, también se repinten el trigger, la miniatura y
-  // -nuevo- la fila de precio con lo que diga el catálogo hoy. Si el
-  // alimento no está en el catálogo (fue cargado a texto libre o ya no
-  // existe esa fila en la planilla), el trigger simplemente muestra el
-  // nombre guardado sin miniatura ni precio, igual que antes de este
-  // cambio para la miniatura.
-  setFoodPickerValue(f.brand || '');
-  document.getElementById('food-portion').value  = f.portion || '';
-  document.getElementById('food-freq').value     = f.freq || '1 vez al día';
-  document.getElementById('food-last').value     = f.last || '';
-  document.getElementById('food-next').value     = f.next || '';
-  document.getElementById('food-notes').value    = f.notes || '';
-  document.querySelector('#modal-add-food .modal-title').textContent = 'Editar Registro de Alimentación';
-  document.querySelector('#modal-add-food .btn-primary').textContent = 'Guardar cambios';
-  openModal('modal-add-food');
-  // Si el catálogo todavía no se cargó en esta sesión (el usuario nunca
-  // abrió el selector de "Alimento" antes de tocar "Editar" en la
-  // tabla), setFoodPickerValue de arriba no pudo encontrar match en
-  // state.foodCatalog (todavía vacío) y el trigger quedó sin miniatura
-  // ni precio. Se dispara la carga acá y, si aparece el match, se vuelve
-  // a llamar setFoodPickerValue para completar ambos.
+  document.getElementById('fw-dog').innerHTML = dogsToShow.map(d => `<option value="${d.id}"${d.id===f.dogId?' selected':''}>${d.name} (${d.owner})</option>`).join('');
+
+  // setFoodPickerValue con prefix 'fw' (en vez de asignar el hidden
+  // #fw-brand directo) para que, al editar un registro cuyo alimento SÍ
+  // está en state.foodCatalog, también se repinten el trigger, la
+  // tarjeta de producto del paso 1 y la fila de precio con lo que diga
+  // el catálogo hoy -- mismo comentario que ya tenía esta línea en la
+  // versión anterior de editFood() sobre el modal viejo, ahora aplicado
+  // a los ids del wizard.
+  setFoodPickerValue(f.brand || '', 'fw');
+  document.getElementById('fw-portion').value = f.portion || '';
+  document.getElementById('fw-freq').value    = f.freq || '1 vez al día';
+  document.getElementById('fw-last').value    = f.last || '';
+  document.getElementById('fw-next').value    = f.next || '';
+  const notesEl = document.getElementById('fw-notes'); if (notesEl) notesEl.value = f.notes || '';
+  document.getElementById('fw-next-banner').style.display = 'none';
+  fwSyncDogSummary();
+
+  document.getElementById('fw-modal-title-text').textContent = 'Editar Registro de Alimentación';
+  fwRenderPaymentList();
+  fwRenderStep();
+  openModal('modal-wizard-food');
+  // Mismo fallback que la versión anterior: si el catálogo todavía no
+  // se cargó en esta sesión, setFoodPickerValue de arriba no encontró
+  // match (state.foodCatalog vacío) y el trigger/tarjeta quedaron sin
+  // miniatura ni precio. Se dispara la carga acá y, si aparece el
+  // match, se repite la llamada para completar ambos.
   if (!state.foodCatalog || !state.foodCatalog.length) {
     ensureFoodCatalogLoaded().then(() => {
-      if (editingFoodId === id) setFoodPickerValue(f.brand || '');
+      if (editingFoodId === id) setFoodPickerValue(f.brand || '', 'fw');
     });
   }
 }
