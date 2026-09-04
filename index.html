@@ -12665,7 +12665,8 @@ function renderPayments() {
   const periodoLabel = paymentsPeriod === 'weekly' ? 'Últimos 7 días'
     : paymentsPeriod === 'yearly' ? 'Últimos 12 meses'
     : new Date().toLocaleDateString('es-AR', { month:'long', year:'numeric' });
-  const evolucionHtml = buildPaymentsEvolutionChart(ingresosTotal, costosTotal, gananciaNeta, periodoLabel);
+  const evolucionBuckets = buildPaymentsBuckets(myFoodPeriod, myHealthPeriod, myHomeCarePeriod, walksTotal);
+  const evolucionHtml = buildPaymentsEvolutionChart(evolucionBuckets, costosTotal, periodoLabel);
 
   container.innerHTML = `
     <div class="section-header">
