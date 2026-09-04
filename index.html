@@ -12527,6 +12527,48 @@ function exportPaymentsCSV() {
   URL.revokeObjectURL(url);
 }
 
+// Estado de carga de "Cobros & Costos" mientras foodCatalog y/o
+// dewormCatalog todavía no respondieron (ver el corte temprano en
+// renderPayments). Mantiene visible el header, el reloj y los tabs de
+// período -- para que no "salte" el layout ni se pierda el período ya
+// elegido -- pero reemplaza todo el bloque financiero (tarjetas,
+// barras, dona, tabla, gráfico) por placeholders con spinner, en vez de
+// dejar ver montos a medio calcular con algún servicio todavía en $0.
+function paintPaymentsLoadingState(container) {
+  const nowStr = new Date().toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+  const statCardSkeleton = (icon, label) => `
+    <div class="stat-card">
+      <div class="stat-icon" style="background:var(--surface-hover, #EEEDE8);color:var(--mist)"><i class="fa-solid ${icon}"></i></div>
+      <div><div class="stat-value" style="color:var(--mist)"><i class="fa-solid fa-spinner fa-spin" style="font-size:15px"></i></div><div class="stat-label">${label}</div></div>
+    </div>`;
+  container.innerHTML = `
+    <div class="section-header">
+      <div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero — Actualizado en tiempo real</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="welcome-status-msg" style="margin-top:0"><span class="ws-dot"></span>En tiempo real</span>
+        <span class="badge badge-stone payments-clock-badge"><i class="fa-regular fa-clock"></i> ${nowStr}</span>
+      </div>
+    </div>
+
+    <div class="payments-period-tabs" role="tablist" aria-label="Período">
+      ${['weekly','monthly','yearly'].map(p=>`<button type="button" role="tab" aria-selected="${paymentsPeriod===p}" class="payments-period-tab${paymentsPeriod===p?' active':''}" onclick="setPaymentsPeriod('${p}')">${PAYMENTS_PERIOD_LABEL[p]}</button>`).join('')}
+    </div>
+
+    <div class="stats-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
+      ${statCardSkeleton('fa-sack-dollar', 'Ingresos ' + PAYMENTS_PERIOD_LABEL[paymentsPeriod] + 'es')}
+      ${statCardSkeleton('fa-chart-line', 'Ganancia Neta')}
+      ${statCardSkeleton('fa-dog', 'Registros Activos')}
+      ${statCardSkeleton('fa-percent', 'Margen Promedio')}
+    </div>
+
+    <div class="card">
+      <div class="card-body" style="padding:56px 24px;text-align:center;color:var(--mist)">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:22px;margin-bottom:12px;display:block"></i>
+        Cargando ingresos de los 4 servicios…
+      </div>
+    </div>`;
+}
+
 function renderPayments() {
   const container = document.getElementById('payments-content');
   const _isAdmin = isAdmin();
@@ -12586,27 +12628,33 @@ function renderPayments() {
   // el panel mostraba ingresos en $0 para Alimentación y Desparasitarios
   // -- por eso "solo calculaba lo de los paseos" (Paseos usa dog.cost,
   // ya en memoria; Cuidado a Domicilio usa b.cost, también propio del
-  // registro; ninguno de los dos pasa por catálogo). Mismo patrón exacto
-  // que renderModuleAlimentos (línea ~10276): dispara la carga en
-  // segundo plano sin bloquear este render (por eso NO se usa await acá:
-  // renderPayments es síncrona y ya se llama justo después de cada
-  // alta/edición/baja vía refreshPaymentsIfActive, así que bloquearla
-  // retrasaría innecesariamente esa actualización) y, si trae datos
-  // nuevos, se vuelve a llamar a sí misma una sola vez -- pero solo si
-  // el admin sigue en esta vista, para no re-renderizar una pantalla que
-  // ya abandonó. ensureFoodCatalogLoaded/ensureDewormCatalogLoaded ya
-  // deduplican llamadas concurrentes, así que esto es seguro de llamar
-  // aunque el módulo de Alimentación o Desparasitarios también lo esté
-  // pidiendo en simultáneo.
-  if (!state.foodCatalog || !state.foodCatalog.length) {
-    ensureFoodCatalogLoaded().then(() => {
+  // registro; ninguno de los dos pasa por catálogo).
+  //
+  // UX: antes, apenas alguno de los dos catálogos llegaba (normalmente
+  // primero Alimentación, por ser una llamada de red más liviana o más
+  // rápida en responder que Desparasitarios), se volvía a llamar a
+  // renderPayments() y el panel se repintaba YA con ese catálogo listo
+  // y el otro todavía en $0 -- de ahí que "primero se pinte Paseos y
+  // Alimentación, y ~20 seg después recién Desparasitarios": no era un
+  // delay artificial sino simplemente que cada red respondía en un
+  // momento distinto y el panel se repintaba parcial en cada uno de esos
+  // momentos. Se corta ahora temprano: si CUALQUIERA de los dos
+  // catálogos todavía no está listo, no se sigue calculando el panel
+  // financiero con datos a medio cargar -- se pinta un estado de carga
+  // (ver paintPaymentsLoadingState) y se corta acá. Recién cuando AMBAS
+  // promesas resolvieron (food y deworm) se llama a renderPayments() una
+  // única vez más, y ahí sí se pintan los 4 servicios juntos con sus
+  // montos reales, en un solo repintado.
+  const foodReady = !!(state.foodCatalog && state.foodCatalog.length);
+  const dewormReady = !!(state.dewormCatalog && state.dewormCatalog.length);
+  if (!foodReady) ensureFoodCatalogLoaded();
+  if (!dewormReady) ensureDewormCatalogLoaded();
+  if (!foodReady || !dewormReady) {
+    Promise.all([ensureFoodCatalogLoaded(), ensureDewormCatalogLoaded()]).then(() => {
       if (currentView === 'payments') renderPayments();
     });
-  }
-  if (!state.dewormCatalog || !state.dewormCatalog.length) {
-    ensureDewormCatalogLoaded().then(() => {
-      if (currentView === 'payments') renderPayments();
-    });
+    paintPaymentsLoadingState(container);
+    return;
   }
 
   // Ingresos = costo de cada registro/evento de cada servicio, sumado,
@@ -12743,7 +12791,6 @@ function renderPayments() {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span class="welcome-status-msg" style="margin-top:0"><span class="ws-dot"></span>En tiempo real</span>
         <span class="badge badge-stone payments-clock-badge"><i class="fa-regular fa-clock"></i> ${nowStr}</span>
-        <button class="btn btn-secondary btn-sm" onclick="renderPayments()"><i class="fa-solid fa-arrows-rotate"></i> Sincronizar</button>
       </div>
     </div>
 
@@ -16564,12 +16611,30 @@ function escapeHtml(str) {
 let dewormPickerHoveredId = null;   // selección tentativa dentro del picker (aplicada recién al confirmar)
 let dewormPickerLoadPromise = null; // evita pedir el catálogo 2 veces si el usuario abre/cierra rápido
 
-// Carga el catálogo UNA sola vez (caché en state.dewormCatalog) y de
-// forma perezosa: recién la primera vez que se abre el picker, no en
-// cada carga de página, mismo criterio que ensureFoodCatalogLoaded()
-// para no sumar otra llamada más a Apps Script en el arranque.
+// FIX: esta función quedaba cacheada EN MEMORIA para siempre una vez
+// cargada ("if (state.dewormCatalog && state.dewormCatalog.length) return
+// state.dewormCatalog;", sin vencimiento) y, peor, si esa primera carga
+// fallaba (JSONP caído, Apps Script con error, etc.) el catch pisaba
+// state.dewormCatalog con [] -- así que dewormPriceFor() quedaba
+// devolviendo 0 para siempre en esa pestaña, sin ningún reintento
+// posterior, aunque el catálogo en la planilla estuviera perfecto. Esto
+// es lo que hacía que "Desparasitarios" apareciera en $0 en Cobros &
+// Costos (ver comentario en renderPayments) de forma persistente, no
+// solo la primera vez. Se agrega DEWORM_CATALOG_TTL_MS y se deja de
+// vaciar el array en error, mismo patrón exacto que ya tiene
+// ensureFoodCatalogLoaded (que nunca mostró este síntoma): pasado el
+// TTL desde la última carga EXITOSA, la próxima llamada vuelve a pedir
+// el catálogo; y si la carga falla, se conserva lo último bueno que
+// hubo (o un array vacío recién en el primerísimo intento) pero SIN
+// marcar dewormCatalogLoadedAt, para que el próximo ensureDewormCatalogLoaded()
+// reintente en vez de creer que ya está "fresco".
+var DEWORM_CATALOG_TTL_MS = 2 * 60 * 1000; // 2 minutos
+var dewormCatalogLoadedAt = 0;
+
 async function ensureDewormCatalogLoaded() {
-  if (state.dewormCatalog && state.dewormCatalog.length) return state.dewormCatalog;
+  var isFresh = state.dewormCatalog && state.dewormCatalog.length &&
+    (Date.now() - dewormCatalogLoadedAt) < DEWORM_CATALOG_TTL_MS;
+  if (isFresh) return state.dewormCatalog;
   if (dewormPickerLoadPromise) return dewormPickerLoadPromise;
   dewormPickerLoadPromise = (async () => {
     try {
@@ -16583,13 +16648,22 @@ async function ensureDewormCatalogLoaded() {
         state.dewormCatalog = rows
           .filter(r => r && r.nombre)
           .map(r => ({ nombre: String(r.nombre).trim(), foto: String(r.foto || '').trim(), precio: Number(r.precio) || 0 }));
+        dewormCatalogLoadedAt = Date.now();
       } else {
         state.dewormCatalog = [];
+        dewormCatalogLoadedAt = 0; // respuesta anómala: no se marca como "fresca", que reintente pronto
       }
     } catch (e) {
       addLiveLog('[WARN] No se pudo cargar el catálogo de desparasitarios: ' + e.message, 'err');
-      state.dewormCatalog = [];
+      // No se toca state.dewormCatalog si ya había un array cargado (se
+      // sigue mostrando el picker/los precios con lo último bueno que
+      // hubo en vez de vaciarlo de golpe), pero SÍ se deja
+      // dewormCatalogLoadedAt sin actualizar para que, pasado el TTL,
+      // se reintente la carga en vez de quedar marcado como "fresco"
+      // con datos que en realidad vienen de un fallo.
+      if (!state.dewormCatalog) state.dewormCatalog = [];
     }
+    dewormPickerLoadPromise = null; // libera el candado para el próximo intento, sea éxito o error
     return state.dewormCatalog;
   })();
   return dewormPickerLoadPromise;
