@@ -12592,6 +12592,42 @@ function financialYears() {
   return Array.from(years).sort((a,b)=>a-b);
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  walksMonthlyTotal — Paseos NO sigue la regla de FechaRegistro del
+//  resto de Cobros & Costos: es agenda semanal recurrente (hoja
+//  "Mascota Paseo"), no una compra puntual con fecha de alta. El
+//  criterio acordado es tarifa fija MENSUAL por mascota: cada mascota
+//  con Paseos activo aporta su dog.cost (columna "Costo" de la hoja)
+//  una sola vez por mes, todos los meses mientras el servicio siga
+//  activo -- no se multiplica por cantidad de días/semana agendados,
+//  y no depende de cuándo se cargó el paseo.
+//
+//  "Activo" se determina por presencia en state.walks: processSheetData
+//  solo empuja a state.walks las mascotas que tienen día+horario
+//  cargado en "Mascota Paseo" (ver el comentario "Solo crear walk si
+//  el servicio PASEOS está activo" junto al push), así que no hace
+//  falta re-chequear servicios_activos acá.
+//
+//  LIMITACIÓN CONOCIDA: la hoja no guarda un historial de cuándo
+//  empezó/terminó cada paseo, así que este total siempre refleja la
+//  agenda VIGENTE en el momento de mirar Cobros & Costos, sin importar
+//  qué mes/año esté elegido en el selector -- es la misma limitación
+//  que ya documentaba el comentario de renderPayments sobre por qué
+//  Paseos no tenía una fecha real que usar; acá se resuelve contándolo
+//  igual con la agenda actual, en vez de no contarlo nunca.
+// ═══════════════════════════════════════════════════════════════
+function walksMonthlyTotal() {
+  const seenDogIds = new Set();
+  let total = 0;
+  (state.walks || []).forEach(w => {
+    if (!w || seenDogIds.has(w.dogId)) return;
+    seenDogIds.add(w.dogId);
+    const dog = getDog(w.dogId);
+    total += (dog && Number(dog.cost)) || 0;
+  });
+  return { total, count: seenDogIds.size };
+}
+
 // Mueve el selector un mes hacia atrás/adelante (ej. el botón ‹ › de la
 // tarjeta de período). Cruza de año automáticamente (Enero-1 -> Diciembre
 // del año anterior, Diciembre+1 -> Enero del año siguiente). Es un simple
@@ -12625,8 +12661,13 @@ function paymentsSelectorsHtml() {
 // "Evolución de ingresos". Siempre entrega 12 buckets (Ene..Dic) del año
 // visible en el selector -- si un mes no tiene ningún registro, su total
 // es exactamente 0, nunca se interpola ni se rellena con datos de otro mes.
+//
+// Paseos (walks) es la excepción: no tiene FechaRegistro por diseño (ver
+// walksMonthlyTotal), así que su tarifa mensual se suma IGUAL en los 12
+// meses del año seleccionado, en vez de agruparse por fecha como los
+// otros tres servicios.
 function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year) {
-  const buckets = PAYMENTS_MONTHS.map((label, i) => ({ month: i, label: label.slice(0,3), food: 0, health: 0, home: 0 }));
+  const buckets = PAYMENTS_MONTHS.map((label, i) => ({ month: i, label: label.slice(0,3), food: 0, health: 0, home: 0, walks: 0 }));
   function add(records, field, priceFn) {
     (records || []).forEach(r => {
       const d = getFinancialRecordDate(r);
@@ -12637,7 +12678,8 @@ function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year) {
   add(foodAll, 'food', r => paymentRecordPrice(r, x => foodPriceFor(x.brand)));
   add(healthAll, 'health', r => paymentRecordPrice(r, x => dewormPriceFor(x.type, x.price)));
   add(homeAll, 'home', r => Number(r.cost) || 0);
-  buckets.forEach(b => { b.total = b.food + b.health + b.home; });
+  const walksTotal = walksMonthlyTotal().total;
+  buckets.forEach(b => { b.walks = walksTotal; b.total = b.food + b.health + b.home + b.walks; });
   return buckets;
 }
 
@@ -12695,14 +12737,20 @@ function renderPayments() {
   const foodTotal = food.reduce((a,r)=>a+paymentRecordPrice(r,x=>foodPriceFor(x.brand)),0);
   const healthTotal = health.reduce((a,r)=>a+paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price)),0);
   const homeTotal = home.reduce((a,r)=>a+(Number(r.cost)||0),0);
-  const ingresosTotal = foodTotal + healthTotal + homeTotal;
-  const count = food.length + health.length + home.length;
+  // Paseos: tarifa fija mensual por mascota con Paseos activo (dog.cost,
+  // columna "Costo" de la hoja "Mascota Paseo"). No sigue FechaRegistro
+  // -- ver walksMonthlyTotal -- así que su valor es el mismo sin importar
+  // qué mes/año esté elegido en el selector.
+  const walksInfo = walksMonthlyTotal();
+  const walksTotal = walksInfo.total;
+  const ingresosTotal = foodTotal + healthTotal + homeTotal + walksTotal;
+  const count = food.length + health.length + home.length + walksInfo.count;
 
-  // No se inventan costos ni "ganancia". Paseos (state.walks) tampoco entra
-  // en este total: son horarios/días de agenda recurrente sin un precio
-  // por registro individual, así que no hay una forma real de calcularlo
-  // (ver uniqueFinancialWalks). Se muestra aparte, marcado como informativo.
+  // No se inventan costos ni "ganancia": cada servicio suma exactamente lo
+  // que su fuente de precio real indica (catálogo, campo propio del
+  // registro, o dog.cost para Paseos).
   const servicios = [
+    {key:'PASEOS',label:'Paseos',icon:'fa-person-walking',color:'var(--svc-walks)',bg:'var(--svc-walks-bg)',ingresos:walksTotal,count:walksInfo.count},
     {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bowl-food',color:'var(--svc-food)',bg:'var(--svc-food-bg)',ingresos:foodTotal,count:food.length},
     {key:'DESPARASITARIOS',label:'Desparasitarios',icon:'fa-syringe',color:'var(--svc-deworm)',bg:'var(--svc-deworm-bg)',ingresos:healthTotal,count:health.length},
     {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house-chimney',color:'var(--svc-home)',bg:'var(--svc-home-bg)',ingresos:homeTotal,count:home.length}
@@ -12744,8 +12792,8 @@ function renderPayments() {
       </div>
       <div class="payments-stat-card">
         <div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div>
-        <div class="payments-stat-value payments-stat-value--muted">No contabilizado</div>
-        <div class="payments-stat-label">Paseos · agenda semanal, sin precio por registro</div>
+        <div class="payments-stat-value">${formatCLP(walksTotal)}</div>
+        <div class="payments-stat-label">Paseos · ${pct(walksTotal)}% del total · agenda vigente</div>
       </div>
       <div class="payments-stat-card">
         <div class="payments-stat-icon payments-stat-icon--food"><i class="fa-solid fa-bowl-food"></i></div>
@@ -12779,7 +12827,7 @@ function renderPayments() {
       <div class="card-header">
         <div>
           <div class="card-title card-title--inter">Detalle de registros — ${getPaymentsMonthLabel()}</div>
-          <div class="payments-table-sub">Se cuenta cada registro una sola vez, según su FechaRegistro.</div>
+          <div class="payments-table-sub">Se cuenta cada registro una sola vez, según su FechaRegistro. Paseos no aparece acá: es tarifa mensual por mascota, ya incluida en el total y en las tarjetas de arriba.</div>
         </div>
       </div>
       <div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>Fecha</th><th>Servicio</th><th>Mascota</th><th>Descripción</th><th>Importe</th></tr></thead><tbody>${detalleHtml}</tbody></table></div>
@@ -12837,11 +12885,12 @@ function buildPaymentsDonut(servicios, total) {
   </div>`;
 }
 
-/* Gráfico "Evolución de ingresos" — barras apiladas (Alimentación /
+/* Gráfico "Evolución de ingresos" — barras apiladas (Paseos / Alimentación /
    Desparasitarios / Cuidado a Domicilio) por cada uno de los 12 meses
    del año visible en el selector, construidas desde buildPaymentsYearBuckets
-   (agrupación real por FechaRegistro, nunca por Ultima/Proxima). El mes
-   actualmente seleccionado se destaca con una barra resaltada y una
+   (agrupación real por FechaRegistro para los 3 servicios de compra, más
+   Paseos con su tarifa mensual fija -- ver buildPaymentsYearBuckets). El
+   mes actualmente seleccionado se destaca con una barra resaltada y una
    etiqueta más marcada; los demás meses se muestran atenuados. Un mes sin
    ningún registro simplemente no dibuja barra (altura 0), nunca se
    inventa o interpola un valor. selectedMonth es 0-11. */
@@ -12860,6 +12909,7 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const x = padL + i*slot + (slot-barW)/2;
     const isSelected = i === selectedMonth;
     const segs = [
+      {v:b.walks, color:'var(--svc-walks)'},
       {v:b.food, color:'var(--svc-food)'},
       {v:b.health, color:'var(--svc-deworm)'},
       {v:b.home, color:'var(--svc-home)'}
@@ -12883,13 +12933,14 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
   const selBucket = buckets[selectedMonth];
   const tooltipHtml = selBucket ? `
     <g transform="translate(${Math.min(Math.max(padL + selectedMonth*slot + slot/2 - 84, padL), w-padR-168)}, ${padT})">
-      <rect width="168" height="${selBucket.total>0?86:40}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
+      <rect width="168" height="${selBucket.total>0?101:40}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
       <text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${selBucket.label} ${paymentsYear}</text>
       ${selBucket.total>0 ? `
-      <circle cx="17" cy="32" r="3.5" fill="var(--svc-food)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(selBucket.food)}</text>
-      <circle cx="17" cy="47" r="3.5" fill="var(--svc-deworm)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(selBucket.health)}</text>
-      <circle cx="17" cy="62" r="3.5" fill="var(--svc-home)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(selBucket.home)}</text>
-      <text x="12" y="80" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(selBucket.total)}</text>` : `<text x="12" y="32" font-size="10.5" fill="var(--mist)">Sin registros este mes</text>`}
+      <circle cx="17" cy="32" r="3.5" fill="var(--svc-walks)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Paseos: ${formatCLP(selBucket.walks)}</text>
+      <circle cx="17" cy="47" r="3.5" fill="var(--svc-food)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(selBucket.food)}</text>
+      <circle cx="17" cy="62" r="3.5" fill="var(--svc-deworm)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(selBucket.health)}</text>
+      <circle cx="17" cy="77" r="3.5" fill="var(--svc-home)"/><text x="26" y="80.5" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(selBucket.home)}</text>
+      <text x="12" y="95" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(selBucket.total)}</text>` : `<text x="12" y="32" font-size="10.5" fill="var(--mist)">Sin registros este mes</text>`}
     </g>` : '';
 
   return `
@@ -12899,6 +12950,7 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
       ${tooltipHtml}
     </svg>
     <div class="payments-evo-legend">
+      <span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span>
       <span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span>
       <span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span>
       <span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span>
