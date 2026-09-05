@@ -17208,7 +17208,19 @@ async function saveHealth() {
   const last  = document.getElementById('health-last').value;
   const next  = document.getElementById('health-next').value;
   if (!dogId || !type) { showToast('Completá la mascota y el tipo','error'); return; }
-  state.health.push({ id: Date.now(), dogId, type, desc, last, next });
+  // FIX: faltaba category:'Desparasitación' acá -- es el único de los 3
+  // lugares que hacen push a state.health (este, dwCompleteOrderAfterPayment
+  // en la línea ~16017, y dwSaveEdit en la línea ~10783 vía Object.assign)
+  // que no lo incluía. Los registros cargados por este modal simple
+  // quedaban sin categoría, inconsistentes con el resto (ver filtro por
+  // category==='Desparasitación' en renderModuleDesparasitarios, línea
+  // ~11204). También se cambia a genDewormId() en vez de Date.now() puro:
+  // es el mismo id que se manda a la hoja como columna "Id" (ver más abajo
+  // en esta misma función), así que tiene que ser único y estable de
+  // verdad, igual que en todos los demás lugares que crean un registro
+  // nuevo de Desparasitario.
+  const newId = genDewormId();
+  state.health.push({ id: newId, dogId, type, category: 'Desparasitación', desc, last, next });
   saveHealthToLS();
   closeModal('modal-add-health'); renderHealth(); refreshPaymentsIfActive(); showToast('Registro guardado','success');
   // Enviar a Google Sheets para que el registro se vea en todas las
@@ -17219,8 +17231,23 @@ async function saveHealth() {
     // currentUser.email en vez de dog.mail, así que al sincronizar
     // matchDogByNombreMail() no encontraba la mascota y la fila se
     // descartaba en silencio de state.health.
+    // FIX DUPLICADOS: acá NO se mandaba '&id=' (a diferencia de
+    // dwCompleteOrderAfterPayment, que sí lo manda desde siempre). Sin el
+    // id local en la URL, el Apps Script no tiene forma de saber que esta
+    // fila nueva debe guardarse con newId, así que probablemente le
+    // asignaba su propio id del lado servidor. En la siguiente
+    // sincronización (getServiciosCliente), ese id devuelto por la hoja no
+    // coincide con newId, y el registro terminaba dos veces en
+    // state.health: una vez con el id local (newId, hasta que algo lo
+    // pisara) y otra con el id que vino de la hoja -- mismo registro real,
+    // dos entradas. Eso duplicaba tanto el conteo de "Registros Activos"
+    // como los ingresos de Desparasitarios en Cobros & Costos. Se agrega
+    // '&id=' + newId, igual que ya hacen dwCompleteOrderAfterPayment y
+    // dwSaveEdit, para que el id local y el de la hoja sean siempre el
+    // mismo valor.
     const url = APPS_SCRIPT_URL
       + '?action=addDesparasitario'
+      + '&id=' + encodeURIComponent(newId)
       + '&name=' + encodeURIComponent(dog.name || '')
       + '&mail=' + encodeURIComponent(dog.mail || '')
       + '&product=' + encodeURIComponent(type)
