@@ -9531,7 +9531,7 @@ async function loadHealthFoodHomeCareFromSheet(expectedEpoch) {
       if (!dog) return null;
       let id = String(r.Id || '').trim();
       if (!id) { id = genFoodId(); sinIdCount++; }
-      return { id, dogId: dog.id, brand: r.Marca || '', portion: parseFloat(r.Porcion) || 0, freq: r.Frecuencia || '1 vez al día', last: r.Ultima || '', next: r.Proxima || '', notes: r.Notas || '' };
+      return { id, dogId: dog.id, brand: r.Marca || '', portion: parseFloat(r.Porcion) || 0, freq: r.Frecuencia || '1 vez al día', last: r.Ultima || '', next: r.Proxima || '', notes: r.Notas || '', price: parseCosto(r.precio_registro_de_alimentacion) };
     }).filter(Boolean);
     if (sinIdCount > 0) {
       addLiveLog('[WARN] ' + sinIdCount + ' registro(s) de Alimentación sin columna Id en la hoja: no se van a poder eliminar hasta correr migrarIdAlimentacion() en el Apps Script.', 'err');
@@ -10252,7 +10252,7 @@ function stopWalksLeashLoop() {
 function renderModulePaseos() {
   const container = document.getElementById('service-module-content');
   let myDogs  = state.dogs;
-  let myWalks = state.walks;
+  let myWalks = uniqueFinancialWalks(state.walks);
   if (!isAdmin()) {
     myDogs  = state.dogs.filter(d => d.mail && d.mail.toLowerCase() === currentUser.email);
     const ids = myDogs.map(d => d.id);
@@ -12397,18 +12397,44 @@ function setPaymentsPeriod(period) {
 // mantiene en el total "todo el historial" que ya usaba el resto del
 // panel -- no se pierde el dato, encaja en 'monthly' como aproximación
 // razonable por ser el período por defecto.
+function parsePaymentsDate(raw) {
+  if (!raw) return null;
+  if (raw instanceof Date) return isNaN(raw) ? null : new Date(raw);
+  const s = String(raw).trim();
+  if (!s) return null;
+  // ISO YYYY-MM-DD is interpreted as local date to avoid UTC off-by-one.
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2])-1, Number(iso[3]));
+    return isNaN(d) ? null : d;
+  }
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
 function filterByPaymentsPeriod(records, dateField) {
   const now = new Date();
-  const from = new Date(now);
-  if (paymentsPeriod === 'weekly') from.setDate(now.getDate() - 7);
-  else if (paymentsPeriod === 'yearly') from.setFullYear(now.getFullYear() - 1);
-  else from.setMonth(now.getMonth() - 1); // monthly
-  return records.filter(r => {
-    const raw = r[dateField];
-    if (!raw) return true; // sin fecha cargada: no se descarta, se cuenta igual (ver comentario de la función)
-    const d = new Date(raw);
-    if (isNaN(d)) return true;
-    return d >= from && d <= now;
+  let from, to;
+  if (paymentsPeriod === 'weekly') {
+    // Semana calendario actual: lunes 00:00 hasta domingo 23:59:59.
+    const day = now.getDay(); // 0=domingo, 1=lunes...
+    const mondayOffset = (day + 6) % 7;
+    from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset, 0, 0, 0, 0);
+    to = new Date(from.getTime());
+    to.setDate(from.getDate() + 7);
+  } else if (paymentsPeriod === 'yearly') {
+    // Año calendario actual: 1 de enero hasta 1 de enero del año siguiente.
+    from = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    to = new Date(now.getFullYear() + 1, 0, 1, 0, 0, 0, 0);
+  } else {
+    // Mes calendario actual: primer día hasta primer día del mes siguiente.
+    from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    to = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0, 0);
+  }
+  return (Array.isArray(records) ? records : []).filter(r => {
+    const d = parsePaymentsDate(r && r[dateField]);
+    // Sin fecha no hay forma de asignar el registro a un período concreto.
+    return !!d && d >= from && d < to;
   });
 }
 
@@ -12472,7 +12498,7 @@ function buildPaymentsBuckets(myFoodPeriod, myHealthPeriod, myHomeCarePeriod, wa
     if (b) b.total += amount; else buckets[buckets.length-1].total += amount; // fuera de rango por huso horario: al bucket más reciente
   }
 
-  myFoodPeriod.forEach(f => addToBucket(f.last, foodPriceFor(f.brand)));
+  myFoodPeriod.forEach(f => addToBucket(f.last, paymentRecordPrice(f, x => foodPriceFor(x.brand))));
   myHealthPeriod.forEach(h => addToBucket(h.last, dewormPriceFor(h.type, h.price)));
   myHomeCarePeriod.forEach(b => addToBucket(b.dateStart, b.cost||0));
   if (walksTotalProjected > 0) buckets.forEach(b => b.total += walksTotalProjected / buckets.length);
@@ -12498,20 +12524,20 @@ function exportPaymentsCSV() {
   const foodTotal = myFoodPeriod.reduce((a,f)=>a+foodPriceFor(f.brand),0);
   const dewormTotal = myHealthPeriod.reduce((a,h)=>a+dewormPriceFor(h.type, h.price),0);
   const homeCareTotal = myHomeCarePeriod.reduce((a,b)=>a+(b.cost||0),0);
-  const foodCost = Math.round(foodTotal * 0.14);
-  const dewormCost = Math.round(dewormTotal * 0.14);
-  const homeCareCost = Math.round(homeCareTotal * 0.14);
+  const foodCost = null;
+  const dewormCost = null;
+  const homeCareCost = null;
 
   const filas = [
     ['Servicio','Ingresos','Costos','Ganancia','Margen %','Registros'],
     ['Paseos', walksTotal, 0, walksTotal, walksTotal>0?100:0, myWalks.length],
-    ['Alimentación', foodTotal, foodCost, foodTotal-foodCost, foodTotal>0?Math.round(((foodTotal-foodCost)/foodTotal)*100):0, myFoodPeriod.length],
-    ['Desparasitarios', dewormTotal, dewormCost, dewormTotal-dewormCost, dewormTotal>0?Math.round(((dewormTotal-dewormCost)/dewormTotal)*100):0, myHealthPeriod.length],
-    ['Cuidado a Domicilio', homeCareTotal, homeCareCost, homeCareTotal-homeCareCost, homeCareTotal>0?Math.round(((homeCareTotal-homeCareCost)/homeCareTotal)*100):0, myHomeCarePeriod.length]
+    ['Alimentación', foodTotal, '', '', '', myFoodPeriod.length],
+    ['Desparasitarios', dewormTotal, '', '', '', myHealthPeriod.length],
+    ['Cuidado a Domicilio', homeCareTotal, '', '', '', myHomeCarePeriod.length]
   ];
   const ingresosTotal = walksTotal + foodTotal + dewormTotal + homeCareTotal;
-  const costosTotal = foodCost + dewormCost + homeCareCost;
-  filas.push(['Total', ingresosTotal, costosTotal, ingresosTotal-costosTotal, ingresosTotal>0?Math.round(((ingresosTotal-costosTotal)/ingresosTotal)*100):0, myWalks.length+myFoodPeriod.length+myHealthPeriod.length+myHomeCarePeriod.length]);
+  const costosTotal = null;
+  filas.push(['Total', ingresosTotal, '', '', '', myWalks.length+myFoodPeriod.length+myHealthPeriod.length+myHomeCarePeriod.length]);
 
   const csv = filas.map(fila => fila.map(v => {
     const s = String(v);
@@ -12577,16 +12603,16 @@ function renderPayments() {
   const _isAdmin = isAdmin();
   let myDogs  = state.dogs;
   let myWalks = state.walks;
-  let myFood  = state.food;
-  let myHealth = state.health;
-  let myHomeCare = state.homeCare;
+  let myFood  = uniqueFinancialRecords(state.food);
+  let myHealth = uniqueFinancialRecords(state.health);
+  let myHomeCare = uniqueFinancialRecords(state.homeCare);
   if (!_isAdmin) {
     myDogs  = state.dogs.filter(d=>d.mail&&d.mail.toLowerCase()===currentUser.email);
     const ids = myDogs.map(d=>d.id);
-    myWalks = state.walks.filter(w=>ids.includes(w.dogId));
-    myFood  = state.food.filter(f=>ids.includes(f.dogId));
-    myHealth = state.health.filter(h=>ids.includes(h.dogId));
-    myHomeCare = state.homeCare.filter(b=>ids.includes(b.dogId));
+    myWalks = uniqueFinancialWalks(state.walks.filter(w=>ids.includes(w.dogId)));
+    myFood  = uniqueFinancialRecords(state.food.filter(f=>ids.includes(f.dogId)));
+    myHealth = uniqueFinancialRecords(state.health.filter(h=>ids.includes(h.dogId)));
+    myHomeCare = uniqueFinancialRecords(state.homeCare.filter(b=>ids.includes(b.dogId)));
   }
 
   if (!_isAdmin) {
@@ -12660,7 +12686,7 @@ function renderPayments() {
     return;
   }
 
-  // Ingresos = costo de cada registro/evento de cada servicio, sumado,
+  // Ingresos = precio/cobro de cada registro o evento, sumado una sola vez,
   // filtrado al período elegido (paymentsPeriod). Food/Health/HomeCare
   // tienen fecha propia por registro y se filtran con filterByPaymentsPeriod;
   // Paseos no tiene fecha por registro (ver comentario junto a
@@ -12672,22 +12698,24 @@ function renderPayments() {
 
   const walksWeekly = myWalks.reduce((a,w)=>a+(getDog(w.dogId).cost||0),0);
   const walksTotal = Math.round(walksWeekly * PAYMENTS_WALKS_PROJECTION[paymentsPeriod]);
-  const foodTotal  = myFoodPeriod.reduce((a,f)=>a+foodPriceFor(f.brand),0);
-  const dewormTotal = myHealthPeriod.reduce((a,h)=>a+dewormPriceFor(h.type, h.price),0);
+  const foodTotal  = myFoodPeriod.reduce((a,f)=>a+paymentRecordPrice(f, x => foodPriceFor(x.brand)),0);
+  const dewormTotal = myHealthPeriod.reduce((a,h)=>a+paymentRecordPrice(h, x => dewormPriceFor(x.type, x.price)),0);
   const homeCareTotal = myHomeCarePeriod.reduce((a,b)=>a+(b.cost||0),0);
   const ingresosTotal = walksTotal + foodTotal + dewormTotal + homeCareTotal;
 
-  // Costos operativos: no hay una fuente de "costo del insumo" separada
-  // del precio de venta en ningún servicio salvo lo ya modelado, así que
-  // se estima como un margen operativo razonable (14%) sobre alimentación,
-  // desparasitarios y cuidado a domicilio (Paseos es 100% mano de obra
-  // propia, sin costo de insumo, igual que en el desglose de abajo).
-  const foodCost = Math.round(foodTotal * 0.14);
-  const dewormCost = Math.round(dewormTotal * 0.14);
-  const homeCareCost = Math.round(homeCareTotal * 0.14);
-  const costosTotal = foodCost + dewormCost + homeCareCost;
-  const gananciaNeta = ingresosTotal - costosTotal;
-  const margenPct = ingresosTotal > 0 ? Math.round((gananciaNeta / ingresosTotal) * 100) : 0;
+  // Costos operativos: no se inventan. Las hojas actuales no contienen
+  // un costo real de compra/operativo para estos servicios, por lo que
+  // la ganancia neta se deja sin calcular hasta disponer de esos datos.
+  // No se inventan costos: hoy las hojas no tienen una fuente de costo real
+  // para Alimentación/Desparasitarios/Cuidado a Domicilio. Por eso estos
+  // valores no se presentan como ganancia neta hasta contar con costo real.
+  const costosDisponibles = false;
+  const foodCost = null;
+  const dewormCost = null;
+  const homeCareCost = null;
+  const costosTotal = null;
+  const gananciaNeta = null;
+  const margenPct = null;
 
   // Meta: se ajusta al mismo período elegido para que sea comparable con
   // ingresosTotal (META_MENSUAL_CLP es la base mensual; semanal la divide
@@ -12703,9 +12731,9 @@ function renderPayments() {
 
   const servicios = [
     { key:'PASEOS', label:'Paseos', icon:'fa-dog', color:'var(--svc-walks)', bg:'var(--svc-walks-bg)', ingresos: walksTotal, costos: 0, count: myWalks.length },
-    { key:'ALIMENTOS', label:'Alimentación', icon:'fa-bone', color:'var(--svc-food)', bg:'var(--svc-food-bg)', ingresos: foodTotal, costos: foodCost, count: myFoodPeriod.length },
-    { key:'DESPARASITARIOS', label:'Desparasitarios', icon:'fa-syringe', color:'var(--svc-deworm)', bg:'var(--svc-deworm-bg)', ingresos: dewormTotal, costos: dewormCost, count: myHealthPeriod.length },
-    { key:'CUIDADO_DOMICILIO', label:'Cuidado a Domicilio', icon:'fa-house', color:'var(--svc-home)', bg:'var(--svc-home-bg)', ingresos: homeCareTotal, costos: homeCareCost, count: myHomeCarePeriod.length }
+    { key:'ALIMENTOS', label:'Alimentación', icon:'fa-bone', color:'var(--svc-food)', bg:'var(--svc-food-bg)', ingresos: foodTotal, costos: null, count: myFoodPeriod.length },
+    { key:'DESPARASITARIOS', label:'Desparasitarios', icon:'fa-syringe', color:'var(--svc-deworm)', bg:'var(--svc-deworm-bg)', ingresos: dewormTotal, costos: null, count: myHealthPeriod.length },
+    { key:'CUIDADO_DOMICILIO', label:'Cuidado a Domicilio', icon:'fa-house', color:'var(--svc-home)', bg:'var(--svc-home-bg)', ingresos: homeCareTotal, costos: null, count: myHomeCarePeriod.length }
   ];
   const maxIngreso = Math.max(1, ...servicios.map(s=>s.ingresos));
 
@@ -12764,16 +12792,17 @@ function renderPayments() {
 
   // ── Tabla "Detalle de Cobros por Servicio" ──
   const filasDetalle = servicios.map(s=>{
-    const margen = s.ingresos>0 ? Math.round(((s.ingresos-s.costos)/s.ingresos)*100) : 0;
-    const gananciaServicio = s.ingresos - s.costos;
-    const margenColor = margen>=0 ? 'var(--sage)' : 'var(--red)';
-    const margenBg = margen>=0 ? 'var(--sage-light)' : 'var(--red-light)';
+    const tieneCosto = s.costos != null;
+    const margen = tieneCosto && s.ingresos>0 ? Math.round(((s.ingresos-s.costos)/s.ingresos)*100) : null;
+    const gananciaServicio = tieneCosto ? s.ingresos - s.costos : null;
+    const margenColor = margen != null && margen < 0 ? 'var(--red)' : 'var(--sage)';
+    const margenBg = margen != null && margen < 0 ? 'var(--red-light)' : 'var(--sage-light)';
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:8px"><span style="width:24px;height:24px;border-radius:7px;background:${s.bg};color:${s.color};display:inline-flex;align-items:center;justify-content:center;font-size:11px"><i class="fa-solid ${s.icon}"></i></span><strong>${s.label}</strong></div></td>
       <td>${formatCLP(s.ingresos)}</td>
-      <td>${formatCLP(s.costos)}</td>
-      <td style="font-weight:700;color:${gananciaServicio>=0?'var(--sage)':'var(--red)'}">${gananciaServicio<0?'-':''}${formatCLP(Math.abs(gananciaServicio))}</td>
-      <td><span class="badge" style="background:${margenBg};color:${margenColor}">${margen}%</span></td>
+      <td>${tieneCosto ? formatCLP(s.costos) : '—'}</td>
+      <td style="font-weight:700;color:${gananciaServicio != null && gananciaServicio<0?'var(--red)':'var(--sage)'}">${gananciaServicio == null ? '—' : formatCLP(gananciaServicio)}</td>
+      <td><span class="badge" style="background:${margen == null ? 'var(--surface-hover, #EEEDE8)' : margenBg};color:${margen == null ? 'var(--mist)' : margenColor}">${margen == null ? '—' : margen + '%'}</span></td>
     </tr>`;
   }).join('');
 
@@ -12782,8 +12811,8 @@ function renderPayments() {
   // el tiempo), así que se muestra el total del período elegido
   // (paymentsPeriod) como único punto real y confirmado sobre el eje, en
   // vez de inventar puntos intermedios sin datos reales detrás. ──
-  const periodoLabel = paymentsPeriod === 'weekly' ? 'Últimos 7 días'
-    : paymentsPeriod === 'yearly' ? 'Últimos 12 meses'
+  const periodoLabel = paymentsPeriod === 'weekly' ? 'Semana actual'
+    : paymentsPeriod === 'yearly' ? 'Año actual'
     : new Date().toLocaleDateString('es-AR', { month:'long', year:'numeric' });
   const evolucionBuckets = buildPaymentsBuckets(myFoodPeriod, myHealthPeriod, myHomeCarePeriod, walksTotal);
   const evolucionHtml = buildPaymentsEvolutionChart(evolucionBuckets, costosTotal, periodoLabel);
@@ -12803,9 +12832,9 @@ function renderPayments() {
 
     <div class="stats-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
       <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-sack-dollar"></i></div><div><div class="stat-value">${formatCLP(ingresosTotal)}</div><div class="stat-label">Ingresos ${PAYMENTS_PERIOD_LABEL[paymentsPeriod]}es</div></div></div>
-      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-chart-line"></i></div><div><div class="stat-value">${formatCLP(gananciaNeta)}</div><div class="stat-label">Ganancia Neta</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-chart-line"></i></div><div><div class="stat-value">${gananciaNeta == null ? '—' : formatCLP(gananciaNeta)}</div><div class="stat-label">Ganancia Neta</div></div></div>
       <div class="stat-card"><div class="stat-icon violet"><i class="fa-solid fa-dog"></i></div><div><div class="stat-value">${myWalks.length + myFoodPeriod.length + myHealthPeriod.length + myHomeCarePeriod.length}</div><div class="stat-label">Registros Activos</div></div></div>
-      <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-percent"></i></div><div><div class="stat-value">${margenPct}%</div><div class="stat-label">Margen Promedio</div></div></div>
+      <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-percent"></i></div><div><div class="stat-value">${margenPct == null ? '—' : margenPct + '%'}</div><div class="stat-label">Margen Promedio</div></div></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:18px;margin-bottom:18px;align-items:start">
@@ -12829,7 +12858,7 @@ function renderPayments() {
         <table class="data-table">
           <thead><tr><th>Servicio</th><th>Ingresos</th><th>Costos</th><th>Ganancia</th><th>Margen</th></tr></thead>
           <tbody>${filasDetalle}
-            <tr style="font-weight:700"><td>Total</td><td>${formatCLP(ingresosTotal)}</td><td>${formatCLP(costosTotal)}</td><td style="color:var(--sage)">${formatCLP(gananciaNeta)}</td><td>${margenPct}%</td></tr>
+            <tr style="font-weight:700"><td>Total</td><td>${formatCLP(ingresosTotal)}</td><td>${costosTotal == null ? '—' : formatCLP(costosTotal)}</td><td style="color:var(--sage)">${gananciaNeta == null ? '—' : formatCLP(gananciaNeta)}</td><td>${margenPct == null ? '—' : margenPct + '%'}</td></tr>
           </tbody>
         </table>
       </div>
@@ -13001,7 +13030,7 @@ function buildPaymentsEvolutionChart(buckets, costosTotal, ganLabel) {
       <rect width="${tipW}" height="${tipH}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
       <text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${ganLabel}</text>
       <circle cx="17" cy="32" r="3.5" fill="var(--svc-walks)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Ingresos: ${formatCLP(ingresosTotalReal)}</text>
-      <circle cx="17" cy="47" r="3.5" fill="var(--amber)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Costos: ${formatCLP(costosTotal)}</text>
+      <circle cx="17" cy="47" r="3.5" fill="var(--amber)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Costos: ${costosTotal == null ? '—' : formatCLP(costosTotal)}</text>
       <circle cx="17" cy="62" r="3.5" fill="var(--blue)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Ganancia: ${formatCLP(Math.round(gananciaTotalReal))}</text>
     </g>` : '';
 
@@ -13361,6 +13390,39 @@ function foodPriceFor(brand) {
 // el producto no está en el catálogo cargado (por ejemplo, fue cargado
 // a texto libre con "Agregar producto nuevo", o el catálogo todavía no
 // terminó de cargar en esta sesión).
+// Herramientas financieras: cada registro con Id se contabiliza una sola vez.
+// No se deduplican los paseos por Id porque las filas representan horarios/días
+// recurrentes y cada fila puede ser un servicio semanal válido.
+function uniqueFinancialWalks(records) {
+  const seen = new Set();
+  return (Array.isArray(records) ? records : []).filter(w => {
+    const id = String(w && w.id || '').trim();
+    // Si existe id estable, usarlo. Si no, deduplicar solo copias exactas de
+    // mascota+día+horario; no tocar horarios/días legítimamente distintos.
+    const key = id || [w && w.dogId, w && w.day, w && w.start, w && w.end].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function uniqueFinancialRecords(records) {
+  const seen = new Set();
+  return (Array.isArray(records) ? records : []).filter(r => {
+    const id = String(r && r.id || '').trim();
+    if (!id) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function paymentRecordPrice(record, fallbackFn) {
+  const saved = parseCosto(record && record.price);
+  if (saved > 0) return saved;
+  return typeof fallbackFn === 'function' ? (Number(fallbackFn(record)) || 0) : 0;
+}
+
 function dewormPriceFor(product, storedPrice) {
   // Para Cobros & Costos, el precio del registro es la fuente de verdad:
   // precio_registro_de_desparasitacion en la hoja Desparasitarios.
