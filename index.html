@@ -1644,6 +1644,148 @@ body[data-bg-scene="settings"]::after {
 .stat-value { font-size: 26px; font-weight: 700; color: var(--charcoal); line-height: 1; }
 .stat-label { font-size: 11.5px; color: var(--stone); margin-top: 3px; }
 
+/* ══════════════════════════════════
+   COBROS & COSTOS — rediseño Apple/macOS
+   Todo lo que sigue es exclusivo del panel financiero (renderPayments,
+   paymentsSelectorsHtml, buildPaymentsDonut, buildPaymentsEvolutionChart).
+   Reutiliza los mismos tokens que el resto del sistema (--r-lg, --shadow-*,
+   --sage/--svc-*) en vez de definir una paleta nueva, para que la sección
+   quede visualmente integrada al resto del portal en vez de parecer un
+   panel aparte. ══════════════════════════════════ */
+.payments-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.payments-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.payments-live-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 600; color: var(--sage);
+  background: var(--sage-xlight); border: 1px solid var(--svc-walks-border);
+  padding: 7px 13px; border-radius: 999px;
+}
+.payments-live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--sage);
+  box-shadow: 0 0 0 0 rgba(45,80,22,.5);
+  animation: paymentsLivePulse 2s infinite;
+}
+@keyframes paymentsLivePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(45,80,22,.45); }
+  70%  { box-shadow: 0 0 0 6px rgba(45,80,22,0); }
+  100% { box-shadow: 0 0 0 0 rgba(45,80,22,0); }
+}
+.payments-export-btn { border-radius: var(--r-sm); }
+
+.payments-selector-row { display: flex; margin-bottom: 22px; }
+.payments-period-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--white); border: 1px solid var(--border-sm);
+  border-radius: 999px; padding: 8px 10px 8px 16px;
+  box-shadow: var(--shadow-xs);
+  backdrop-filter: saturate(1.4) blur(6px);
+}
+.payments-period-icon { color: var(--mist); font-size: 13px; }
+.payments-period-nav {
+  width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-sm);
+  background: var(--surface-hover, #F4F2ED); color: var(--stone);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 12px; transition: background .16s, transform .16s;
+}
+.payments-period-nav:hover { background: var(--sage-xlight); color: var(--sage); transform: scale(1.06); }
+.payments-period-select {
+  border: none; background: transparent; font-family: 'Inter', sans-serif;
+  font-size: 14.5px; font-weight: 700; color: var(--charcoal);
+  padding: 4px 22px 4px 2px; cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235C5952' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat; background-position: right 2px center;
+}
+.payments-period-sep { width: 1px; height: 18px; background: var(--border-sm); }
+
+.payments-stats-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+  margin-bottom: 20px;
+}
+.payments-stat-card {
+  background: var(--white); border: 1px solid var(--border-sm);
+  border-radius: var(--r-lg); padding: 18px 18px 16px;
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow .2s, transform .2s;
+}
+.payments-stat-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.payments-stat-card--primary { background: linear-gradient(160deg, var(--sage-xlight) 0%, var(--white) 65%); border-color: var(--svc-walks-border); }
+.payments-stat-icon {
+  width: 38px; height: 38px; border-radius: 11px; margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.payments-stat-icon--sage   { background: var(--sage-light);      color: var(--sage); }
+.payments-stat-icon--walks  { background: var(--svc-walks-bg);    color: var(--svc-walks); }
+.payments-stat-icon--food   { background: var(--svc-food-bg);     color: var(--svc-food); }
+.payments-stat-icon--deworm { background: var(--svc-deworm-bg);   color: var(--svc-deworm); }
+.payments-stat-icon--home   { background: var(--svc-home-bg);     color: var(--svc-home); }
+.payments-stat-value { font-size: 24px; font-weight: 700; color: var(--charcoal); letter-spacing: -.4px; line-height: 1.1; }
+.payments-stat-value--muted { font-size: 15px; color: var(--mist); font-weight: 600; }
+.payments-stat-label { font-size: 12px; color: var(--stone); margin-top: 5px; line-height: 1.4; }
+
+.payments-charts-row {
+  display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
+  margin-bottom: 18px; align-items: stretch;
+}
+.payments-glass-card { border-radius: var(--r-lg); }
+.payments-year-tag {
+  font-size: 12px; font-weight: 600; color: var(--stone);
+  background: var(--surface-hover, #F4F2ED); padding: 5px 11px; border-radius: 999px;
+}
+.payments-evo-legend {
+  display: flex; justify-content: center; gap: 20px; margin-top: 4px;
+  flex-wrap: wrap; font-size: 12px; color: var(--stone);
+}
+.payments-evo-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+.payments-donut-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.payments-donut-wrap { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
+.payments-donut-svg { width: 132px; height: 132px; display: block; }
+.payments-donut-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 0 8px;
+}
+.payments-donut-center-amount { font-size: 17px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.15; }
+.payments-donut-center-label { font-size: 10.5px; color: var(--mist); margin-top: 2px; }
+.payments-donut-legend { flex: 1; min-width: 170px; display: flex; flex-direction: column; gap: 10px; }
+.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--stone); }
+.payments-donut-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.payments-donut-legend-label { flex: 1; color: var(--charcoal); font-weight: 500; }
+.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 34px; text-align: right; }
+.payments-donut-legend-amount { font-size: 11.5px; color: var(--mist); min-width: 76px; text-align: right; }
+
+.payments-table-sub { font-size: 12px; color: var(--mist); margin-top: 3px; }
+.payments-table td { vertical-align: middle; }
+.payments-amount-cell { font-weight: 700; color: var(--charcoal); }
+.payments-svc-chip {
+  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+}
+.payments-svc-chip--food   { background: var(--svc-food-bg);   color: var(--svc-food); }
+.payments-svc-chip--deworm { background: var(--svc-deworm-bg); color: var(--svc-deworm); }
+.payments-svc-chip--home   { background: var(--svc-home-bg);   color: var(--svc-home); }
+
+.payments-progress-track {
+  height: 9px; border-radius: 999px; background: var(--surface-hover, #EEEDE8);
+  overflow: hidden;
+}
+.payments-progress-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--sage) 0%, var(--sage-mid) 100%);
+  transition: width .4s cubic-bezier(.22,1,.36,1);
+}
+
+@media (max-width: 1100px) {
+  .payments-stats-grid { grid-template-columns: repeat(3, 1fr); }
+  .payments-charts-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .payments-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .payments-period-pill { padding: 7px 8px 7px 12px; }
+}
+
 /* Botones de "Acciones Rápidas" en Cobros & Costos (renderPayments).
    Mismo lenguaje visual que .stat-card pero pensado como botón: cursor
    pointer, foco accesible, y el ícono/título/subtítulo apilados en
@@ -12358,17 +12500,8 @@ function switchFichaTab(btnEl, tabKey) {
    Todo se recalcula desde cero cada vez que se llama a esta función, así
    que basta con volver a invocarla (ver refreshPaymentsIfActive) después
    de cualquier alta/edición/baja para que quede al instante actualizada. */
-function refreshPaymentsIfActive() {
-  if (currentView === 'payments') renderPayments();
-}
-
-// Meta de ingresos del mes para la tarjeta "Meta Mensual" del panel de
-// Cobros & Costos. Ver comentario junto a metaMensual en renderPayments.
-var META_MENSUAL_CLP = 3500000;
-
-// Período seleccionado en el panel de Cobros & Costos: 'weekly' | 'monthly'
-// | 'yearly'. Se guarda en una variable de módulo (no en localStorage a
-// propósito) para que sea una preferencia de la sesión actual, igual que
+// Se guarda en variables de módulo (no en localStorage a propósito) para
+// que el mes/año elegido sea una preferencia de la sesión actual, igual que
 // currentServiceKey -- no tiene sentido persistirla entre sesiones porque
 // lo más probable es que el admin siempre quiera arrancar viendo el mes
 // en curso al volver a entrar.
@@ -12459,37 +12592,61 @@ function financialYears() {
   return Array.from(years).sort((a,b)=>a-b);
 }
 
+// Mueve el selector un mes hacia atrás/adelante (ej. el botón ‹ › de la
+// tarjeta de período). Cruza de año automáticamente (Enero-1 -> Diciembre
+// del año anterior, Diciembre+1 -> Enero del año siguiente). Es un simple
+// wrapper sobre setPaymentsMonthYear, así que sigue siendo puro filtro:
+// nunca toca state.food/health/homeCare ni Google Sheets.
+function shiftPaymentsMonth(delta) {
+  let m = paymentsMonth + delta, y = paymentsYear;
+  if (m < 0) { m = 11; y -= 1; }
+  else if (m > 11) { m = 0; y += 1; }
+  setPaymentsMonthYear(m, y);
+}
+
 function paymentsSelectorsHtml() {
   const years = financialYears();
-  return `<div class="payments-month-selector" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <label style="font-size:12px;font-weight:700;color:var(--mist)">Período</label>
-    <select class="form-control" style="width:auto;min-width:145px" aria-label="Mes" onchange="setPaymentsMonthYear(this.value, document.getElementById('payments-year-select').value)">
+  return `<div class="payments-period-pill">
+    <button type="button" class="payments-period-nav" onclick="shiftPaymentsMonth(-1)" aria-label="Mes anterior"><i class="fa-solid fa-chevron-left"></i></button>
+    <i class="fa-regular fa-calendar payments-period-icon"></i>
+    <select class="payments-period-select" id="payments-month-select" aria-label="Mes" onchange="setPaymentsMonthYear(this.value, document.getElementById('payments-year-select').value)">
       ${PAYMENTS_MONTHS.map((m,i)=>`<option value="${i}" ${i===paymentsMonth?'selected':''}>${m}</option>`).join('')}
     </select>
-    <select class="form-control" id="payments-year-select" style="width:auto;min-width:105px" aria-label="Año" onchange="setPaymentsMonthYear(document.querySelector('.payments-month-selector select').value, this.value)">
+    <span class="payments-period-sep"></span>
+    <select class="payments-period-select" id="payments-year-select" aria-label="Año" onchange="setPaymentsMonthYear(document.getElementById('payments-month-select').value, this.value)">
       ${years.map(y=>`<option value="${y}" ${y===paymentsYear?'selected':''}>${y}</option>`).join('')}
     </select>
+    <button type="button" class="payments-period-nav" onclick="shiftPaymentsMonth(1)" aria-label="Mes siguiente"><i class="fa-solid fa-chevron-right"></i></button>
   </div>`;
 }
 
-function refreshPaymentsIfActive() {
-  if (currentView === 'payments') renderPayments();
+// Agrupa los registros reales de food/health/home (los 3 arrays completos,
+// sin filtrar por el mes elegido) por mes de FechaRegistro para el gráfico
+// "Evolución de ingresos". Siempre entrega 12 buckets (Ene..Dic) del año
+// visible en el selector -- si un mes no tiene ningún registro, su total
+// es exactamente 0, nunca se interpola ni se rellena con datos de otro mes.
+function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year) {
+  const buckets = PAYMENTS_MONTHS.map((label, i) => ({ month: i, label: label.slice(0,3), food: 0, health: 0, home: 0 }));
+  function add(records, field, priceFn) {
+    (records || []).forEach(r => {
+      const d = getFinancialRecordDate(r);
+      if (!d || d.getFullYear() !== year) return;
+      buckets[d.getMonth()][field] += priceFn(r);
+    });
+  }
+  add(foodAll, 'food', r => paymentRecordPrice(r, x => foodPriceFor(x.brand)));
+  add(healthAll, 'health', r => paymentRecordPrice(r, x => dewormPriceFor(x.type, x.price)));
+  add(homeAll, 'home', r => Number(r.cost) || 0);
+  buckets.forEach(b => { b.total = b.food + b.health + b.home; });
+  return buckets;
 }
 
+// Meta de ingresos del mes para la tarjeta "Meta Mensual" del panel de
+// Cobros & Costos. Ver comentario junto a metaMensual en renderPayments.
 var META_MENSUAL_CLP = 3500000;
 
-function paymentRecordPrice(record, fallbackFn) {
-  const saved = parseCosto(record && record.price);
-  if (saved > 0) return saved;
-  return typeof fallbackFn === 'function' ? (Number(fallbackFn(record)) || 0) : 0;
-}
-
-function dewormPriceFor(product, storedPrice) {
-  const saved = parseCosto(storedPrice);
-  if (saved > 0) return saved;
-  if (!product || !state.dewormCatalog) return 0;
-  const match = state.dewormCatalog.find(p => p.nombre === product);
-  return match ? (match.precio || 0) : 0;
+function refreshPaymentsIfActive() {
+  if (currentView === 'payments') renderPayments();
 }
 
 function exportPaymentsCSV() {
@@ -12541,178 +12698,210 @@ function renderPayments() {
   const ingresosTotal = foodTotal + healthTotal + homeTotal;
   const count = food.length + health.length + home.length;
 
-  // No se inventan costos. Si en el futuro cada registro tiene un costo de
-  // compra/operativo, la ganancia neta se calculará automáticamente como
-  // ingresos - costos. Hoy mostramos ingresos reales, no una falsa ganancia.
-  const costosTotal = null;
-  const gananciaNeta = null;
-
+  // No se inventan costos ni "ganancia". Paseos (state.walks) tampoco entra
+  // en este total: son horarios/días de agenda recurrente sin un precio
+  // por registro individual, así que no hay una forma real de calcularlo
+  // (ver uniqueFinancialWalks). Se muestra aparte, marcado como informativo.
   const servicios = [
-    {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bone',color:'var(--svc-food)',bg:'var(--svc-food-bg)',ingresos:foodTotal,count:food.length},
+    {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bowl-food',color:'var(--svc-food)',bg:'var(--svc-food-bg)',ingresos:foodTotal,count:food.length},
     {key:'DESPARASITARIOS',label:'Desparasitarios',icon:'fa-syringe',color:'var(--svc-deworm)',bg:'var(--svc-deworm-bg)',ingresos:healthTotal,count:health.length},
-    {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house',color:'var(--svc-home)',bg:'var(--svc-home-bg)',ingresos:homeTotal,count:home.length}
+    {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house-chimney',color:'var(--svc-home)',bg:'var(--svc-home-bg)',ingresos:homeTotal,count:home.length}
   ];
-  const maxIngreso = Math.max(1,...servicios.map(s=>s.ingresos));
-  const filasDetalle = servicios.map(s=>`<tr><td><strong>${s.label}</strong><div style="font-size:11px;color:var(--mist);margin-top:2px">${s.count} registro${s.count===1?'':'s'}</div></td><td style="font-weight:700">${formatCLP(s.ingresos)}</td><td>—</td><td>—</td><td>—</td></tr>`).join('');
-  const barrasHtml = servicios.map(s=>`<div style="margin-bottom:15px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span>${s.label}</span><strong>${formatCLP(s.ingresos)}</strong></div><div style="height:10px;border-radius:5px;background:var(--surface-hover,#EEEDE8);overflow:hidden"><div style="height:100%;width:${Math.round(s.ingresos/maxIngreso*100)}%;background:${s.color};border-radius:5px"></div></div></div>`).join('');
+  const pct = v => ingresosTotal>0 ? Math.round(v/ingresosTotal*100) : 0;
   const donutHtml = buildPaymentsDonut(servicios, ingresosTotal);
 
+  const yearBuckets = buildPaymentsYearBuckets(foodAll, healthAll, homeAll, paymentsYear);
+  const evolutionHtml = buildPaymentsEvolutionChart(yearBuckets, paymentsMonth);
+
   const detalle = [
-    ...food.map(r=>({fecha:r.fechaRegistro,servicio:'Alimentación',dog:getDog(r.dogId)?.name||'—',detalle:r.brand||'—',importe:paymentRecordPrice(r,x=>foodPriceFor(x.brand))})),
-    ...health.map(r=>({fecha:r.fechaRegistro,servicio:'Desparasitarios',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
-    ...home.map(r=>({fecha:r.fechaRegistro,servicio:'Cuidado a Domicilio',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
+    ...food.map(r=>({fecha:r.fechaRegistro,servicio:'Alimentación',svcClass:'food',dog:getDog(r.dogId)?.name||'—',detalle:r.brand||'—',importe:paymentRecordPrice(r,x=>foodPriceFor(x.brand))})),
+    ...health.map(r=>({fecha:r.fechaRegistro,servicio:'Desparasitarios',svcClass:'deworm',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
+    ...home.map(r=>({fecha:r.fechaRegistro,servicio:'Cuidado a Domicilio',svcClass:'home',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
   ].sort((a,b)=>(getFinancialRecordDate(b)?.getTime()||0)-(getFinancialRecordDate(a)?.getTime()||0));
 
-  const detalleHtml = detalle.length ? detalle.map(r=>`<tr><td>${escapeHtml(r.fecha||'—')}</td><td>${escapeHtml(r.servicio)}</td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td style="font-weight:700">${formatCLP(r.importe)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--mist)">No hay registros agregados en ${getPaymentsMonthLabel()}.</td></tr>`;
+  const detalleHtml = detalle.length ? detalle.map(r=>`<tr><td>${escapeHtml(formatPaymentsDateShort(r.fecha))}</td><td><span class="payments-svc-chip payments-svc-chip--${r.svcClass}">${escapeHtml(r.servicio)}</span></td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td class="payments-amount-cell">${formatCLP(r.importe)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;padding:44px 20px;color:var(--mist)">No hay registros creados durante ${getPaymentsMonthLabel()}.</td></tr>`;
   const metaPct = META_MENSUAL_CLP>0 ? Math.min(100,Math.round(ingresosTotal/META_MENSUAL_CLP*100)) : 0;
 
   container.innerHTML = `
-    <div class="section-header">
-      <div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Se cuentan únicamente los registros cuya FechaRegistro pertenece al mes seleccionado.</div></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${paymentsSelectorsHtml()}<button type="button" class="btn btn-secondary" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button></div>
+    <div class="payments-header">
+      <div>
+        <div class="section-title section-title--inter">Cobros & Costos</div>
+        <div class="section-sub">Resumen financiero por mes</div>
+      </div>
+      <div class="payments-header-actions">
+        <span class="payments-live-badge"><span class="payments-live-dot"></span>Actualizado en tiempo real</span>
+        <button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button>
+      </div>
     </div>
 
-    <div class="card" style="margin-bottom:18px"><div class="card-body" style="padding:14px 18px"><div style="font-size:13px;color:var(--mist)"><i class="fa-regular fa-calendar"></i> Período seleccionado: <strong style="color:var(--charcoal)">${getPaymentsMonthLabel()}</strong></div></div></div>
+    <div class="payments-selector-row">${paymentsSelectorsHtml()}</div>
 
-    <div class="stats-strip" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px">
-      <div class="stat-card"><div class="stat-icon green"><i class="fa-solid fa-sack-dollar"></i></div><div><div class="stat-value">${formatCLP(ingresosTotal)}</div><div class="stat-label">Total cobrado en el mes</div></div></div>
-      <div class="stat-card"><div class="stat-icon violet"><i class="fa-solid fa-chart-line"></i></div><div><div class="stat-value">${gananciaNeta===null?'—':formatCLP(gananciaNeta)}</div><div class="stat-label">Ganancia neta</div></div></div>
-      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-list-check"></i></div><div><div class="stat-value">${count}</div><div class="stat-label">Registros agregados</div></div></div>
-      <div class="stat-card"><div class="stat-icon"><i class="fa-solid fa-percent"></i></div><div><div class="stat-value">${ingresosTotal>0?metaPct+'%':'0%'}</div><div class="stat-label">Avance de meta mensual</div></div></div>
+    <div class="payments-stats-grid">
+      <div class="payments-stat-card payments-stat-card--primary">
+        <div class="payments-stat-icon payments-stat-icon--sage"><i class="fa-solid fa-sack-dollar"></i></div>
+        <div class="payments-stat-value">${formatCLP(ingresosTotal)}</div>
+        <div class="payments-stat-label">${getPaymentsMonthLabel()}</div>
+      </div>
+      <div class="payments-stat-card">
+        <div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div>
+        <div class="payments-stat-value payments-stat-value--muted">No contabilizado</div>
+        <div class="payments-stat-label">Paseos · agenda semanal, sin precio por registro</div>
+      </div>
+      <div class="payments-stat-card">
+        <div class="payments-stat-icon payments-stat-icon--food"><i class="fa-solid fa-bowl-food"></i></div>
+        <div class="payments-stat-value">${formatCLP(foodTotal)}</div>
+        <div class="payments-stat-label">Alimentación · ${pct(foodTotal)}% del total</div>
+      </div>
+      <div class="payments-stat-card">
+        <div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div>
+        <div class="payments-stat-value">${formatCLP(healthTotal)}</div>
+        <div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div>
+      </div>
+      <div class="payments-stat-card">
+        <div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div>
+        <div class="payments-stat-value">${formatCLP(homeTotal)}</div>
+        <div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div>
+      </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-bottom:18px;align-items:start">
-      <div class="card"><div class="card-header"><div class="card-title card-title--inter">Ingresos por Servicio</div></div><div class="card-body">${barrasHtml}</div></div>
-      <div class="card"><div class="card-header"><div class="card-title card-title--inter">Distribución de Ingresos</div></div><div class="card-body">${donutHtml}<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:13px"><span style="color:var(--mist)">Total</span><strong>${formatCLP(ingresosTotal)}</strong></div></div></div>
+    <div class="payments-charts-row">
+      <div class="card payments-glass-card">
+        <div class="card-header"><div class="card-title card-title--inter">Evolución de ingresos</div><div class="payments-year-tag">Año ${paymentsYear}</div></div>
+        <div class="card-body">${evolutionHtml}</div>
+      </div>
+      <div class="card payments-glass-card">
+        <div class="card-header"><div class="card-title card-title--inter">Distribución de ingresos</div></div>
+        <div class="card-body">${donutHtml}</div>
+      </div>
     </div>
 
-    <div class="card" style="margin-bottom:18px"><div class="card-header"><div><div class="card-title card-title--inter">Detalle de Cobros por Servicio</div><div style="font-size:12px;color:var(--mist);margin-top:3px">Solo registros creados durante ${getPaymentsMonthLabel()}.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Servicio</th><th>Ingresos</th><th>Costos</th><th>Ganancia</th><th>Margen</th></tr></thead><tbody>${filasDetalle}<tr style="font-weight:700"><td>Total<div style="font-size:11px;color:var(--mist);font-weight:400">${count} registro${count===1?'':'s'}</div></td><td>${formatCLP(ingresosTotal)}</td><td>—</td><td>—</td><td>—</td></tr></tbody></table></div></div>
+    <div class="card payments-glass-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title card-title--inter">Detalle de registros — ${getPaymentsMonthLabel()}</div>
+          <div class="payments-table-sub">Se cuenta cada registro una sola vez, según su FechaRegistro.</div>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>Fecha</th><th>Servicio</th><th>Mascota</th><th>Descripción</th><th>Importe</th></tr></thead><tbody>${detalleHtml}</tbody></table></div>
+    </div>
 
-    <div class="card"><div class="card-header"><div><div class="card-title card-title--inter">Registros agregados en ${getPaymentsMonthLabel()}</div><div style="font-size:12px;color:var(--mist);margin-top:3px">Esta tabla es la fuente del cálculo: cada registro se cuenta una sola vez por su Id y por su FechaRegistro.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Fecha de registro</th><th>Servicio</th><th>Mascota</th><th>Detalle</th><th>Importe</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
-
-    <div class="card" style="margin-top:18px"><div class="card-header"><div class="card-title card-title--inter">Meta mensual</div></div><div class="card-body"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><span style="font-size:13px;color:var(--mist)">${formatCLP(ingresosTotal)} de ${formatCLP(META_MENSUAL_CLP)}</span><strong style="font-size:13px;color:var(--sage)">${metaPct}%</strong></div><div style="height:8px;border-radius:5px;background:var(--surface-hover,#EEEDE8);overflow:hidden"><div style="height:100%;width:${metaPct}%;background:var(--sage);border-radius:5px"></div></div></div></div>`;
+    <div class="card payments-glass-card" style="margin-top:18px">
+      <div class="card-header"><div class="card-title card-title--inter">Meta mensual</div></div>
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <span style="font-size:13px;color:var(--stone)">${formatCLP(ingresosTotal)} de ${formatCLP(META_MENSUAL_CLP)}</span>
+          <strong style="font-size:14px;color:var(--sage)">${metaPct}%</strong>
+        </div>
+        <div class="payments-progress-track"><div class="payments-progress-fill" style="width:${metaPct}%"></div></div>
+      </div>
+    </div>`;
 }
 
+function formatPaymentsDateShort(raw) {
+  const d = parsePaymentsDate(raw);
+  if (!d) return raw || '—';
+  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+}
+
+// Donut de "Distribución de ingresos" con el total real en el centro.
+// activos son solo los servicios con ingresos>0 (evita segmentos de 0%
+// que solo agregan ruido visual al anillo).
 function buildPaymentsDonut(servicios, total) {
-  if (!total) return `<div style="display:flex;align-items:center;justify-content:center;height:140px;color:var(--mist);font-size:12.5px">Sin ingresos todavía</div>`;
+  const legendRows = servicios.map(s => {
+    const p = total>0 ? Math.round((s.ingresos/total)*100) : 0;
+    return `<div class="payments-donut-legend-row"><span class="payments-donut-dot" style="background:${s.color}"></span><span class="payments-donut-legend-label">${s.label}</span><span class="payments-donut-legend-pct">${p}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`;
+  }).join('');
+
+  if (!total) {
+    return `<div class="payments-donut-row">
+      <svg viewBox="0 0 42 42" class="payments-donut-svg"><circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--border-sm)" stroke-width="4.5"/></svg>
+      <div class="payments-donut-center"><div class="payments-donut-center-amount">$0</div><div class="payments-donut-center-label">Total cobrado</div></div>
+      <div class="payments-donut-legend">${legendRows}</div>
+    </div>`;
+  }
   const r = 15.9, cx = 21, cy = 21;
   let offsetAcc = 0;
   const activos = servicios.filter(s=>s.ingresos>0);
   const segments = activos.map(s=>{
-    const pct = (s.ingresos/total)*100;
-    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="4.5" stroke-dasharray="${pct} ${100-pct}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
-    offsetAcc += pct;
+    const p = (s.ingresos/total)*100;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="4.5" stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
+    offsetAcc += p;
     return seg;
   }).join('');
-  const legend = activos.map(s=>{
-    const pct = Math.round((s.ingresos/total)*100);
-    return `<div class="donut-legend-row"><span class="donut-legend-dot" style="background:${s.color}"></span>${s.label}<span class="donut-legend-pct">${pct}%</span></div>`;
-  }).join('');
-  return `<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-    <svg viewBox="0 0 42 42" style="width:110px;height:110px;flex-shrink:0">${segments}</svg>
-    <div class="donut-legend" style="flex:1;min-width:120px">${legend}</div>
+  return `<div class="payments-donut-row">
+    <div class="payments-donut-wrap">
+      <svg viewBox="0 0 42 42" class="payments-donut-svg">${segments}</svg>
+      <div class="payments-donut-center"><div class="payments-donut-center-amount">${formatCLP(total)}</div><div class="payments-donut-center-label">Total cobrado</div></div>
+    </div>
+    <div class="payments-donut-legend">${legendRows}</div>
   </div>`;
 }
 
-/* Gráfico de evolución "Ingresos por Servicio" — SVG de área con 3
-   series (Ingresos/Costos/Ganancia), curva suave (Catmull-Rom -> Bézier,
-   igual criterio de suavizado que dewormSparkline más arriba en el
-   archivo) sobre los buckets reales de buildPaymentsBuckets. A
-   diferencia de la versión anterior (un único punto en el centro del
-   viewBox), acá cada punto de la curva es un bucket real del período
-   elegido -- días para semanal, semanas para mensual, meses para anual
-   -- así que la curva refleja distribución real dentro del período en
-   vez de ser puramente decorativa. Tooltip flotante sobre el último
-   punto (el bucket más reciente = "ahora"), como en el diseño de
-   referencia del dashboard. */
-function buildPaymentsEvolutionChart(buckets, costosTotal, ganLabel) {
-  const w = 600, h = 220, padL = 6, padR = 6, padT = 18, padB = 26;
+/* Gráfico "Evolución de ingresos" — barras apiladas (Alimentación /
+   Desparasitarios / Cuidado a Domicilio) por cada uno de los 12 meses
+   del año visible en el selector, construidas desde buildPaymentsYearBuckets
+   (agrupación real por FechaRegistro, nunca por Ultima/Proxima). El mes
+   actualmente seleccionado se destaca con una barra resaltada y una
+   etiqueta más marcada; los demás meses se muestran atenuados. Un mes sin
+   ningún registro simplemente no dibuja barra (altura 0), nunca se
+   inventa o interpola un valor. selectedMonth es 0-11. */
+function buildPaymentsEvolutionChart(buckets, selectedMonth) {
+  const w = 640, h = 230, padL = 8, padR = 8, padT = 14, padB = 28;
   const innerW = w - padL - padR, innerH = h - padT - padB;
-  const ingresosArr = buckets.map(b => b.total);
-  const ingresosTotalReal = buckets.reduce((a,x)=>a+x.total,0);
-  const margenReal = ingresosTotalReal > 0 ? (1 - costosTotal / ingresosTotalReal) : 1;
-  const gananciaArr = buckets.map(b => b.total * margenReal);
-  const costoLevel = buckets.length ? costosTotal / buckets.length : 0; // costos se muestra como nivel promedio por bucket, no hay costo real por bucket
-  const gananciaTotalReal = ingresosTotalReal - costosTotal;
-  // Piso visual mínimo para la línea de Costos: cuando el costo real es
-  // una fracción chica del ingreso (margen alto), costoLevel cae tan
-  // cerca del eje X que la línea queda invisible bajo el gridline
-  // inferior y las etiquetas. Se garantiza un mínimo de 6% de innerH de
-  // altura SOLO para que la línea sea visible; esto no altera el
-  // costoLevel real que se muestra en el tooltip, solo su posición Y.
-  const maxVal = Math.max(1, ...ingresosArr, ...gananciaArr, costoLevel);
-  const costoYFloor = innerH * 0.06;
+  const n = buckets.length;
+  const gap = 8;
+  const slot = innerW / n;
+  const barW = Math.max(10, slot - gap);
+  const maxVal = Math.max(1, ...buckets.map(b=>b.total));
 
-  const xAt = (i) => padL + (buckets.length<=1 ? innerW/2 : (i/(buckets.length-1))*innerW);
-  const yAt = (v) => padT + innerH - (v/maxVal)*innerH;
+  const yAt = (v) => (v/maxVal) * innerH;
 
-  // Catmull-Rom -> Bézier cúbico: da la curva orgánica de la referencia
-  // en vez de segmentos rectos entre buckets.
-  function smoothPath(values) {
-    const pts = values.map((v,i)=>({x:xAt(i), y:yAt(v)}));
-    if (pts.length < 2) return pts.length ? `M${pts[0].x},${pts[0].y}` : '';
-    let d = `M${pts[0].x},${pts[0].y}`;
-    for (let i=0; i<pts.length-1; i++) {
-      const p0 = pts[i-1] || pts[i], p1 = pts[i], p2 = pts[i+1], p3 = pts[i+2] || p2;
-      const c1x = p1.x + (p2.x-p0.x)/6, c1y = p1.y + (p2.y-p0.y)/6;
-      const c2x = p2.x - (p3.x-p1.x)/6, c2y = p2.y - (p3.y-p1.y)/6;
-      d += ` C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
-    }
-    return d;
-  }
+  const bars = buckets.map((b,i) => {
+    const x = padL + i*slot + (slot-barW)/2;
+    const isSelected = i === selectedMonth;
+    const segs = [
+      {v:b.food, color:'var(--svc-food)'},
+      {v:b.health, color:'var(--svc-deworm)'},
+      {v:b.home, color:'var(--svc-home)'}
+    ].filter(s=>s.v>0);
+    let yCursor = padT + innerH;
+    const rects = segs.map(s => {
+      const segH = yAt(s.v);
+      yCursor -= segH;
+      return `<rect x="${x}" y="${yCursor}" width="${barW}" height="${Math.max(segH,0)}" fill="${s.color}" opacity="${isSelected?1:.42}"/>`;
+    }).join('');
+    const label = `<text x="${x+barW/2}" y="${h-9}" text-anchor="middle" font-size="11" font-weight="${isSelected?700:400}" fill="${isSelected?'var(--charcoal)':'var(--mist)'}">${b.label}</text>`;
+    const selRing = isSelected && b.total>0 ? `<rect x="${x-2}" y="${padT + innerH - yAt(b.total) - 2}" width="${barW+4}" height="${yAt(b.total)+4}" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.5" opacity=".55"/>` : '';
+    return rects + selRing + label;
+  }).join('');
 
-  const ingresosLine = smoothPath(ingresosArr);
-  const gananciaLine = smoothPath(gananciaArr);
-  const ingresosArea = ingresosLine ? `${ingresosLine} L${xAt(buckets.length-1)},${padT+innerH} L${xAt(0)},${padT+innerH} Z` : '';
-  const costoY = Math.min(yAt(costoLevel), padT + innerH - costoYFloor); // aplica el piso visual mínimo
-  const uid = 'pay-evo-' + (_capsule3dSeq++);
+  const gridLines = [0,.5,1].map(f => {
+    const y = padT + innerH - innerH*f;
+    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".3"/>`;
+  }).join('');
 
-  const lastIdx = buckets.length - 1;
-  const lastPt = lastIdx >= 0 ? { x: xAt(lastIdx), y: yAt(ingresosArr[lastIdx]) } : null;
-  const gridLines = buckets.map((b,i)=>`<line x1="${xAt(i)}" y1="${padT}" x2="${xAt(i)}" y2="${padT+innerH}" stroke="var(--line)" stroke-width="1" opacity=".35"/>`).join('');
-  const xLabels = buckets.map((b,i)=>`<text x="${xAt(i)}" y="${h-8}" text-anchor="middle" font-size="11" fill="var(--mist)">${b.label}</text>`).join('');
-
-  // Tooltip flotante sobre el último punto real, ajustado para no salirse
-  // del viewBox si cae muy cerca del borde derecho. Muestra los TOTALES
-  // REALES del período completo (ingresosTotalReal/costosTotal/
-  // gananciaTotalReal) -- antes mostraba solo el valor del último
-  // bucket individual, lo que podía dar una "Ganancia" muy distinta e
-  // inconsistente con el título del período (ej. un bucket puntual con
-  // mucha actividad concentrada podía mostrar un número mayor al
-  // ingreso semanal real completo).
-  const tipW = 168, tipH = 74;
-  const tipX = lastPt ? Math.min(Math.max(lastPt.x - tipW/2, padL), w - padR - tipW) : 0;
-  const tipY = lastPt ? Math.max(lastPt.y - tipH - 14, padT) : 0;
-  const tooltipHtml = lastPt ? `
-    <g transform="translate(${tipX},${tipY})">
-      <rect width="${tipW}" height="${tipH}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
-      <text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${ganLabel}</text>
-      <circle cx="17" cy="32" r="3.5" fill="var(--svc-walks)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Ingresos: ${formatCLP(ingresosTotalReal)}</text>
-      <circle cx="17" cy="47" r="3.5" fill="var(--amber)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Costos: ${costosTotal == null ? '—' : formatCLP(costosTotal)}</text>
-      <circle cx="17" cy="62" r="3.5" fill="var(--blue)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Ganancia: ${formatCLP(Math.round(gananciaTotalReal))}</text>
+  const selBucket = buckets[selectedMonth];
+  const tooltipHtml = selBucket ? `
+    <g transform="translate(${Math.min(Math.max(padL + selectedMonth*slot + slot/2 - 84, padL), w-padR-168)}, ${padT})">
+      <rect width="168" height="${selBucket.total>0?86:40}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
+      <text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${selBucket.label} ${paymentsYear}</text>
+      ${selBucket.total>0 ? `
+      <circle cx="17" cy="32" r="3.5" fill="var(--svc-food)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(selBucket.food)}</text>
+      <circle cx="17" cy="47" r="3.5" fill="var(--svc-deworm)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(selBucket.health)}</text>
+      <circle cx="17" cy="62" r="3.5" fill="var(--svc-home)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(selBucket.home)}</text>
+      <text x="12" y="80" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(selBucket.total)}</text>` : `<text x="12" y="32" font-size="10.5" fill="var(--mist)">Sin registros este mes</text>`}
     </g>` : '';
 
   return `
-    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:220px;overflow:visible">
-      <defs>
-        <linearGradient id="${uid}-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--svc-walks)" stop-opacity=".28"/>
-          <stop offset="100%" stop-color="var(--svc-walks)" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:230px;overflow:visible">
       ${gridLines}
-      <path d="${ingresosArea}" fill="url(#${uid}-fill)"/>
-      <path d="${ingresosLine}" fill="none" stroke="var(--svc-walks)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="${gananciaLine}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
-      <line x1="${padL}" y1="${costoY}" x2="${w-padR}" y2="${costoY}" stroke="var(--amber)" stroke-width="2" stroke-dasharray="4 3" opacity=".8"/>
-      ${lastPt ? `<circle cx="${lastPt.x}" cy="${lastPt.y}" r="4.5" fill="var(--surface-card,#fff)" stroke="var(--svc-walks)" stroke-width="2.5"/>` : ''}
-      ${xLabels}
+      ${bars}
       ${tooltipHtml}
     </svg>
-    <div style="display:flex;justify-content:center;gap:18px;margin-top:6px;flex-wrap:wrap;font-size:12px">
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--svc-walks);margin-right:5px"></span>Ingresos</span>
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber);margin-right:5px"></span>Costos</span>
-      <span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue);margin-right:5px"></span>Ganancia Neta</span>
+    <div class="payments-evo-legend">
+      <span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span>
+      <span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span>
+      <span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span>
     </div>`;
 }
 
