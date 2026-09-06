@@ -13012,10 +13012,19 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
 }
 
 function buildPaymentsDonut(servicios, total) {
-  const size=220,cx=110,cy=110,r=72,sw=38,circ=2*Math.PI*r;
+  /* r sube de 72 a 80 y sw baja de 38 a 30 (mismo viewBox 220x220, el
+     anillo ahora vive más cerca del borde exterior): esto agranda el
+     hueco interior de diámetro 106px (72-38/2=53 de radio) a 130px
+     (80-30/2=65 de radio). Motivo: con el monto en font-size 24px y
+     peso 700, "$1.725.421" mide ~115-120px de ancho -- más que el hueco
+     de 106px de antes, así que el texto se salía del centro y pisaba el
+     anillo de color (ver captura del usuario). Con el hueco en 130px
+     entra con margen de sobra sin necesidad de angostar la tipografía
+     al tamaño chico que tenía antes de agrandarla. */
+  const size=220,cx=110,cy=110,r=80,sw=30,circ=2*Math.PI*r;
   let acc=0;
   const segs=servicios.filter(s=>s.ingresos>0).map(s=>{const len=total?circ*s.ingresos/total:0;const off=-acc;acc+=len;return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len} ${Math.max(circ-len,0)}" stroke-dashoffset="${off}" transform="rotate(-90 ${cx} ${cy})"/>`;}).join('');
-  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="24" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="${cx}" y="${cy+17}" text-anchor="middle" font-size="12.5" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
+  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="22" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="${cx}" y="${cy+17}" text-anchor="middle" font-size="12.5" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
 }
 
 function renderPayments() {
