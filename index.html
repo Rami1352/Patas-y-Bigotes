@@ -1851,9 +1851,9 @@ body:has(#view-payments.active) #sync-btn {
 .payments-stat-icon--food   { background: var(--svc-food-bg);     color: var(--svc-food); }
 .payments-stat-icon--deworm { background: var(--svc-deworm-bg);   color: var(--svc-deworm); }
 .payments-stat-icon--home   { background: var(--svc-home-bg);     color: var(--svc-home); }
-.payments-stat-value { font-size: 19px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.1; }
-.payments-stat-value--muted { font-size: 13px; color: var(--charcoal); font-weight: 600; }
-.payments-stat-label { font-size: 11px; color: var(--charcoal); margin-top: 4px; line-height: 1.35; }
+.payments-stat-value { font-size: 22px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.1; }
+.payments-stat-value--muted { font-size: 15px; color: var(--charcoal); font-weight: 600; }
+.payments-stat-label { font-size: 12.5px; color: var(--charcoal); margin-top: 4px; line-height: 1.35; }
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -1882,7 +1882,7 @@ body:has(#view-payments.active) #sync-btn {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin-bottom: 14px;
 }
-.payments-chart-title { font-size: 14.5px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
+.payments-chart-title { font-size: 16px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
 .payments-glass-card { border-radius: var(--r-lg); }
 .payments-year-tag {
   font-size: 12px; font-weight: 600; color: var(--charcoal);
@@ -1894,27 +1894,41 @@ body:has(#view-payments.active) #sync-btn {
 }
 .payments-evo-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 
-.payments-donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
-/* Tamaño del donut (a pedido del usuario, con captura de referencia):
-   antes 172px se veía chico respecto al espacio disponible dentro de la
-   tarjeta "Distribución de ingresos". El viewBox interno del SVG (ver
-   buildPaymentsDonut en el JS, 220x220 con radio 72) ya es más grande
-   que este tamaño de renderizado, así que agrandar acá el elemento CSS
-   alcanza para que el círculo se vea más grande sin tocar el cálculo de
-   los segmentos ni el texto central -- todo escala proporcional. */
-.payments-donut-svg { width: 210px; height: 210px; flex-shrink: 0; display: block; }
+/* LAYOUT (corrección a pedido del usuario, con nuevas capturas de
+   referencia): antes flex-direction:column apilaba el círculo arriba y
+   la leyenda de 4 servicios debajo -- eso es justo lo que el usuario
+   señaló como "tapa parte de los ingresos" en la segunda imagen de su
+   corrección (la leyenda quedaba amontonada abajo, angosta, en vez de
+   acompañar al círculo). La referencia real (primera imagen) muestra el
+   círculo a la izquierda y la leyenda de 4 filas a la derecha, uno al
+   lado del otro. Se pasa a flex-direction:row con align-items:center; el
+   círculo se achica levemente (de 210px a 168px) porque ahora comparte
+   el ancho de la tarjeta con la leyenda en vez de tenerlo todo para sí
+   -- ambos elementos entran cómodos sin que ninguno empuje al otro
+   fuera de la tarjeta. */
+.payments-donut-wrap { display: flex; flex-direction: row; align-items: center; gap: 22px; width: 100%; }
+.payments-donut-svg { width: 168px; height: 168px; flex-shrink: 0; display: block; }
 .payments-donut-center {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center; padding: 0 8px;
 }
 .payments-donut-center-amount { font-size: 17px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.15; }
 .payments-donut-center-label { font-size: 10.5px; color: var(--charcoal); margin-top: 2px; }
-.payments-donut-legend { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--charcoal); }
+/* TIPOGRAFÍA (a pedido del usuario: "agrandar la letra y los números"
+   en todo Cobros & Costos): la leyenda del donut pasa de 12.5px/11.5px
+   a 14.5px/13px para el nombre/porcentaje y el monto respectivamente,
+   en línea con el resto de los aumentos de esta sección. */
+.payments-donut-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--charcoal); }
 .payments-donut-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .payments-donut-legend-label { flex: 1; color: var(--charcoal); font-weight: 500; }
-.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 34px; text-align: right; }
-.payments-donut-legend-amount { font-size: 11.5px; color: var(--charcoal); min-width: 76px; text-align: right; }
+.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 38px; text-align: right; }
+.payments-donut-legend-amount { font-size: 13px; color: var(--charcoal); min-width: 82px; text-align: right; }
+
+@media (max-width: 1300px) {
+  .payments-donut-wrap { flex-direction: column; gap: 18px; }
+}
+
 
 /* Fila inferior de Cobros & Costos: tabla de detalle a la izquierda +
    columna lateral (acciones rápidas + nota contable) a la derecha, en la
@@ -1953,11 +1967,11 @@ body:has(#view-payments.active) #sync-btn {
 }
 .payments-table-card .table-wrap { padding: 0 4px 4px; }
 
-.payments-table-sub { font-size: 12px; color: var(--charcoal); margin-top: 3px; }
+.payments-table-sub { font-size: 13px; color: var(--charcoal); margin-top: 3px; }
 .payments-table td { vertical-align: middle; }
 .payments-amount-cell { font-weight: 700; color: var(--charcoal); }
 .payments-svc-chip {
-  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600;
+  display: inline-flex; align-items: center; font-size: 12.5px; font-weight: 600;
   padding: 4px 10px; border-radius: 999px; white-space: nowrap;
 }
 .payments-svc-chip--walks  { background: var(--svc-walks-bg);  color: var(--svc-walks); }
@@ -2002,8 +2016,8 @@ body:has(#view-payments.active) #sync-btn {
 }
 .payments-quick-action {
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-  gap: 8px;
-  padding: 12px 6px; border-radius: 12px; border: 1px solid var(--line);
+  gap: 9px;
+  padding: 14px 6px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--surface); cursor: pointer; text-align: center;
   font-family: inherit; width: 100%;
   transition: box-shadow .2s, transform .2s, border-color .2s;
@@ -2011,12 +2025,15 @@ body:has(#view-payments.active) #sync-btn {
 .payments-quick-action:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); border-color: var(--sage); }
 .payments-quick-action:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
 .payments-quick-action-icon {
-  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 14px;
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
 }
-.payments-quick-action-text { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
-.payments-quick-action-title { font-size: 11px; font-weight: 600; color: var(--charcoal); line-height: 1.25; }
-.payments-quick-action-sub { font-size: 9.5px; color: var(--charcoal); line-height: 1.3; }
+.payments-quick-action-text { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+/* TIPOGRAFÍA (a pedido del usuario: "agrandar la letra" de Acciones
+   Rápidas): título y subtítulo suben de 11px/9.5px a 13px/11px, en
+   línea con el resto de los aumentos de tipografía de la sección. */
+.payments-quick-action-title { font-size: 13px; font-weight: 600; color: var(--charcoal); line-height: 1.25; }
+.payments-quick-action-sub { font-size: 11px; color: var(--charcoal); line-height: 1.3; }
 
 @media (max-width: 1300px) {
   .payments-quick-actions-grid { grid-template-columns: repeat(2, 1fr); }
@@ -2034,13 +2051,13 @@ body:has(#view-payments.active) #sync-btn {
   backdrop-filter: var(--glass-blur);
   border-radius: var(--r-lg); padding: 14px 16px;
   box-shadow: var(--glass-shadow);
-  font-size: 11.5px; line-height: 1.5; color: var(--charcoal);
+  font-size: 13px; line-height: 1.5; color: var(--charcoal);
 }
 [data-theme="dark"] .payments-financial-note {
   background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%);
 }
 .payments-financial-note i { color: var(--sage); font-size: 14px; margin-top: 2px; flex-shrink: 0; }
-.payments-financial-note strong { display: block; font-size: 12.5px; margin-bottom: 3px; }
+.payments-financial-note strong { display: block; font-size: 13.5px; margin-bottom: 3px; }
 
 /* Selector de período (Semanal/Mensual/Anual) en Cobros & Costos.
    Liquid glass: mismo patrón que .dog-card (línea ~2319) -- gradiente
@@ -12998,7 +13015,7 @@ function buildPaymentsDonut(servicios, total) {
   const size=220,cx=110,cy=110,r=72,sw=38,circ=2*Math.PI*r;
   let acc=0;
   const segs=servicios.filter(s=>s.ingresos>0).map(s=>{const len=total?circ*s.ingresos/total:0;const off=-acc;acc+=len;return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len} ${Math.max(circ-len,0)}" stroke-dashoffset="${off}" transform="rotate(-90 ${cx} ${cy})"/>`;}).join('');
-  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="20" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="${cx}" y="${cy+15}" text-anchor="middle" font-size="11" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
+  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="24" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="${cx}" y="${cy+17}" text-anchor="middle" font-size="12.5" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
 }
 
 function renderPayments() {
