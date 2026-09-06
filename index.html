@@ -4565,7 +4565,19 @@ html[data-font-size="large"] .toast-container {
      con un extra de 16px de aire visual entre la última tarjeta y la
      barra. Ver el bloque .mobile-nav más abajo para el `fixed bottom:0`
      en sí. */
-  .content { padding: 14px 10px calc(16px + var(--pyb-mnav-h, 62px) + env(safe-area-inset-bottom)) 14px; margin-top: 56px; }
+  /* CENTRADO (a pedido del usuario, con capturas de referencia): antes
+     .content no tenía max-width ni margin:auto, así que en pantallas
+     angostas el bloque de contenido quedaba pegado contra el borde
+     izquierdo (10px de padding) mientras a la derecha sobraba aire de
+     scene visible -- exactamente la asimetría que se ve en la segunda
+     imagen de referencia del usuario, comparada con la primera donde
+     todo el contenido queda simétrico respecto a ambos bordes. Con
+     max-width + margin:0 auto el bloque se centra en el viewport disponible
+     y, en viewports angostos donde 100% ya es menor a ese max-width, el
+     margin:auto no hace nada (0px de cada lado) y el padding lateral de
+     14px sigue aplicando igual que antes -- por eso este cambio no achica
+     el ancho útil en celulares angostos, solo centra en los más anchos. */
+  .content { max-width: 720px; margin-left: auto; margin-right: auto; padding: 14px 10px calc(16px + var(--pyb-mnav-h, 62px) + env(safe-area-inset-bottom)) 14px; margin-top: 56px; }
   .stats-strip { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .stat-card { padding: 14px; gap: 10px; }
   .stat-value { font-size: 22px; }
@@ -4577,6 +4589,39 @@ html[data-font-size="large"] .toast-container {
      inline) para que cada sparkline tenga ancho completo y se vea
      igual de nítido que en desktop. */
   .stats-strip[style*="repeat(3"] { grid-template-columns: 1fr !important; }
+
+  /* Tarjetas de totales de Cobros & Costos en mobile (marcadas en azul
+     en la segunda imagen de referencia): antes heredaban directo del
+     grid de desktop, repeat(5, 1fr), que en un viewport angosto
+     comprime cada tarjeta a una franja mínima -- ícono, monto y label
+     amontonados y cortados. Se pasa a una grilla de 3 columnas (2 en
+     pantallas muy angostas) con menos padding y tipografía más chica,
+     para que cada tarjeta quede compacta como las de la primera imagen
+     en vez de estiradas en una sola fila apretada. */
+  .payments-stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .payments-stat-card { padding: 12px 10px 11px; border-radius: var(--r-md, 10px); }
+  .payments-stat-icon { width: 28px; height: 28px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; }
+  .payments-stat-value { font-size: 15px; letter-spacing: -.2px; }
+  .payments-stat-value--muted { font-size: 12px; }
+  .payments-stat-label { font-size: 9.5px; margin-top: 3px; }
+  @media (max-width: 380px) {
+    .payments-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* Acciones rápidas de Cobros & Costos en mobile: el usuario pidió que
+     sean cuadradas como en la primera imagen de referencia, en vez de
+     la fila horizontal rectangular (ícono a la izquierda + texto a la
+     derecha) que se ve en la segunda imagen. Se pasa de flex-column a
+     una grilla 2x2 y cada botón cambia a layout en columna (ícono
+     arriba, texto centrado abajo) para lograr esa proporción cuadrada. */
+  .payments-quick-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .payments-quick-action {
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; padding: 14px 8px; text-align: center; aspect-ratio: 1 / 1;
+  }
+  .payments-quick-action-text { align-items: center; text-align: center; }
+  .payments-quick-action-title { font-size: 11px; line-height: 1.25; }
+  .payments-quick-action-sub { font-size: 9.5px; }
 
   /* ── REVERSIÓN a fixed bottom-0 (pedido actual del usuario) ──
      El bloque anterior había movido .mobile-nav a `top:56px` pegada
