@@ -656,6 +656,14 @@ body[data-bg-scene="services"]::after {
     radial-gradient(40% 32% at 12% 26%, rgba(180,214,168,.10) 0%, transparent 62%),
     radial-gradient(45% 35% at 90% 66%, rgba(196,222,186,.09) 0%, transparent 60%),
     linear-gradient(180deg, #f4f6ef 0%, #eef2e8 46%, #e6ece0 70%, #dde5d6 100%);
+
+  /* COBROS & COSTOS — foto "lit" subida a la carpeta backgrounds/ del repo */
+  --scene-payments:
+    url('backgrounds/Cobros_y_Costos.webp'),
+    radial-gradient(70% 55% at 72% 14%, rgba(255,255,250,.22) 0%, rgba(250,252,244,.10) 26%, transparent 55%),
+    radial-gradient(40% 32% at 12% 26%, rgba(180,214,168,.10) 0%, transparent 62%),
+    radial-gradient(45% 35% at 90% 66%, rgba(196,222,186,.09) 0%, transparent 60%),
+    linear-gradient(180deg, #f4f6ef 0%, #eef2e8 46%, #e6ece0 70%, #dde5d6 100%);
 }
 
 /* Modo oscuro: la textura SVG cambia a su variante oscura (mismo mecanismo
@@ -671,6 +679,7 @@ body[data-bg-scene="homecare"]::before { background-image: var(--scene-homecare)
 body[data-bg-scene="pets"]::before     { background-image: var(--scene-pets); }
 body[data-bg-scene="desparasitarios"]::before { background-image: var(--scene-desparasitarios); }
 body[data-bg-scene="settings"]::before { background-image: var(--scene-settings); }
+body[data-bg-scene="payments"]::before { background-image: var(--scene-payments); }
 
 /* Propiedades comunes a todas las escenas nuevas (idénticas a "services":
    encuadre cover, leve realce de color, Ken Burns y crossfade). */
@@ -679,7 +688,8 @@ body[data-bg-scene="food"]::before,
 body[data-bg-scene="homecare"]::before,
 body[data-bg-scene="pets"]::before,
 body[data-bg-scene="desparasitarios"]::before,
-body[data-bg-scene="settings"]::before {
+body[data-bg-scene="settings"]::before,
+body[data-bg-scene="payments"]::before {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -697,7 +707,8 @@ body[data-bg-scene="food"]::after,
 body[data-bg-scene="homecare"]::after,
 body[data-bg-scene="pets"]::after,
 body[data-bg-scene="desparasitarios"]::after,
-body[data-bg-scene="settings"]::after {
+body[data-bg-scene="settings"]::after,
+body[data-bg-scene="payments"]::after {
   background: linear-gradient(180deg, rgba(247,245,240,.16), rgba(247,245,240,.30));
 }
 
@@ -707,7 +718,8 @@ body[data-bg-scene="settings"]::after {
 [data-theme="dark"] body[data-bg-scene="homecare"]::before,
 [data-theme="dark"] body[data-bg-scene="pets"]::before,
 [data-theme="dark"] body[data-bg-scene="desparasitarios"]::before,
-[data-theme="dark"] body[data-bg-scene="settings"]::before {
+[data-theme="dark"] body[data-bg-scene="settings"]::before,
+[data-theme="dark"] body[data-bg-scene="payments"]::before {
   filter: saturate(1.05) brightness(0.42) contrast(1.06);
 }
 [data-theme="dark"] body[data-bg-scene="walks"]::after,
@@ -715,7 +727,8 @@ body[data-bg-scene="settings"]::after {
 [data-theme="dark"] body[data-bg-scene="homecare"]::after,
 [data-theme="dark"] body[data-bg-scene="pets"]::after,
 [data-theme="dark"] body[data-bg-scene="desparasitarios"]::after,
-[data-theme="dark"] body[data-bg-scene="settings"]::after {
+[data-theme="dark"] body[data-bg-scene="settings"]::after,
+[data-theme="dark"] body[data-bg-scene="payments"]::after {
   background: linear-gradient(180deg, rgba(10,14,7,.46), rgba(8,11,6,.62));
 }
 
@@ -725,7 +738,8 @@ body[data-bg-scene="settings"]::after {
   body[data-bg-scene="homecare"]::before,
   body[data-bg-scene="pets"]::before,
   body[data-bg-scene="desparasitarios"]::before,
-  body[data-bg-scene="settings"]::before { animation: none; transform: scale(1.02); }
+  body[data-bg-scene="settings"]::before,
+  body[data-bg-scene="payments"]::before { animation: none; transform: scale(1.02); }
 }
 @media (max-width: 767.98px), (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
   body[data-bg-scene="walks"]::before,
@@ -733,7 +747,8 @@ body[data-bg-scene="settings"]::after {
   body[data-bg-scene="homecare"]::before,
   body[data-bg-scene="pets"]::before,
   body[data-bg-scene="desparasitarios"]::before,
-  body[data-bg-scene="settings"]::before { animation: none; }
+  body[data-bg-scene="settings"]::before,
+  body[data-bg-scene="payments"]::before { animation: none; }
 
   /* Fix: el fondo (::before/::after) animado en loop junto con
      position:absolute (regla mobile general de arriba) se estira al
@@ -764,7 +779,9 @@ body[data-bg-scene="settings"]::after {
   body[data-bg-scene="desparasitarios"]::before,
   body[data-bg-scene="desparasitarios"]::after,
   body[data-bg-scene="settings"]::before,
-  body[data-bg-scene="settings"]::after { position: fixed; }
+  body[data-bg-scene="settings"]::after,
+  body[data-bg-scene="payments"]::before,
+  body[data-bg-scene="payments"]::after { position: fixed; }
 }
 
 /* ══════════════════════════════════
@@ -9929,7 +9946,8 @@ const BG_SCENE_BY_VIEW = {
   agenda:         'walks',      // mismo fondo que Paseos
   dogs:           'pets',       // mismo fondo que Mis Mascotas
   'mis-mascotas': 'pets',       // interior luminoso
-  settings:       'settings'    // interior luminoso — pantalla de Configuración
+  settings:       'settings',   // interior luminoso — pantalla de Configuración
+  payments:       'payments'    // Cobros & Costos — foto "lit"
 };
 const BG_SCENE_BY_SERVICE = {
   PASEOS:            'walks',            // parque con lago y skyline
@@ -9948,7 +9966,8 @@ function preloadNavigationScenes() {
     'backgrounds/cuidados-domicilio.webp',
     'backgrounds/mascotas.webp',
     'backgrounds/desparasitarios.webp',
-    'backgrounds/configuracion.webp'
+    'backgrounds/configuracion.webp',
+    'backgrounds/Cobros_y_Costos.webp'
   ];
 
   function loadNext(index) {
