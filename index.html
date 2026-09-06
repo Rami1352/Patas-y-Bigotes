@@ -1870,16 +1870,20 @@ body:has(#view-payments.active) #sync-btn {
    (margin-left:auto), pero acá la referencia lo pone abajo de todo,
    ancho completo -- se sobreescribe posición y tamaño solo dentro de
    .payments-stat-card, sin tocar su uso original en Desparasitarios. */
- .payments-stat-card .deworm-stat-sparkline {
-  display: block;
-  margin: 10px 0 0;
-  width: 100%;
-  height: 32px;
-  min-height: 32px;
+.payments-stat-card .payments-sparkline {
+  display: block; margin: 9px 0 0; width: 100%; height: 28px;
+  overflow: visible; pointer-events: none;
 }
-.payments-stat-card .deworm-stat-sparkline .deworm-spark-line { stroke-width: 2.6; }
-.payments-stat-card .deworm-stat-sparkline .deworm-spark-dot { r: 3.2; }
-.payments-stat-card .deworm-stat-sparkline .deworm-spark-dot-halo { r: 7; }
+.payments-stat-card .payments-sparkline path {
+  fill: none; stroke: currentColor; stroke-width: 2.25;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: paymentsSparkDraw 1.2s cubic-bezier(.22,1,.36,1) .08s forwards;
+}
+@keyframes paymentsSparkDraw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .payments-stat-card .payments-sparkline path { animation: none; stroke-dashoffset: 0; }
+}
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -11563,7 +11567,22 @@ async function deleteHomeCare(id) {
    area-chart, trazo que se dibuja al entrar en pantalla (stroke-dash),
    y un punto que recorre la curva en loop con un halo pulsante detrás. */
 function dewormSparkline(seed = 0, color = 'currentColor', stretch = false) {
-  /* Mini-gráficos suaves y continuos para las tarjetas KPI. */
+  if (stretch) {
+    // Variante exclusiva para Cobros & Costos: una única curva panorámica,
+    // sin área de relleno ni círculos escalables. Esto evita el efecto
+    // "bugueado" que aparecía al estirar un viewBox pequeño con preserveAspectRatio=none.
+    const paths = [
+      'M6 21 C34 20, 48 13, 72 15 C97 17, 112 19, 136 15 C160 11, 176 10, 198 14 C219 17, 238 11, 258 8',
+      'M6 19 C32 20, 49 16, 72 17 C96 18, 111 12, 135 14 C159 16, 177 17, 199 13 C219 10, 239 12, 258 9',
+      'M6 21 C30 20, 48 21, 71 16 C94 11, 112 14, 136 16 C159 18, 176 12, 198 13 C220 14, 239 10, 258 7'
+    ];
+    const d = paths[seed % paths.length];
+    return `<svg class="payments-sparkline" width="260" height="28" viewBox="0 0 260 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="color:${color}">
+      <path pathLength="1" d="${d}"/>
+    </svg>`;
+  }
+
+  /* Variante original: se mantiene intacta para Desparasitarios y Cuidado a Domicilio. */
   const paths = [
     'M2 24 C18 23 24 10 40 15 C56 20 62 26 76 17 C90 8 101 10 118 6',
     'M2 25 C18 27 29 14 43 18 C58 22 68 11 82 15 C96 19 103 10 118 9',
