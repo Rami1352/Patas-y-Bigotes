@@ -12517,13 +12517,25 @@ function switchFichaTab(btnEl, tabKey) {
 // cambiar de período pueda modificar/duplicar registros: renderPayments()
 // solo filtra y suma; nunca hace push() ni escribe datos.
 // ═══════════════════════════════════════════════════════════════
-var paymentsMonth = new Date().getMonth();       // 0..11
+var paymentsMonth = new Date().getMonth();
 var paymentsYear  = new Date().getFullYear();
 
 const PAYMENTS_MONTHS = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ];
+
+// Regla contable definitiva:
+// - Alimentación: mes de "Última compra" (campo Ultima).
+// - Desparasitarios: mes de "Última aplicación" (campo Ultima).
+// - Cuidado a Domicilio: solo reservas CONFIRMADAS, mes de FechaInicio.
+// - Paseos: abono mensual fijo de $1.220.000 desde diciembre de 2025,
+//   siempre que exista agenda de Paseos activa en state.walks.
+// Cambiar el mes es SOLO un filtro: nunca modifica state ni Google Sheets.
+const PAYMENTS_WALKS_START_YEAR = 2025;
+const PAYMENTS_WALKS_START_MONTH = 11; // diciembre = 11
+const PAYMENTS_WALKS_MONTHLY_TOTAL = 1220000;
+const PAYMENTS_WALKS_WEEKLY_TOTAL = 305000;
 
 function setPaymentsMonthYear(month, year) {
   month = Number(month); year = Number(year);
@@ -12540,104 +12552,83 @@ function getPaymentsMonthLabel() {
 
 function parsePaymentsDate(raw) {
   if (!raw) return null;
-  if (raw instanceof Date) return isNaN(raw) ? null : new Date(raw);
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : new Date(raw.getTime());
   const s = String(raw).trim();
   if (!s) return null;
-  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-  if (iso) {
-    const d = new Date(Number(iso[1]), Number(iso[2])-1, Number(iso[3]), Number(iso[4]||0), Number(iso[5]||0), Number(iso[6]||0));
-    return isNaN(d) ? null : d;
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2])-1, Number(m[3]), Number(m[4]||0), Number(m[5]||0), Number(m[6]||0));
+    return isNaN(d.getTime()) ? null : d;
   }
-  const ar = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
-  if (ar) {
-    const d = new Date(Number(ar[3]), Number(ar[2])-1, Number(ar[1]));
-    return isNaN(d) ? null : d;
+  m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (m) {
+    const d = new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
+    return isNaN(d.getTime()) ? null : d;
   }
   const d = new Date(s);
-  return isNaN(d) ? null : d;
+  return isNaN(d.getTime()) ? null : d;
 }
 
-function getFinancialRecordDate(record) {
+function getPaymentsServiceDate(record, service) {
   if (!record) return null;
-  // Fuente de verdad: FechaRegistro. No usamos Ultima/Proxima/FechaInicio.
-  const raw = record.fechaRegistro || record.FechaRegistro || record.createdAt || record.created_at;
-  const parsed = parsePaymentsDate(raw);
-  if (parsed) return parsed;
-  // Compatibilidad con registros MUY antiguos cuyo Id era Date.now().
-  // Esto solo se usa si el Id es un timestamp numérico; UUIDs nuevos sin
-  // FechaRegistro no se inventan ni se asignan a un mes arbitrario.
-  const id = String(record.id || '').trim();
-  if (/^\d{12,13}$/.test(id)) {
-    const d = new Date(Number(id));
-    if (!isNaN(d)) return d;
-  }
-  return null;
+  let raw = '';
+  if (service === 'food') raw = record.last || record.Ultima || '';
+  else if (service === 'health') raw = record.last || record.Ultima || '';
+  else if (service === 'home') raw = record.dateStart || record.FechaInicio || '';
+  else return null;
+  return parsePaymentsDate(raw);
 }
 
-function filterFinancialRecordsBySelectedMonth(records) {
-  const from = new Date(paymentsYear, paymentsMonth, 1, 0, 0, 0, 0);
-  const to   = new Date(paymentsYear, paymentsMonth + 1, 1, 0, 0, 0, 0);
+function paymentRecordBelongsToSelectedMonth(record, service) {
+  const d = getPaymentsServiceDate(record, service);
+  return !!d && d.getFullYear() === paymentsYear && d.getMonth() === paymentsMonth;
+}
+
+function uniqueFinancialRecords(records) {
+  const seen = new Set();
   return (Array.isArray(records) ? records : []).filter(r => {
-    const d = getFinancialRecordDate(r);
-    return !!d && d >= from && d < to;
+    const id = String(r && r.id || '').trim();
+    if (!id) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
   });
 }
 
-function financialYears() {
-  const years = new Set([new Date().getFullYear(), paymentsYear]);
-  [state.food, state.health, state.homeCare].forEach(arr => (arr || []).forEach(r => {
-    const d = getFinancialRecordDate(r);
-    if (d) years.add(d.getFullYear());
-  }));
-  return Array.from(years).sort((a,b)=>a-b);
+function paymentRecordPrice(record, fallbackFn) {
+  const saved = parseCosto(record && record.price);
+  if (saved > 0) return saved;
+  return typeof fallbackFn === 'function' ? (Number(fallbackFn(record)) || 0) : 0;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  walksMonthlyTotal — Paseos NO sigue la regla de FechaRegistro del
-//  resto de Cobros & Costos: es agenda semanal recurrente (hoja
-//  "Mascota Paseo"), no una compra puntual con fecha de alta. El
-//  criterio acordado es tarifa fija MENSUAL por mascota: cada mascota
-//  con Paseos activo aporta su dog.cost (columna "Costo" de la hoja)
-//  una sola vez por mes, todos los meses mientras el servicio siga
-//  activo -- no se multiplica por cantidad de días/semana agendados,
-//  y no depende de cuándo se cargó el paseo.
-//
-//  "Activo" se determina por presencia en state.walks: processSheetData
-//  solo empuja a state.walks las mascotas que tienen día+horario
-//  cargado en "Mascota Paseo" (ver el comentario "Solo crear walk si
-//  el servicio PASEOS está activo" junto al push), así que no hace
-//  falta re-chequear servicios_activos acá.
-//
-//  LIMITACIÓN CONOCIDA: la hoja no guarda un historial de cuándo
-//  empezó/terminó cada paseo, así que este total siempre refleja la
-//  agenda VIGENTE en el momento de mirar Cobros & Costos, sin importar
-//  qué mes/año esté elegido en el selector -- es la misma limitación
-//  que ya documentaba el comentario de renderPayments sobre por qué
-//  Paseos no tenía una fecha real que usar; acá se resuelve contándolo
-//  igual con la agenda actual, en vez de no contarlo nunca.
-// ═══════════════════════════════════════════════════════════════
-function walksMonthlyTotal() {
-  const seenDogIds = new Set();
-  let total = 0;
-  (state.walks || []).forEach(w => {
-    if (!w || seenDogIds.has(w.dogId)) return;
-    seenDogIds.add(w.dogId);
-    const dog = getDog(w.dogId);
-    total += (dog && Number(dog.cost)) || 0;
-  });
-  return { total, count: seenDogIds.size };
+function dewormPriceFor(product, storedPrice) {
+  const saved = parseCosto(storedPrice);
+  if (saved > 0) return saved;
+  if (!product || !state.dewormCatalog) return 0;
+  const match = state.dewormCatalog.find(p => p.nombre === product);
+  return match ? (match.precio || 0) : 0;
 }
 
-// Mueve el selector un mes hacia atrás/adelante (ej. el botón ‹ › de la
-// tarjeta de período). Cruza de año automáticamente (Enero-1 -> Diciembre
-// del año anterior, Diciembre+1 -> Enero del año siguiente). Es un simple
-// wrapper sobre setPaymentsMonthYear, así que sigue siendo puro filtro:
-// nunca toca state.food/health/homeCare ni Google Sheets.
 function shiftPaymentsMonth(delta) {
   let m = paymentsMonth + delta, y = paymentsYear;
   if (m < 0) { m = 11; y -= 1; }
   else if (m > 11) { m = 0; y += 1; }
   setPaymentsMonthYear(m, y);
+}
+
+function financialYears() {
+  const currentYear = new Date().getFullYear();
+  const years = new Set();
+  for (let y = 2024; y <= currentYear; y++) years.add(y);
+  years.add(paymentsYear);
+  [state.food, state.health, state.homeCare].forEach(arr => (arr || []).forEach(r => {
+    ['food','health','home'].some(svc => {
+      const d = getPaymentsServiceDate(r, svc);
+      if (d) { years.add(d.getFullYear()); return true; }
+      return false;
+    });
+  }));
+  return Array.from(years).sort((a,b)=>a-b);
 }
 
 function paymentsSelectorsHtml() {
@@ -12656,35 +12647,47 @@ function paymentsSelectorsHtml() {
   </div>`;
 }
 
-// Agrupa los registros reales de food/health/home (los 3 arrays completos,
-// sin filtrar por el mes elegido) por mes de FechaRegistro para el gráfico
-// "Evolución de ingresos". Siempre entrega 12 buckets (Ene..Dic) del año
-// visible en el selector -- si un mes no tiene ningún registro, su total
-// es exactamente 0, nunca se interpola ni se rellena con datos de otro mes.
-//
-// Paseos (walks) es la excepción: no tiene FechaRegistro por diseño (ver
-// walksMonthlyTotal), así que su tarifa mensual se suma IGUAL en los 12
-// meses del año seleccionado, en vez de agruparse por fecha como los
-// otros tres servicios.
+function walksMonthlyTotal() {
+  const selectedStartsAfterWalksLaunch = paymentsYear > PAYMENTS_WALKS_START_YEAR ||
+    (paymentsYear === PAYMENTS_WALKS_START_YEAR && paymentsMonth >= PAYMENTS_WALKS_START_MONTH);
+  if (!selectedStartsAfterWalksLaunch) return { total: 0, count: 0 };
+  const hasActiveWalkAgenda = Array.isArray(state.walks) && state.walks.some(w => w && w.dogId != null);
+  if (!hasActiveWalkAgenda) return { total: 0, count: 0 };
+  return { total: PAYMENTS_WALKS_MONTHLY_TOTAL, count: 1 };
+}
+
+function filterFinancialRecordsBySelectedMonth(records, service) {
+  const unique = uniqueFinancialRecords(records);
+  return unique.filter(r => paymentRecordBelongsToSelectedMonth(r, service));
+}
+
 function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year) {
-  const buckets = PAYMENTS_MONTHS.map((label, i) => ({ month: i, label: label.slice(0,3), food: 0, health: 0, home: 0, walks: 0 }));
-  function add(records, field, priceFn) {
-    (records || []).forEach(r => {
-      const d = getFinancialRecordDate(r);
-      if (!d || d.getFullYear() !== year) return;
-      buckets[d.getMonth()][field] += priceFn(r);
-    });
+  const buckets = PAYMENTS_MONTHS.map((label, i) => ({ month:i, label:label.slice(0,3), food:0, health:0, home:0, walks:0, total:0 }));
+  uniqueFinancialRecords(foodAll).forEach(r => {
+    const d = getPaymentsServiceDate(r,'food');
+    if (d && d.getFullYear() === year) buckets[d.getMonth()].food += paymentRecordPrice(r,x=>foodPriceFor(x.brand));
+  });
+  uniqueFinancialRecords(healthAll).forEach(r => {
+    const d = getPaymentsServiceDate(r,'health');
+    if (d && d.getFullYear() === year) buckets[d.getMonth()].health += paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price));
+  });
+  uniqueFinancialRecords(homeAll).forEach(r => {
+    const d = getPaymentsServiceDate(r,'home');
+    const status = String(r.status || '').trim().toLowerCase();
+    const confirmed = status === 'confirmed' || status === 'confirmado' || status === 'confirmada' || status === 'confirmed/confirmada';
+    if (confirmed && d && d.getFullYear() === year) buckets[d.getMonth()].home += Number(r.cost)||0;
+  });
+  const walksActive = Array.isArray(state.walks) && state.walks.some(w => w && w.dogId != null);
+  if (walksActive) {
+    for (let m=0; m<12; m++) {
+      const started = year > PAYMENTS_WALKS_START_YEAR || (year === PAYMENTS_WALKS_START_YEAR && m >= PAYMENTS_WALKS_START_MONTH);
+      buckets[m].walks = started ? PAYMENTS_WALKS_MONTHLY_TOTAL : 0;
+    }
   }
-  add(foodAll, 'food', r => paymentRecordPrice(r, x => foodPriceFor(x.brand)));
-  add(healthAll, 'health', r => paymentRecordPrice(r, x => dewormPriceFor(x.type, x.price)));
-  add(homeAll, 'home', r => Number(r.cost) || 0);
-  const walksTotal = walksMonthlyTotal().total;
-  buckets.forEach(b => { b.walks = walksTotal; b.total = b.food + b.health + b.home + b.walks; });
+  buckets.forEach(b => b.total = b.food+b.health+b.home+b.walks);
   return buckets;
 }
 
-// Meta de ingresos del mes para la tarjeta "Meta Mensual" del panel de
-// Cobros & Costos. Ver comentario junto a metaMensual en renderPayments.
 var META_MENSUAL_CLP = 3500000;
 
 function refreshPaymentsIfActive() {
@@ -12692,271 +12695,109 @@ function refreshPaymentsIfActive() {
 }
 
 function exportPaymentsCSV() {
-  const myFoodPeriod = filterFinancialRecordsBySelectedMonth(state.food);
-  const myHealthPeriod = filterFinancialRecordsBySelectedMonth(state.health);
-  const myHomeCarePeriod = filterFinancialRecordsBySelectedMonth(state.homeCare);
-  const rows = [['Fecha registro','Servicio','Mascota','Detalle','Importe']];
-  myFoodPeriod.forEach(f=>{ const d=getDog(f.dogId); rows.push([f.fechaRegistro||'', 'Alimentación', d?.name||'', f.brand||'', paymentRecordPrice(f,x=>foodPriceFor(x.brand))]); });
-  myHealthPeriod.forEach(h=>{ const d=getDog(h.dogId); rows.push([h.fechaRegistro||'', 'Desparasitarios', d?.name||'', h.type||'', paymentRecordPrice(h,x=>dewormPriceFor(x.type,x.price))]); });
-  myHomeCarePeriod.forEach(b=>{ const d=getDog(b.dogId); rows.push([b.fechaRegistro||'', 'Cuidado a Domicilio', d?.name||'', b.description||'', Number(b.cost)||0]); });
+  const food = filterFinancialRecordsBySelectedMonth(state.food,'food');
+  const health = filterFinancialRecordsBySelectedMonth(state.health,'health');
+  const home = filterFinancialRecordsBySelectedMonth(state.homeCare,'home').filter(r => {
+    const st = String(r.status || '').trim().toLowerCase();
+    return st === 'confirmed' || st === 'confirmado' || st === 'confirmada' || st === 'confirmed/confirmada';
+  });
+  const rows = [['Fecha','Servicio','Mascota','Detalle','Importe']];
+  const walksInfo = walksMonthlyTotal();
+  if (walksInfo.total > 0) rows.push([`${String(paymentsMonth+1).padStart(2,'0')}/01/${paymentsYear}`,'Paseos','—','Abono mensual de Paseos',walksInfo.total]);
+  food.forEach(f=>{ const d=getDog(f.dogId); rows.push([f.last||'', 'Alimentación', d?.name||'', f.brand||'', paymentRecordPrice(f,x=>foodPriceFor(x.brand))]); });
+  health.forEach(h=>{ const d=getDog(h.dogId); rows.push([h.last||'', 'Desparasitarios', d?.name||'', h.type||'', paymentRecordPrice(h,x=>dewormPriceFor(x.type,x.price))]); });
+  home.forEach(b=>{ const d=getDog(b.dogId); rows.push([b.dateStart||'', 'Cuidado a Domicilio', d?.name||'', b.description||'', Number(b.cost)||0]); });
   const csv = rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`cobros-costos-${paymentsYear}-${String(paymentsMonth+1).padStart(2,'0')}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`cobros-costos-${paymentsYear}-${String(paymentsMonth+1).padStart(2,'0')}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
 }
 
 function paintPaymentsLoadingState(container) {
-  container.innerHTML = `<div class="card"><div class="card-body" style="padding:50px;text-align:center;color:var(--mist)"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px;margin-bottom:12px;display:block"></i>Cargando precios de los productos…</div></div>`;
+  container.innerHTML = `<div class="card"><div class="card-body" style="padding:50px;text-align:center;color:var(--mist)"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px;margin-bottom:12px;display:block"></i>Cargando datos financieros…</div></div>`;
+}
+
+function isPaymentsConfirmedHome(r) {
+  const st = String(r && r.status || '').trim().toLowerCase();
+  return st === 'confirmed' || st === 'confirmado' || st === 'confirmada' || st === 'confirmed/confirmada';
+}
+
+function buildPaymentsEvolutionChart(buckets, selectedMonth) {
+  const w=640,h=230,padL=8,padR=8,padT=14,padB=28,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
+  const maxVal=Math.max(1,...buckets.map(b=>b.total));
+  const yAt=v=>(v/maxVal)*innerH;
+  const bars=buckets.map((b,i)=>{
+    const x=padL+i*slot+(slot-barW)/2,isSelected=i===selectedMonth;
+    const segs=[{v:b.walks,c:'var(--svc-walks)'},{v:b.food,c:'var(--svc-food)'},{v:b.health,c:'var(--svc-deworm)'},{v:b.home,c:'var(--svc-home)'}].filter(s=>s.v>0);
+    let y=padT+innerH;
+    const rects=segs.map(s=>{const sh=yAt(s.v);y-=sh;return `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(sh,0)}" fill="${s.c}" opacity="${isSelected?1:.42}"/>`;}).join('');
+    const label=`<text x="${x+barW/2}" y="${h-9}" text-anchor="middle" font-size="11" font-weight="${isSelected?700:400}" fill="${isSelected?'var(--charcoal)':'var(--mist)'}">${b.label}</text>`;
+    const ring=isSelected&&b.total>0?`<rect x="${x-2}" y="${padT+innerH-yAt(b.total)-2}" width="${barW+4}" height="${yAt(b.total)+4}" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.5" opacity=".55"/>`:'';
+    return rects+ring+label;
+  }).join('');
+  const grid=[0,.5,1].map(f=>{const y=padT+innerH-innerH*f;return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".3"/>`;}).join('');
+  const sel=buckets[selectedMonth];
+  const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-84,padL),w-padR-168)}, ${padT})"><rect width="168" height="101" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><text x="12" y="38" font-size="10.5" fill="var(--stone)">Paseos: ${formatCLP(sel.walks)}</text><text x="12" y="53" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(sel.food)}</text><text x="12" y="68" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(sel.health)}</text><text x="12" y="83" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="96" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(sel.total)}</text></g>`:'';
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:230px;overflow:visible">${grid}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
+}
+
+function buildPaymentsDonut(servicios, total) {
+  const size=180,cx=90,cy=90,r=58,circ=2*Math.PI*r;
+  let acc=0;
+  const segs=servicios.filter(s=>s.ingresos>0).map(s=>{const len=total?circ*s.ingresos/total:0;const off=-acc;acc+=len;return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="32" stroke-dasharray="${len} ${Math.max(circ-len,0)}" stroke-dashoffset="${off}" transform="rotate(-90 90 90)"/>`;}).join('');
+  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="90" cy="90" r="58" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="32"/>${segs}<text x="90" y="86" text-anchor="middle" font-size="17" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="90" y="103" text-anchor="middle" font-size="9.5" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
 }
 
 function renderPayments() {
-  const container = document.getElementById('payments-content');
-  if (!container) return;
-  const _isAdmin = isAdmin();
-  if (!_isAdmin) {
-    container.innerHTML = `<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">Esta sección financiera está disponible para administración.</div></div>`;
-    return;
-  }
+  const container=document.getElementById('payments-content');
+  if(!container) return;
+  if(!isAdmin()) { container.innerHTML=`<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">Esta sección financiera está disponible para administración.</div></div>`; return; }
 
-  const foodReady = !!(state.foodCatalog && state.foodCatalog.length);
-  const dewormReady = !!(state.dewormCatalog && state.dewormCatalog.length);
-  if (!foodReady) ensureFoodCatalogLoaded();
-  if (!dewormReady) ensureDewormCatalogLoaded();
-  if (!foodReady || !dewormReady) {
-    Promise.all([ensureFoodCatalogLoaded(), ensureDewormCatalogLoaded()]).then(()=>{ if(currentView==='payments') renderPayments(); });
-    paintPaymentsLoadingState(container);
-    return;
-  }
+  const foodAll=uniqueFinancialRecords(state.food);
+  const healthAll=uniqueFinancialRecords(state.health);
+  const homeAll=uniqueFinancialRecords(state.homeCare);
+  const food=filterFinancialRecordsBySelectedMonth(foodAll,'food');
+  const health=filterFinancialRecordsBySelectedMonth(healthAll,'health');
+  const home=filterFinancialRecordsBySelectedMonth(homeAll,'home').filter(isPaymentsConfirmedHome);
 
-  const foodAll = uniqueFinancialRecords(state.food);
-  const healthAll = uniqueFinancialRecords(state.health);
-  const homeAll = uniqueFinancialRecords(state.homeCare);
-  const food = filterFinancialRecordsBySelectedMonth(foodAll);
-  const health = filterFinancialRecordsBySelectedMonth(healthAll);
-  const home = filterFinancialRecordsBySelectedMonth(homeAll);
-
-  const foodTotal = food.reduce((a,r)=>a+paymentRecordPrice(r,x=>foodPriceFor(x.brand)),0);
-  const healthTotal = health.reduce((a,r)=>a+paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price)),0);
-  const homeTotal = home.reduce((a,r)=>a+(Number(r.cost)||0),0);
-  // Paseos: tarifa fija mensual por mascota con Paseos activo (dog.cost,
-  // columna "Costo" de la hoja "Mascota Paseo"). No sigue FechaRegistro
-  // -- ver walksMonthlyTotal -- así que su valor es el mismo sin importar
-  // qué mes/año esté elegido en el selector.
-  const walksInfo = walksMonthlyTotal();
-  const walksTotal = walksInfo.total;
-  const ingresosTotal = foodTotal + healthTotal + homeTotal + walksTotal;
-  const count = food.length + health.length + home.length + walksInfo.count;
-
-  // No se inventan costos ni "ganancia": cada servicio suma exactamente lo
-  // que su fuente de precio real indica (catálogo, campo propio del
-  // registro, o dog.cost para Paseos).
-  const servicios = [
-    {key:'PASEOS',label:'Paseos',icon:'fa-person-walking',color:'var(--svc-walks)',bg:'var(--svc-walks-bg)',ingresos:walksTotal,count:walksInfo.count},
-    {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bowl-food',color:'var(--svc-food)',bg:'var(--svc-food-bg)',ingresos:foodTotal,count:food.length},
-    {key:'DESPARASITARIOS',label:'Desparasitarios',icon:'fa-syringe',color:'var(--svc-deworm)',bg:'var(--svc-deworm-bg)',ingresos:healthTotal,count:health.length},
-    {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house-chimney',color:'var(--svc-home)',bg:'var(--svc-home-bg)',ingresos:homeTotal,count:home.length}
+  const foodTotal=food.reduce((a,r)=>a+paymentRecordPrice(r,x=>foodPriceFor(x.brand)),0);
+  const healthTotal=health.reduce((a,r)=>a+paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price)),0);
+  const homeTotal=home.reduce((a,r)=>a+(Number(r.cost)||0),0);
+  const walksInfo=walksMonthlyTotal();
+  const walksTotal=walksInfo.total;
+  const ingresosTotal=walksTotal+foodTotal+healthTotal+homeTotal;
+  const recordCount=walksInfo.count+food.length+health.length+home.length;
+  const servicios=[
+    {key:'PASEOS',label:'Paseos',icon:'fa-person-walking',color:'var(--svc-walks)',ingresos:walksTotal,count:walksInfo.count},
+    {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bowl-food',color:'var(--svc-food)',ingresos:foodTotal,count:food.length},
+    {key:'DESPARASITARIOS',label:'Desparasitarios',icon:'fa-syringe',color:'var(--svc-deworm)',ingresos:healthTotal,count:health.length},
+    {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house-chimney',color:'var(--svc-home)',ingresos:homeTotal,count:home.length}
   ];
-  const pct = v => ingresosTotal>0 ? Math.round(v/ingresosTotal*100) : 0;
-  const donutHtml = buildPaymentsDonut(servicios, ingresosTotal);
+  const pct=v=>ingresosTotal?Math.round(v/ingresosTotal*100):0;
+  const yearBuckets=buildPaymentsYearBuckets(foodAll,healthAll,homeAll,paymentsYear);
+  const detalle=[
+    ...(walksTotal>0?[{fecha:`01/${String(paymentsMonth+1).padStart(2,'0')}/${paymentsYear}`,servicio:'Paseos',svcClass:'walks',dog:'—',detalle:'Abono mensual de Paseos',importe:walksTotal}]:[]),
+    ...food.map(r=>({fecha:r.last,servicio:'Alimentación',svcClass:'food',dog:getDog(r.dogId)?.name||'—',detalle:r.brand||'—',importe:paymentRecordPrice(r,x=>foodPriceFor(x.brand))})),
+    ...health.map(r=>({fecha:r.last,servicio:'Desparasitarios',svcClass:'deworm',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
+    ...home.map(r=>({fecha:r.dateStart,servicio:'Cuidado a Domicilio',svcClass:'home',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
+  ].sort((a,b)=>(parsePaymentsDate(b.fecha)?.getTime()||0)-(parsePaymentsDate(a.fecha)?.getTime()||0));
+  const detalleHtml=detalle.length?detalle.map(r=>`<tr><td>${escapeHtml(String(r.fecha||'').slice(0,10))}</td><td><span class="payments-svc-chip payments-svc-chip--${r.svcClass}">${escapeHtml(r.servicio)}</span></td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td class="payments-amount-cell">${formatCLP(r.importe)}</td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;padding:44px 20px;color:var(--mist)">No hay registros en ${getPaymentsMonthLabel()}.</td></tr>`;
+  const metaPct=META_MENSUAL_CLP?Math.min(100,Math.round(ingresosTotal/META_MENSUAL_CLP*100)):0;
 
-  const yearBuckets = buildPaymentsYearBuckets(foodAll, healthAll, homeAll, paymentsYear);
-  const evolutionHtml = buildPaymentsEvolutionChart(yearBuckets, paymentsMonth);
-
-  const detalle = [
-    ...food.map(r=>({fecha:r.fechaRegistro,servicio:'Alimentación',svcClass:'food',dog:getDog(r.dogId)?.name||'—',detalle:r.brand||'—',importe:paymentRecordPrice(r,x=>foodPriceFor(x.brand))})),
-    ...health.map(r=>({fecha:r.fechaRegistro,servicio:'Desparasitarios',svcClass:'deworm',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
-    ...home.map(r=>({fecha:r.fechaRegistro,servicio:'Cuidado a Domicilio',svcClass:'home',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
-  ].sort((a,b)=>(getFinancialRecordDate(b)?.getTime()||0)-(getFinancialRecordDate(a)?.getTime()||0));
-
-  const detalleHtml = detalle.length ? detalle.map(r=>`<tr><td>${escapeHtml(formatPaymentsDateShort(r.fecha))}</td><td><span class="payments-svc-chip payments-svc-chip--${r.svcClass}">${escapeHtml(r.servicio)}</span></td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td class="payments-amount-cell">${formatCLP(r.importe)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;padding:44px 20px;color:var(--mist)">No hay registros creados durante ${getPaymentsMonthLabel()}.</td></tr>`;
-  const metaPct = META_MENSUAL_CLP>0 ? Math.min(100,Math.round(ingresosTotal/META_MENSUAL_CLP*100)) : 0;
-
-  container.innerHTML = `
-    <div class="payments-header">
-      <div>
-        <div class="section-title section-title--inter">Cobros & Costos</div>
-        <div class="section-sub">Resumen financiero por mes</div>
-      </div>
-      <div class="payments-header-actions">
-        <span class="payments-live-badge"><span class="payments-live-dot"></span>Actualizado en tiempo real</span>
-        <button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button>
-      </div>
-    </div>
-
+  container.innerHTML=`
+    <div class="payments-header"><div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero por mes</div></div><div class="payments-header-actions"><span class="payments-live-badge"><span class="payments-live-dot"></span>Actualizado en tiempo real</span><button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button></div></div>
     <div class="payments-selector-row">${paymentsSelectorsHtml()}</div>
-
     <div class="payments-stats-grid">
-      <div class="payments-stat-card payments-stat-card--primary">
-        <div class="payments-stat-icon payments-stat-icon--sage"><i class="fa-solid fa-sack-dollar"></i></div>
-        <div class="payments-stat-value">${formatCLP(ingresosTotal)}</div>
-        <div class="payments-stat-label">${getPaymentsMonthLabel()}</div>
-      </div>
-      <div class="payments-stat-card">
-        <div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div>
-        <div class="payments-stat-value">${formatCLP(walksTotal)}</div>
-        <div class="payments-stat-label">Paseos · ${pct(walksTotal)}% del total · agenda vigente</div>
-      </div>
-      <div class="payments-stat-card">
-        <div class="payments-stat-icon payments-stat-icon--food"><i class="fa-solid fa-bowl-food"></i></div>
-        <div class="payments-stat-value">${formatCLP(foodTotal)}</div>
-        <div class="payments-stat-label">Alimentación · ${pct(foodTotal)}% del total</div>
-      </div>
-      <div class="payments-stat-card">
-        <div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div>
-        <div class="payments-stat-value">${formatCLP(healthTotal)}</div>
-        <div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div>
-      </div>
-      <div class="payments-stat-card">
-        <div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div>
-        <div class="payments-stat-value">${formatCLP(homeTotal)}</div>
-        <div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div>
-      </div>
+      <div class="payments-stat-card payments-stat-card--primary"><div class="payments-stat-icon payments-stat-icon--sage"><i class="fa-solid fa-sack-dollar"></i></div><div class="payments-stat-value">${formatCLP(ingresosTotal)}</div><div class="payments-stat-label">Total cobrado · ${getPaymentsMonthLabel()}</div></div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div><div class="payments-stat-value">${formatCLP(walksTotal)}</div><div class="payments-stat-label">Paseos · ${pct(walksTotal)}% del total</div></div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--food"><i class="fa-solid fa-bowl-food"></i></div><div class="payments-stat-value">${formatCLP(foodTotal)}</div><div class="payments-stat-label">Alimentación · ${pct(foodTotal)}% del total</div></div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div><div class="payments-stat-value">${formatCLP(healthTotal)}</div><div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div></div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div><div class="payments-stat-value">${formatCLP(homeTotal)}</div><div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div></div>
     </div>
-
-    <div class="payments-charts-row">
-      <div class="card payments-glass-card">
-        <div class="card-header"><div class="card-title card-title--inter">Evolución de ingresos</div><div class="payments-year-tag">Año ${paymentsYear}</div></div>
-        <div class="card-body">${evolutionHtml}</div>
-      </div>
-      <div class="card payments-glass-card">
-        <div class="card-header"><div class="card-title card-title--inter">Distribución de ingresos</div></div>
-        <div class="card-body">${donutHtml}</div>
-      </div>
-    </div>
-
-    <div class="card payments-glass-card">
-      <div class="card-header">
-        <div>
-          <div class="card-title card-title--inter">Detalle de registros — ${getPaymentsMonthLabel()}</div>
-          <div class="payments-table-sub">Se cuenta cada registro una sola vez, según su FechaRegistro. Paseos no aparece acá: es tarifa mensual por mascota, ya incluida en el total y en las tarjetas de arriba.</div>
-        </div>
-      </div>
-      <div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>Fecha</th><th>Servicio</th><th>Mascota</th><th>Descripción</th><th>Importe</th></tr></thead><tbody>${detalleHtml}</tbody></table></div>
-    </div>
-
-    <div class="card payments-glass-card" style="margin-top:18px">
-      <div class="card-header"><div class="card-title card-title--inter">Meta mensual</div></div>
-      <div class="card-body">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-          <span style="font-size:13px;color:var(--stone)">${formatCLP(ingresosTotal)} de ${formatCLP(META_MENSUAL_CLP)}</span>
-          <strong style="font-size:14px;color:var(--sage)">${metaPct}%</strong>
-        </div>
-        <div class="payments-progress-track"><div class="payments-progress-fill" style="width:${metaPct}%"></div></div>
-      </div>
-    </div>`;
+    <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><span class="badge badge-stone">Año ${paymentsYear}</span></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
+    <div class="payments-table-card"><div class="payments-table-card-header"><div><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div><span class="badge badge-stone">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
+    <div class="payments-bottom-grid"><div class="payments-quick-actions"><div class="payments-chart-title">Acciones rápidas</div><div class="payments-quick-actions-grid"><button class="payments-quick-action" onclick="openFoodWizard()"><span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bowl-food"></i></span><span class="payments-quick-action-title">Registrar Alimento</span><span class="payments-quick-action-sub">Nueva operación</span></button><button class="payments-quick-action" onclick="openDewormModal()"><span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-syringe"></i></span><span class="payments-quick-action-title">Registrar Desparasitario</span><span class="payments-quick-action-sub">Nueva operación</span></button><button class="payments-quick-action" onclick="openHomeCareModal()"><span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span><span class="payments-quick-action-title">Registrar Cuidado</span><span class="payments-quick-action-sub">Nueva reserva</span></button></div></div><div class="payments-goal-card"><div class="payments-chart-title">Meta mensual</div><div class="payments-goal-value">${formatCLP(META_MENSUAL_CLP)}</div><div class="payments-progress-track"><div class="payments-progress-fill" style="width:${metaPct}%"></div></div><div class="payments-goal-sub">${formatCLP(Math.max(0,META_MENSUAL_CLP-ingresosTotal))} para alcanzar la meta · ${metaPct}%</div></div></div>
+    <div class="payments-financial-note"><i class="fa-solid fa-circle-info"></i><div><strong>Criterio contable</strong><div>Alimentación usa Última compra · Desparasitarios usa Última aplicación · Cuidado a Domicilio solo cuenta reservas confirmadas · Paseos se calcula como abono mensual fijo desde diciembre de 2025.</div></div></div>`;
 }
-
-function formatPaymentsDateShort(raw) {
-  const d = parsePaymentsDate(raw);
-  if (!d) return raw || '—';
-  return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
-}
-
-// Donut de "Distribución de ingresos" con el total real en el centro.
-// activos son solo los servicios con ingresos>0 (evita segmentos de 0%
-// que solo agregan ruido visual al anillo).
-function buildPaymentsDonut(servicios, total) {
-  const legendRows = servicios.map(s => {
-    const p = total>0 ? Math.round((s.ingresos/total)*100) : 0;
-    return `<div class="payments-donut-legend-row"><span class="payments-donut-dot" style="background:${s.color}"></span><span class="payments-donut-legend-label">${s.label}</span><span class="payments-donut-legend-pct">${p}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`;
-  }).join('');
-
-  if (!total) {
-    return `<div class="payments-donut-row">
-      <svg viewBox="0 0 42 42" class="payments-donut-svg"><circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--border-sm)" stroke-width="4.5"/></svg>
-      <div class="payments-donut-center"><div class="payments-donut-center-amount">$0</div><div class="payments-donut-center-label">Total cobrado</div></div>
-      <div class="payments-donut-legend">${legendRows}</div>
-    </div>`;
-  }
-  const r = 15.9, cx = 21, cy = 21;
-  let offsetAcc = 0;
-  const activos = servicios.filter(s=>s.ingresos>0);
-  const segments = activos.map(s=>{
-    const p = (s.ingresos/total)*100;
-    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="4.5" stroke-dasharray="${p} ${100-p}" stroke-dashoffset="${-offsetAcc}" transform="rotate(-90 ${cx} ${cy})" stroke-linecap="butt"/>`;
-    offsetAcc += p;
-    return seg;
-  }).join('');
-  return `<div class="payments-donut-row">
-    <div class="payments-donut-wrap">
-      <svg viewBox="0 0 42 42" class="payments-donut-svg">${segments}</svg>
-      <div class="payments-donut-center"><div class="payments-donut-center-amount">${formatCLP(total)}</div><div class="payments-donut-center-label">Total cobrado</div></div>
-    </div>
-    <div class="payments-donut-legend">${legendRows}</div>
-  </div>`;
-}
-
-/* Gráfico "Evolución de ingresos" — barras apiladas (Paseos / Alimentación /
-   Desparasitarios / Cuidado a Domicilio) por cada uno de los 12 meses
-   del año visible en el selector, construidas desde buildPaymentsYearBuckets
-   (agrupación real por FechaRegistro para los 3 servicios de compra, más
-   Paseos con su tarifa mensual fija -- ver buildPaymentsYearBuckets). El
-   mes actualmente seleccionado se destaca con una barra resaltada y una
-   etiqueta más marcada; los demás meses se muestran atenuados. Un mes sin
-   ningún registro simplemente no dibuja barra (altura 0), nunca se
-   inventa o interpola un valor. selectedMonth es 0-11. */
-function buildPaymentsEvolutionChart(buckets, selectedMonth) {
-  const w = 640, h = 230, padL = 8, padR = 8, padT = 14, padB = 28;
-  const innerW = w - padL - padR, innerH = h - padT - padB;
-  const n = buckets.length;
-  const gap = 8;
-  const slot = innerW / n;
-  const barW = Math.max(10, slot - gap);
-  const maxVal = Math.max(1, ...buckets.map(b=>b.total));
-
-  const yAt = (v) => (v/maxVal) * innerH;
-
-  const bars = buckets.map((b,i) => {
-    const x = padL + i*slot + (slot-barW)/2;
-    const isSelected = i === selectedMonth;
-    const segs = [
-      {v:b.walks, color:'var(--svc-walks)'},
-      {v:b.food, color:'var(--svc-food)'},
-      {v:b.health, color:'var(--svc-deworm)'},
-      {v:b.home, color:'var(--svc-home)'}
-    ].filter(s=>s.v>0);
-    let yCursor = padT + innerH;
-    const rects = segs.map(s => {
-      const segH = yAt(s.v);
-      yCursor -= segH;
-      return `<rect x="${x}" y="${yCursor}" width="${barW}" height="${Math.max(segH,0)}" fill="${s.color}" opacity="${isSelected?1:.42}"/>`;
-    }).join('');
-    const label = `<text x="${x+barW/2}" y="${h-9}" text-anchor="middle" font-size="11" font-weight="${isSelected?700:400}" fill="${isSelected?'var(--charcoal)':'var(--mist)'}">${b.label}</text>`;
-    const selRing = isSelected && b.total>0 ? `<rect x="${x-2}" y="${padT + innerH - yAt(b.total) - 2}" width="${barW+4}" height="${yAt(b.total)+4}" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.5" opacity=".55"/>` : '';
-    return rects + selRing + label;
-  }).join('');
-
-  const gridLines = [0,.5,1].map(f => {
-    const y = padT + innerH - innerH*f;
-    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".3"/>`;
-  }).join('');
-
-  const selBucket = buckets[selectedMonth];
-  const tooltipHtml = selBucket ? `
-    <g transform="translate(${Math.min(Math.max(padL + selectedMonth*slot + slot/2 - 84, padL), w-padR-168)}, ${padT})">
-      <rect width="168" height="${selBucket.total>0?101:40}" rx="10" fill="var(--surface-card, #fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/>
-      <text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${selBucket.label} ${paymentsYear}</text>
-      ${selBucket.total>0 ? `
-      <circle cx="17" cy="32" r="3.5" fill="var(--svc-walks)"/><text x="26" y="35.5" font-size="10.5" fill="var(--stone)">Paseos: ${formatCLP(selBucket.walks)}</text>
-      <circle cx="17" cy="47" r="3.5" fill="var(--svc-food)"/><text x="26" y="50.5" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(selBucket.food)}</text>
-      <circle cx="17" cy="62" r="3.5" fill="var(--svc-deworm)"/><text x="26" y="65.5" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(selBucket.health)}</text>
-      <circle cx="17" cy="77" r="3.5" fill="var(--svc-home)"/><text x="26" y="80.5" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(selBucket.home)}</text>
-      <text x="12" y="95" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(selBucket.total)}</text>` : `<text x="12" y="32" font-size="10.5" fill="var(--mist)">Sin registros este mes</text>`}
-    </g>` : '';
-
-  return `
-    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:230px;overflow:visible">
-      ${gridLines}
-      ${bars}
-      ${tooltipHtml}
-    </svg>
-    <div class="payments-evo-legend">
-      <span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span>
-      <span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span>
-      <span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span>
-      <span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span>
-    </div>`;
-}
-
 /* ══════════════════════════════════
    ADMIN — VERIFICACIÓN DE COMPROBANTES
    (getPagosPendientesVerificacion / aprobarComprobante /
@@ -13305,33 +13146,6 @@ function uniqueFinancialWalks(records) {
   });
 }
 
-function uniqueFinancialRecords(records) {
-  const seen = new Set();
-  return (Array.isArray(records) ? records : []).filter(r => {
-    const id = String(r && r.id || '').trim();
-    if (!id) return true;
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-}
-
-function paymentRecordPrice(record, fallbackFn) {
-  const saved = parseCosto(record && record.price);
-  if (saved > 0) return saved;
-  return typeof fallbackFn === 'function' ? (Number(fallbackFn(record)) || 0) : 0;
-}
-
-function dewormPriceFor(product, storedPrice) {
-  // Para Cobros & Costos, el precio del registro es la fuente de verdad:
-  // precio_registro_de_desparasitacion en la hoja Desparasitarios.
-  // Solo usamos el catálogo como respaldo para registros antiguos que no tengan precio guardado.
-  const saved = parseCosto(storedPrice);
-  if (saved > 0) return saved;
-  if (!product || !state.dewormCatalog) return 0;
-  const match = state.dewormCatalog.find(p => p.nombre === product);
-  return match ? (match.precio || 0) : 0;
-}
 function isReadOnly() { return currentUser && currentUser.role === 'viewer'; }
 
 /* ══════════════════════════════════
