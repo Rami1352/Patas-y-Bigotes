@@ -1823,6 +1823,7 @@ body:has(#view-payments.active) #sync-btn {
    abajo) para mantener las proporciones internas de la tarjeta, no solo
    el padding exterior. */
 .payments-stat-card {
+  position: relative; overflow: hidden;
   background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
   border: 1px solid var(--glass-border);
   -webkit-backdrop-filter: var(--glass-blur);
@@ -1843,8 +1844,8 @@ body:has(#view-payments.active) #sync-btn {
   background: linear-gradient(160deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 65%);
 }
 .payments-stat-icon {
-  width: 30px; height: 30px; border-radius: 9px; margin-bottom: 9px;
-  display: flex; align-items: center; justify-content: center; font-size: 13px;
+  width: 34px; height: 34px; border-radius: 10px; margin-bottom: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
 }
 .payments-stat-icon--sage   { background: var(--sage-light);      color: var(--sage); }
 .payments-stat-icon--walks  { background: var(--svc-walks-bg);    color: var(--svc-walks); }
@@ -1854,6 +1855,18 @@ body:has(#view-payments.active) #sync-btn {
 .payments-stat-value { font-size: 18px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.1; }
 .payments-stat-value--muted { font-size: 15px; color: var(--charcoal); font-weight: 600; }
 .payments-stat-label { font-size: 11px; color: var(--charcoal); margin-top: 4px; line-height: 1.35; }
+
+/* Sparkline animado dentro de las 5 tarjetas de totales (a pedido del
+   usuario, marcado en azul en su imagen de referencia): reusa
+   dewormSparkline(), ya con trazo que se dibuja, área degradada y punto
+   pulsante con halo (ver @keyframes dewormSpark* más arriba). Ese
+   componente fue pensado para vivir al costado del texto en una fila
+   (margin-left:auto), pero acá la referencia lo pone abajo de todo,
+   ancho completo -- se sobreescribe posición y tamaño solo dentro de
+   .payments-stat-card, sin tocar su uso original en Desparasitarios. */
+.payments-stat-card .deworm-stat-sparkline {
+  display: block; margin: 10px 0 0; width: 100%; height: 26px;
+}
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -11536,7 +11549,7 @@ async function deleteHomeCare(id) {
    en el diseño de referencia. Se agrega: relleno degradado tipo mini
    area-chart, trazo que se dibuja al entrar en pantalla (stroke-dash),
    y un punto que recorre la curva en loop con un halo pulsante detrás. */
-function dewormSparkline(seed = 0, color = 'currentColor') {
+function dewormSparkline(seed = 0, color = 'currentColor', stretch = false) {
   const paths = [
     'M2 20 C10 8, 18 24, 26 14 S42 4, 50 12',
     'M2 16 C10 22, 18 6, 26 18 S42 20, 50 8',
@@ -11550,7 +11563,15 @@ function dewormSparkline(seed = 0, color = 'currentColor') {
   const d = paths[seed % paths.length];
   const dot = dotPos[seed % dotPos.length];
   const uid = 'spk-' + seed + '-' + (_capsule3dSeq++);
-  return `<svg class="deworm-stat-sparkline" width="52" height="30" viewBox="0 0 52 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="color:${color}">
+  /* preserveAspectRatio="none" solo cuando stretch=true (uso en
+     .payments-stat-card, ancho completo tipo la imagen de referencia
+     del usuario): sin esto, el viewBox 52x30 se centra con su relación
+     de aspecto original y deja franjas vacías a los lados cuando el
+     SVG se estira por CSS a un ancho mayor a 52px -- con stretch la
+     curva llena el ancho real de la tarjeta. El uso original en
+     Desparasitarios (ancho fijo 52px) no pasa este parámetro, así que
+     no cambia. */
+  return `<svg class="deworm-stat-sparkline" width="52" height="30" viewBox="0 0 52 30" ${stretch ? 'preserveAspectRatio="none"' : ''} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="color:${color}">
     <defs>
       <linearGradient id="${uid}-fill" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="currentColor" stop-opacity=".35"/>
@@ -13066,11 +13087,11 @@ function renderPayments() {
     <div class="payments-header"><div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero por mes</div></div><div class="payments-header-actions"><span class="payments-live-badge"><span class="payments-live-dot"></span>Actualizado en tiempo real</span><button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button></div></div>
     <div class="payments-selector-row">${paymentsSelectorsHtml()}</div>
     <div class="payments-stats-grid">
-      <div class="payments-stat-card payments-stat-card--primary"><div class="payments-stat-icon payments-stat-icon--sage"><i class="fa-solid fa-sack-dollar"></i></div><div class="payments-stat-value">${formatCLP(ingresosTotal)}</div><div class="payments-stat-label">Total cobrado · ${getPaymentsMonthLabel()}</div></div>
-      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div><div class="payments-stat-value">${formatCLP(walksTotal)}</div><div class="payments-stat-label">Paseos · ${pct(walksTotal)}% del total</div></div>
-      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--food"><i class="fa-solid fa-bowl-food"></i></div><div class="payments-stat-value">${formatCLP(foodTotal)}</div><div class="payments-stat-label">Alimentación · ${pct(foodTotal)}% del total</div></div>
-      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div><div class="payments-stat-value">${formatCLP(healthTotal)}</div><div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div></div>
-      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div><div class="payments-stat-value">${formatCLP(homeTotal)}</div><div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div></div>
+      <div class="payments-stat-card payments-stat-card--primary"><div class="payments-stat-icon payments-stat-icon--sage"><i class="fa-solid fa-sack-dollar"></i></div><div class="payments-stat-value">${formatCLP(ingresosTotal)}</div><div class="payments-stat-label">Total cobrado · ${getPaymentsMonthLabel()}</div>${dewormSparkline(0, 'var(--sage)', true)}</div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div><div class="payments-stat-value">${formatCLP(walksTotal)}</div><div class="payments-stat-label">Paseos · ${pct(walksTotal)}% del total</div>${dewormSparkline(1, 'var(--svc-walks)', true)}</div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--food"><i class="fa-solid fa-bowl-food"></i></div><div class="payments-stat-value">${formatCLP(foodTotal)}</div><div class="payments-stat-label">Alimentación · ${pct(foodTotal)}% del total</div>${dewormSparkline(2, 'var(--svc-food)', true)}</div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div><div class="payments-stat-value">${formatCLP(healthTotal)}</div><div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div>${dewormSparkline(0, 'var(--svc-deworm)', true)}</div>
+      <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div><div class="payments-stat-value">${formatCLP(homeTotal)}</div><div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div>${dewormSparkline(1, 'var(--svc-home)', true)}</div>
     </div>
     <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><span class="badge badge-stone payments-badge-stone">Año ${paymentsYear}</span></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
     <div class="payments-bottom-row">
