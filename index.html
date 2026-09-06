@@ -1134,7 +1134,21 @@ body[data-bg-scene="payments"]::after {
    este lado se recupera en la regla .view (ver más abajo, es hijo
    directo de .content y ya existe en las 9 vistas -- así no hace falta
    tocar el HTML ni envolver nada en un wrapper nuevo). */
-.content { flex: 1; min-height: 0; padding: 24px 0 24px 24px; margin-top: var(--topbar-h); min-width: 0; overflow-y: auto; }
+/* max-width + margin:0 auto (a pedido del usuario, con capturas de
+   referencia de escritorio): antes .content no tenía ningún límite de
+   ancho, así que en ventanas anchas el bloque de contenido se estiraba
+   hasta ocupar todo el espacio disponible entre el sidebar y el borde
+   derecho, sin quedar centrado -- eso es lo que producía la asimetría
+   de la segunda imagen de referencia (tarjetas y gráficos corridos hacia
+   la izquierda, con aire de más a la derecha) frente a la primera, donde
+   todo el bloque respeta un ancho fijo y queda centrado en el espacio
+   sobrante. No se toca padding-right:0 (ver comentario original abajo,
+   sigue siendo necesario para el scrollbar) ni .view/padding-right:24px:
+   el centrado ocurre en .content como contenedor exterior, por fuera de
+   ese mecanismo, así que ambos siguen funcionando igual que antes. En
+   ventanas angostas donde el viewport ya es menor a este max-width,
+   margin:auto no resta nada (0px de cada lado) y el layout no cambia. */
+.content { flex: 1; min-height: 0; padding: 24px 0 24px 24px; margin-top: var(--topbar-h); min-width: 0; overflow-y: auto; max-width: 1440px; margin-left: auto; margin-right: auto; }
 
 /* Blindaje puntual para Paseos: la causa real del hueco negro y del
    solapamiento con el header era el reflow forzado en cada frame del
@@ -1799,13 +1813,21 @@ body:has(#view-payments.active) #sync-btn {
 /* Liquid glass en las 5 tarjetas de totales de Cobros & Costos. Mismo
    patrón que .payments-period-tabs / .payments-clock-badge: gradiente
    rgba translúcido + backdrop-filter + --glass-border/--glass-shadow,
-   en vez del fondo sólido --white que tenían antes. */
+   en vez del fondo sólido --white que tenían antes.
+   TAMAÑO (a pedido del usuario, con capturas de referencia de
+   escritorio): padding vertical reducido de 18px/16px a 14px/12px --
+   antes estas tarjetas quedaban notoriamente más altas/grandes que las
+   de la primera imagen de referencia, marcadas en azul en la segunda
+   imagen. El ícono y la tipografía interna se reducen a la par (ver
+   .payments-stat-icon / .payments-stat-value / .payments-stat-label más
+   abajo) para mantener las proporciones internas de la tarjeta, no solo
+   el padding exterior. */
 .payments-stat-card {
   background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
   border: 1px solid var(--glass-border);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  border-radius: var(--r-lg); padding: 18px 18px 16px;
+  border-radius: var(--r-lg); padding: 14px 14px 12px;
   box-shadow: var(--glass-shadow);
   transition: box-shadow .2s, transform .2s;
 }
@@ -1821,17 +1843,17 @@ body:has(#view-payments.active) #sync-btn {
   background: linear-gradient(160deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 65%);
 }
 .payments-stat-icon {
-  width: 38px; height: 38px; border-radius: 11px; margin-bottom: 12px;
-  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  width: 30px; height: 30px; border-radius: 9px; margin-bottom: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
 }
 .payments-stat-icon--sage   { background: var(--sage-light);      color: var(--sage); }
 .payments-stat-icon--walks  { background: var(--svc-walks-bg);    color: var(--svc-walks); }
 .payments-stat-icon--food   { background: var(--svc-food-bg);     color: var(--svc-food); }
 .payments-stat-icon--deworm { background: var(--svc-deworm-bg);   color: var(--svc-deworm); }
 .payments-stat-icon--home   { background: var(--svc-home-bg);     color: var(--svc-home); }
-.payments-stat-value { font-size: 24px; font-weight: 700; color: var(--charcoal); letter-spacing: -.4px; line-height: 1.1; }
-.payments-stat-value--muted { font-size: 15px; color: var(--charcoal); font-weight: 600; }
-.payments-stat-label { font-size: 12px; color: var(--charcoal); margin-top: 5px; line-height: 1.4; }
+.payments-stat-value { font-size: 19px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.1; }
+.payments-stat-value--muted { font-size: 13px; color: var(--charcoal); font-weight: 600; }
+.payments-stat-label { font-size: 11px; color: var(--charcoal); margin-top: 4px; line-height: 1.35; }
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -1957,18 +1979,22 @@ body:has(#view-payments.active) #sync-btn {
 
 /* Botones de "Acciones Rápidas" en Cobros & Costos (renderPayments).
    Mismo lenguaje visual que .stat-card pero pensado como botón: cursor
-   pointer, foco accesible. Distribución en columna -- una fila
-   horizontal por acción (ícono a la izquierda, título+subtítulo
-   apilados a la derecha en la misma línea) -- en vez de la grilla 2x2
-   con ícono arriba, así es como se agrupan dentro de la columna lateral
-   angosta de la imagen de referencia. */
+   pointer, foco accesible.
+   FORMA (a pedido del usuario, con capturas de referencia de
+   escritorio): se pasa de una columna de filas horizontales rectangulares
+   (ícono a la izquierda, título+subtítulo a la derecha en la misma
+   línea) a una grilla 2x2 de botones cuadrados -- ícono arriba
+   centrado, título y subtítulo debajo también centrados -- que es como
+   se ven estos 4 botones en la primera imagen de referencia del
+   usuario, marcados ahí junto a las otras piezas de "Acciones rápidas". */
 .payments-quick-actions-grid {
-  display: flex; flex-direction: column; gap: 10px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
 }
 .payments-quick-action {
-  display: flex; flex-direction: row; align-items: center; gap: 12px;
-  padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
-  background: var(--surface); cursor: pointer; text-align: left;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; aspect-ratio: 1 / 1;
+  padding: 12px 8px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface); cursor: pointer; text-align: center;
   font-family: inherit; width: 100%;
   transition: box-shadow .2s, transform .2s, border-color .2s;
 }
@@ -1978,9 +2004,9 @@ body:has(#view-payments.active) #sync-btn {
   width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center; font-size: 14px;
 }
-.payments-quick-action-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.payments-quick-action-title { font-size: 12.5px; font-weight: 600; color: var(--charcoal); }
-.payments-quick-action-sub { font-size: 10.5px; color: var(--charcoal); line-height: 1.3; }
+.payments-quick-action-text { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.payments-quick-action-title { font-size: 12px; font-weight: 600; color: var(--charcoal); line-height: 1.25; }
+.payments-quick-action-sub { font-size: 10px; color: var(--charcoal); line-height: 1.3; }
 
 /* .payments-financial-note: antes sin CSS, renderizaba como texto plano
    suelto debajo de todo. Se convierte en su propia tarjeta chica (ícono +
@@ -4565,19 +4591,7 @@ html[data-font-size="large"] .toast-container {
      con un extra de 16px de aire visual entre la última tarjeta y la
      barra. Ver el bloque .mobile-nav más abajo para el `fixed bottom:0`
      en sí. */
-  /* CENTRADO (a pedido del usuario, con capturas de referencia): antes
-     .content no tenía max-width ni margin:auto, así que en pantallas
-     angostas el bloque de contenido quedaba pegado contra el borde
-     izquierdo (10px de padding) mientras a la derecha sobraba aire de
-     scene visible -- exactamente la asimetría que se ve en la segunda
-     imagen de referencia del usuario, comparada con la primera donde
-     todo el contenido queda simétrico respecto a ambos bordes. Con
-     max-width + margin:0 auto el bloque se centra en el viewport disponible
-     y, en viewports angostos donde 100% ya es menor a ese max-width, el
-     margin:auto no hace nada (0px de cada lado) y el padding lateral de
-     14px sigue aplicando igual que antes -- por eso este cambio no achica
-     el ancho útil en celulares angostos, solo centra en los más anchos. */
-  .content { max-width: 720px; margin-left: auto; margin-right: auto; padding: 14px 10px calc(16px + var(--pyb-mnav-h, 62px) + env(safe-area-inset-bottom)) 14px; margin-top: 56px; }
+  .content { padding: 14px 10px calc(16px + var(--pyb-mnav-h, 62px) + env(safe-area-inset-bottom)) 14px; margin-top: 56px; }
   .stats-strip { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .stat-card { padding: 14px; gap: 10px; }
   .stat-value { font-size: 22px; }
@@ -4589,39 +4603,6 @@ html[data-font-size="large"] .toast-container {
      inline) para que cada sparkline tenga ancho completo y se vea
      igual de nítido que en desktop. */
   .stats-strip[style*="repeat(3"] { grid-template-columns: 1fr !important; }
-
-  /* Tarjetas de totales de Cobros & Costos en mobile (marcadas en azul
-     en la segunda imagen de referencia): antes heredaban directo del
-     grid de desktop, repeat(5, 1fr), que en un viewport angosto
-     comprime cada tarjeta a una franja mínima -- ícono, monto y label
-     amontonados y cortados. Se pasa a una grilla de 3 columnas (2 en
-     pantallas muy angostas) con menos padding y tipografía más chica,
-     para que cada tarjeta quede compacta como las de la primera imagen
-     en vez de estiradas en una sola fila apretada. */
-  .payments-stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .payments-stat-card { padding: 12px 10px 11px; border-radius: var(--r-md, 10px); }
-  .payments-stat-icon { width: 28px; height: 28px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; }
-  .payments-stat-value { font-size: 15px; letter-spacing: -.2px; }
-  .payments-stat-value--muted { font-size: 12px; }
-  .payments-stat-label { font-size: 9.5px; margin-top: 3px; }
-  @media (max-width: 380px) {
-    .payments-stats-grid { grid-template-columns: repeat(2, 1fr); }
-  }
-
-  /* Acciones rápidas de Cobros & Costos en mobile: el usuario pidió que
-     sean cuadradas como en la primera imagen de referencia, en vez de
-     la fila horizontal rectangular (ícono a la izquierda + texto a la
-     derecha) que se ve en la segunda imagen. Se pasa de flex-column a
-     una grilla 2x2 y cada botón cambia a layout en columna (ícono
-     arriba, texto centrado abajo) para lograr esa proporción cuadrada. */
-  .payments-quick-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-  .payments-quick-action {
-    flex-direction: column; align-items: center; justify-content: center;
-    gap: 8px; padding: 14px 8px; text-align: center; aspect-ratio: 1 / 1;
-  }
-  .payments-quick-action-text { align-items: center; text-align: center; }
-  .payments-quick-action-title { font-size: 11px; line-height: 1.25; }
-  .payments-quick-action-sub { font-size: 9.5px; }
 
   /* ── REVERSIÓN a fixed bottom-0 (pedido actual del usuario) ──
      El bloque anterior había movido .mobile-nav a `top:56px` pegada
