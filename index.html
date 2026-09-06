@@ -1657,11 +1657,44 @@ body[data-bg-scene="settings"]::after {
   gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
 }
 .payments-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Liquid glass en el badge "Actualizado en tiempo real". Se conserva el
+   acento --sage (verde) del texto/punto -- es un indicador semántico de
+   estado "en vivo", no un gris a corregir -- y se reemplaza el fondo
+   sólido sage-xlight por el mismo vidrio translúcido del resto de la
+   sección. */
 .payments-live-badge {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 12.5px; font-weight: 600; color: var(--sage);
-  background: var(--sage-xlight); border: 1px solid var(--svc-walks-border);
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
   padding: 7px 13px; border-radius: 999px;
+}
+[data-theme="dark"] .payments-live-badge {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%);
+}
+
+/* Badge "Sincronizado" y botón "Sincronizar" del topbar (#sync-badge /
+   #sync-btn) piden el mismo tratamiento (texto negro + liquid glass) que
+   el resto de Cobros & Costos, PERO ese header es compartido por todas
+   las vistas del portal -- no vive dentro de #view-payments. Se usa
+   body:has(#view-payments.active) para que el cambio aplique solo
+   mientras esta sección está activa y no afecte el resto del portal. */
+body:has(#view-payments.active) #sync-badge {
+  color: var(--charcoal) !important;
+}
+body:has(#view-payments.active) #sync-btn {
+  color: var(--charcoal) !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%) !important;
+  border: 1px solid var(--glass-border) !important;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+[data-theme="dark"] body:has(#view-payments.active) #sync-btn {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%) !important;
 }
 .payments-live-dot {
   width: 7px; height: 7px; border-radius: 50%; background: var(--sage);
@@ -1673,20 +1706,41 @@ body[data-bg-scene="settings"]::after {
   70%  { box-shadow: 0 0 0 6px rgba(45,80,22,0); }
   100% { box-shadow: 0 0 0 0 rgba(45,80,22,0); }
 }
-.payments-export-btn { border-radius: var(--r-sm); }
+/* Liquid glass en el botón "Exportar" de Cobros & Costos. No se toca
+   .btn-secondary directamente porque esa clase la comparte "Sincronizar"
+   y otros botones fuera de esta sección. */
+.payments-export-btn {
+  border-radius: var(--r-sm);
+  color: var(--charcoal) !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%) !important;
+  border: 1px solid var(--glass-border) !important;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+[data-theme="dark"] .payments-export-btn {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%) !important;
+}
 
 .payments-selector-row { display: flex; margin-bottom: 22px; }
+/* Liquid glass en el selector de mes/año de Cobros & Costos. Mismo patrón
+   que .payments-period-tabs / .payments-stat-card. */
 .payments-period-pill {
   display: inline-flex; align-items: center; gap: 10px;
-  background: var(--white); border: 1px solid var(--border-sm);
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
+  border: 1px solid var(--glass-border);
   border-radius: 999px; padding: 8px 10px 8px 16px;
-  box-shadow: var(--shadow-xs);
-  backdrop-filter: saturate(1.4) blur(6px);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
 }
-.payments-period-icon { color: var(--mist); font-size: 13px; }
+[data-theme="dark"] .payments-period-pill {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%);
+}
+.payments-period-icon { color: var(--charcoal); font-size: 13px; }
 .payments-period-nav {
   width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-sm);
-  background: var(--surface-hover, #F4F2ED); color: var(--stone);
+  background: var(--surface-hover, #F4F2ED); color: var(--charcoal);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; font-size: 12px; transition: background .16s, transform .16s;
 }
@@ -1704,14 +1758,30 @@ body[data-bg-scene="settings"]::after {
   display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
   margin-bottom: 20px;
 }
+/* Liquid glass en las 5 tarjetas de totales de Cobros & Costos. Mismo
+   patrón que .payments-period-tabs / .payments-clock-badge: gradiente
+   rgba translúcido + backdrop-filter + --glass-border/--glass-shadow,
+   en vez del fondo sólido --white que tenían antes. */
 .payments-stat-card {
-  background: var(--white); border: 1px solid var(--border-sm);
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   border-radius: var(--r-lg); padding: 18px 18px 16px;
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--glass-shadow);
   transition: box-shadow .2s, transform .2s;
 }
 .payments-stat-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); }
-.payments-stat-card--primary { background: linear-gradient(160deg, var(--sage-xlight) 0%, var(--white) 65%); border-color: var(--svc-walks-border); }
+.payments-stat-card--primary {
+  background: linear-gradient(160deg, rgba(255,255,255,.52) 0%, rgba(255,255,255,.22) 65%);
+  border-color: var(--svc-walks-border);
+}
+[data-theme="dark"] .payments-stat-card {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%);
+}
+[data-theme="dark"] .payments-stat-card--primary {
+  background: linear-gradient(160deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 65%);
+}
 .payments-stat-icon {
   width: 38px; height: 38px; border-radius: 11px; margin-bottom: 12px;
   display: flex; align-items: center; justify-content: center; font-size: 16px;
@@ -1722,8 +1792,8 @@ body[data-bg-scene="settings"]::after {
 .payments-stat-icon--deworm { background: var(--svc-deworm-bg);   color: var(--svc-deworm); }
 .payments-stat-icon--home   { background: var(--svc-home-bg);     color: var(--svc-home); }
 .payments-stat-value { font-size: 24px; font-weight: 700; color: var(--charcoal); letter-spacing: -.4px; line-height: 1.1; }
-.payments-stat-value--muted { font-size: 15px; color: var(--mist); font-weight: 600; }
-.payments-stat-label { font-size: 12px; color: var(--stone); margin-top: 5px; line-height: 1.4; }
+.payments-stat-value--muted { font-size: 15px; color: var(--charcoal); font-weight: 600; }
+.payments-stat-label { font-size: 12px; color: var(--charcoal); margin-top: 5px; line-height: 1.4; }
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -1731,12 +1801,12 @@ body[data-bg-scene="settings"]::after {
 }
 .payments-glass-card { border-radius: var(--r-lg); }
 .payments-year-tag {
-  font-size: 12px; font-weight: 600; color: var(--stone);
+  font-size: 12px; font-weight: 600; color: var(--charcoal);
   background: var(--surface-hover, #F4F2ED); padding: 5px 11px; border-radius: 999px;
 }
 .payments-evo-legend {
   display: flex; justify-content: center; gap: 20px; margin-top: 4px;
-  flex-wrap: wrap; font-size: 12px; color: var(--stone);
+  flex-wrap: wrap; font-size: 12px; color: var(--charcoal);
 }
 .payments-evo-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 
@@ -1748,15 +1818,15 @@ body[data-bg-scene="settings"]::after {
   align-items: center; justify-content: center; text-align: center; padding: 0 8px;
 }
 .payments-donut-center-amount { font-size: 17px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.15; }
-.payments-donut-center-label { font-size: 10.5px; color: var(--mist); margin-top: 2px; }
+.payments-donut-center-label { font-size: 10.5px; color: var(--charcoal); margin-top: 2px; }
 .payments-donut-legend { flex: 1; min-width: 170px; display: flex; flex-direction: column; gap: 10px; }
-.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--stone); }
+.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--charcoal); }
 .payments-donut-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .payments-donut-legend-label { flex: 1; color: var(--charcoal); font-weight: 500; }
 .payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 34px; text-align: right; }
-.payments-donut-legend-amount { font-size: 11.5px; color: var(--mist); min-width: 76px; text-align: right; }
+.payments-donut-legend-amount { font-size: 11.5px; color: var(--charcoal); min-width: 76px; text-align: right; }
 
-.payments-table-sub { font-size: 12px; color: var(--mist); margin-top: 3px; }
+.payments-table-sub { font-size: 12px; color: var(--charcoal); margin-top: 3px; }
 .payments-table td { vertical-align: middle; }
 .payments-amount-cell { font-weight: 700; color: var(--charcoal); }
 .payments-svc-chip {
@@ -1790,6 +1860,15 @@ body[data-bg-scene="settings"]::after {
    Mismo lenguaje visual que .stat-card pero pensado como botón: cursor
    pointer, foco accesible, y el ícono/título/subtítulo apilados en
    vertical en vez de en fila. */
+.payments-quick-actions-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+}
+@media (max-width: 900px) {
+  .payments-quick-actions-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .payments-quick-actions-grid { grid-template-columns: 1fr; }
+}
 .payments-quick-action {
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
   padding: 14px; border-radius: 12px; border: 1px solid var(--line);
@@ -1803,7 +1882,7 @@ body[data-bg-scene="settings"]::after {
   display: flex; align-items: center; justify-content: center; font-size: 14px;
 }
 .payments-quick-action-title { font-size: 12.5px; font-weight: 600; color: var(--charcoal); }
-.payments-quick-action-sub { font-size: 10.5px; color: var(--mist); line-height: 1.3; }
+.payments-quick-action-sub { font-size: 10.5px; color: var(--charcoal); line-height: 1.3; }
 
 /* Selector de período (Semanal/Mensual/Anual) en Cobros & Costos.
    Liquid glass: mismo patrón que .dog-card (línea ~2319) -- gradiente
@@ -1846,6 +1925,23 @@ body[data-bg-scene="settings"]::after {
   box-shadow: var(--glass-shadow);
 }
 [data-theme="dark"] .payments-clock-badge {
+  background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%) !important;
+}
+
+/* Badges "Año 2026" y "10 registros" en Cobros & Costos. Igual razón que
+   .payments-clock-badge de arriba: no se toca .badge-stone directamente
+   porque esa clase se reutiliza en otras 4+ zonas del portal. Se agrega
+   esta clase junto a badge-stone (misma técnica) solo para forzar texto
+   negro y el mismo liquid glass del resto de la sección. */
+.payments-badge-stone {
+  color: var(--charcoal) !important;
+  background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%) !important;
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+[data-theme="dark"] .payments-badge-stone {
   background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%) !important;
 }
 [data-theme="dark"] .stat-label { color: var(--mist); }
@@ -12688,8 +12784,6 @@ function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year) {
   return buckets;
 }
 
-var META_MENSUAL_CLP = 3500000;
-
 function refreshPaymentsIfActive() {
   if (currentView === 'payments') renderPayments();
 }
@@ -12780,8 +12874,7 @@ function renderPayments() {
     ...health.map(r=>({fecha:r.last,servicio:'Desparasitarios',svcClass:'deworm',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
     ...home.map(r=>({fecha:r.dateStart,servicio:'Cuidado a Domicilio',svcClass:'home',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
   ].sort((a,b)=>(parsePaymentsDate(b.fecha)?.getTime()||0)-(parsePaymentsDate(a.fecha)?.getTime()||0));
-  const detalleHtml=detalle.length?detalle.map(r=>`<tr><td>${escapeHtml(String(r.fecha||'').slice(0,10))}</td><td><span class="payments-svc-chip payments-svc-chip--${r.svcClass}">${escapeHtml(r.servicio)}</span></td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td class="payments-amount-cell">${formatCLP(r.importe)}</td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;padding:44px 20px;color:var(--mist)">No hay registros en ${getPaymentsMonthLabel()}.</td></tr>`;
-  const metaPct=META_MENSUAL_CLP?Math.min(100,Math.round(ingresosTotal/META_MENSUAL_CLP*100)):0;
+  const detalleHtml=detalle.length?detalle.map(r=>`<tr><td>${escapeHtml(String(r.fecha||'').slice(0,10))}</td><td><span class="payments-svc-chip payments-svc-chip--${r.svcClass}">${escapeHtml(r.servicio)}</span></td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td class="payments-amount-cell">${formatCLP(r.importe)}</td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;padding:44px 20px;color:var(--charcoal)">No hay registros en ${getPaymentsMonthLabel()}.</td></tr>`;
 
   container.innerHTML=`
     <div class="payments-header"><div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero por mes</div></div><div class="payments-header-actions"><span class="payments-live-badge"><span class="payments-live-dot"></span>Actualizado en tiempo real</span><button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button></div></div>
@@ -12793,9 +12886,9 @@ function renderPayments() {
       <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div><div class="payments-stat-value">${formatCLP(healthTotal)}</div><div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div></div>
       <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div><div class="payments-stat-value">${formatCLP(homeTotal)}</div><div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div></div>
     </div>
-    <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><span class="badge badge-stone">Año ${paymentsYear}</span></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
-    <div class="payments-table-card"><div class="payments-table-card-header"><div><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div><span class="badge badge-stone">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
-    <div class="payments-bottom-grid"><div class="payments-quick-actions"><div class="payments-chart-title">Acciones rápidas</div><div class="payments-quick-actions-grid"><button class="payments-quick-action" onclick="openFoodWizard()"><span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bowl-food"></i></span><span class="payments-quick-action-title">Registrar Alimento</span><span class="payments-quick-action-sub">Nueva operación</span></button><button class="payments-quick-action" onclick="openDewormModal()"><span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-syringe"></i></span><span class="payments-quick-action-title">Registrar Desparasitario</span><span class="payments-quick-action-sub">Nueva operación</span></button><button class="payments-quick-action" onclick="openHomeCareModal()"><span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span><span class="payments-quick-action-title">Registrar Cuidado</span><span class="payments-quick-action-sub">Nueva reserva</span></button></div></div><div class="payments-goal-card"><div class="payments-chart-title">Meta mensual</div><div class="payments-goal-value">${formatCLP(META_MENSUAL_CLP)}</div><div class="payments-progress-track"><div class="payments-progress-fill" style="width:${metaPct}%"></div></div><div class="payments-goal-sub">${formatCLP(Math.max(0,META_MENSUAL_CLP-ingresosTotal))} para alcanzar la meta · ${metaPct}%</div></div></div>
+    <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><span class="badge badge-stone payments-badge-stone">Año ${paymentsYear}</span></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
+    <div class="payments-table-card"><div class="payments-table-card-header"><div><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div><span class="badge badge-stone payments-badge-stone">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
+    <div class="payments-quick-actions"><div class="payments-chart-title">Acciones rápidas</div><div class="payments-quick-actions-grid"><button class="payments-quick-action" onclick="openFoodWizard()"><span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bowl-food"></i></span><span class="payments-quick-action-title">Registrar Alimento</span><span class="payments-quick-action-sub">Nueva operación</span></button><button class="payments-quick-action" onclick="openDewormModal()"><span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-syringe"></i></span><span class="payments-quick-action-title">Registrar Desparasitario</span><span class="payments-quick-action-sub">Nueva operación</span></button><button class="payments-quick-action" onclick="openHomeCareModal()"><span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span><span class="payments-quick-action-title">Registrar Cuidado</span><span class="payments-quick-action-sub">Nueva reserva</span></button><button class="payments-quick-action" onclick="showView('admin-comprobantes')"><span class="payments-quick-action-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-file-circle-check"></i></span><span class="payments-quick-action-title">Verificar comprobantes</span><span class="payments-quick-action-sub">Pagos pendientes</span></button></div></div>
     <div class="payments-financial-note"><i class="fa-solid fa-circle-info"></i><div><strong>Criterio contable</strong><div>Alimentación usa Última compra · Desparasitarios usa Última aplicación · Cuidado a Domicilio solo cuenta reservas confirmadas · Paseos se calcula como abono mensual fijo desde diciembre de 2025.</div></div></div>`;
 }
 /* ══════════════════════════════════
