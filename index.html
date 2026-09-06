@@ -1692,10 +1692,8 @@ body[data-bg-scene="payments"]::after {
    panel aparte. ══════════════════════════════════ */
 .payments-header {
   display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 16px; flex-wrap: wrap; margin-bottom: 10px;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
 }
-.payments-header .section-title { font-size: 17px; }
-.payments-header .section-sub { font-size: 11px; margin-top: 1px; }
 .payments-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 /* Liquid glass en el badge "Actualizado en tiempo real". Se conserva el
    acento --sage (verde) del texto/punto -- es un indicador semántico de
@@ -1762,14 +1760,14 @@ body:has(#view-payments.active) #sync-btn {
   background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%) !important;
 }
 
-.payments-selector-row { display: flex; margin-bottom: 12px; }
+.payments-selector-row { display: flex; margin-bottom: 22px; }
 /* Liquid glass en el selector de mes/año de Cobros & Costos. Mismo patrón
    que .payments-period-tabs / .payments-stat-card. */
 .payments-period-pill {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 10px;
   background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
   border: 1px solid var(--glass-border);
-  border-radius: 999px; padding: 5px 8px 5px 12px;
+  border-radius: 999px; padding: 8px 10px 8px 16px;
   box-shadow: var(--glass-shadow);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -1779,10 +1777,10 @@ body:has(#view-payments.active) #sync-btn {
 }
 .payments-period-icon { color: var(--charcoal); font-size: 13px; }
 .payments-period-nav {
-  width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border-sm);
+  width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-sm);
   background: var(--surface-hover, #F4F2ED); color: var(--charcoal);
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; font-size: 11px; transition: background .16s, transform .16s;
+  cursor: pointer; font-size: 12px; transition: background .16s, transform .16s;
 }
 .payments-period-nav:hover { background: var(--sage-xlight); color: var(--sage); transform: scale(1.06); }
 .payments-period-select {
@@ -1795,8 +1793,8 @@ body:has(#view-payments.active) #sync-btn {
 .payments-period-sep { width: 1px; height: 18px; background: var(--border-sm); }
 
 .payments-stats-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
-  margin-bottom: 12px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+  margin-bottom: 20px;
 }
 /* Liquid glass en las 5 tarjetas de totales de Cobros & Costos. Mismo
    patrón que .payments-period-tabs / .payments-clock-badge: gradiente
@@ -1807,7 +1805,7 @@ body:has(#view-payments.active) #sync-btn {
   border: 1px solid var(--glass-border);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  border-radius: var(--r-lg); padding: 12px 14px 11px;
+  border-radius: var(--r-lg); padding: 18px 18px 16px;
   box-shadow: var(--glass-shadow);
   transition: box-shadow .2s, transform .2s;
 }
@@ -1823,21 +1821,21 @@ body:has(#view-payments.active) #sync-btn {
   background: linear-gradient(160deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 65%);
 }
 .payments-stat-icon {
-  width: 28px; height: 28px; border-radius: 8px; margin-bottom: 7px;
-  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  width: 38px; height: 38px; border-radius: 11px; margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
 }
 .payments-stat-icon--sage   { background: var(--sage-light);      color: var(--sage); }
 .payments-stat-icon--walks  { background: var(--svc-walks-bg);    color: var(--svc-walks); }
 .payments-stat-icon--food   { background: var(--svc-food-bg);     color: var(--svc-food); }
 .payments-stat-icon--deworm { background: var(--svc-deworm-bg);   color: var(--svc-deworm); }
 .payments-stat-icon--home   { background: var(--svc-home-bg);     color: var(--svc-home); }
-.payments-stat-value { font-size: 18px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.1; }
-.payments-stat-value--muted { font-size: 13px; color: var(--charcoal); font-weight: 600; }
-.payments-stat-label { font-size: 10.5px; color: var(--charcoal); margin-top: 3px; line-height: 1.3; }
+.payments-stat-value { font-size: 24px; font-weight: 700; color: var(--charcoal); letter-spacing: -.4px; line-height: 1.1; }
+.payments-stat-value--muted { font-size: 15px; color: var(--charcoal); font-weight: 600; }
+.payments-stat-label { font-size: 12px; color: var(--charcoal); margin-top: 5px; line-height: 1.4; }
 
 .payments-charts-row {
-  display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px;
-  margin-bottom: 12px; align-items: stretch;
+  display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
+  margin-bottom: 18px; align-items: stretch;
 }
 /* .payments-chart-card / -header / .payments-chart-title: usados en
    renderPayments (tarjeta de "Evolución de ingresos", tarjeta de
@@ -1852,7 +1850,7 @@ body:has(#view-payments.active) #sync-btn {
   border: 1px solid var(--glass-border);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  border-radius: var(--r-lg); padding: 12px 14px 13px;
+  border-radius: var(--r-lg); padding: 18px 20px 20px;
   box-shadow: var(--glass-shadow);
 }
 [data-theme="dark"] .payments-chart-card {
@@ -1860,34 +1858,34 @@ body:has(#view-payments.active) #sync-btn {
 }
 .payments-chart-card-header {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; margin-bottom: 8px;
+  gap: 10px; margin-bottom: 14px;
 }
-.payments-chart-title { font-size: 12.5px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
+.payments-chart-title { font-size: 14.5px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
 .payments-glass-card { border-radius: var(--r-lg); }
 .payments-year-tag {
-  font-size: 10.5px; font-weight: 600; color: var(--charcoal);
-  background: var(--surface-hover, #F4F2ED); padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--charcoal);
+  background: var(--surface-hover, #F4F2ED); padding: 5px 11px; border-radius: 999px;
 }
 .payments-evo-legend {
-  display: flex; justify-content: center; gap: 14px; margin-top: 2px;
-  flex-wrap: wrap; font-size: 10.5px; color: var(--charcoal);
+  display: flex; justify-content: center; gap: 20px; margin-top: 4px;
+  flex-wrap: wrap; font-size: 12px; color: var(--charcoal);
 }
-.payments-evo-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.payments-evo-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 
-.payments-donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
-.payments-donut-svg { width: 128px; height: 128px; flex-shrink: 0; display: block; }
+.payments-donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; width: 100%; }
+.payments-donut-svg { width: 172px; height: 172px; flex-shrink: 0; display: block; }
 .payments-donut-center {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; text-align: center; padding: 0 8px;
 }
 .payments-donut-center-amount { font-size: 17px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.15; }
 .payments-donut-center-label { font-size: 10.5px; color: var(--charcoal); margin-top: 2px; }
-.payments-donut-legend { width: 100%; display: flex; flex-direction: column; gap: 5px; }
-.payments-donut-legend-row { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--charcoal); }
-.payments-donut-dot { width: 7px; height: 7px; border-radius: 3px; flex-shrink: 0; }
+.payments-donut-legend { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--charcoal); }
+.payments-donut-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .payments-donut-legend-label { flex: 1; color: var(--charcoal); font-weight: 500; }
-.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 30px; text-align: right; }
-.payments-donut-legend-amount { font-size: 10px; color: var(--charcoal); min-width: 66px; text-align: right; }
+.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 34px; text-align: right; }
+.payments-donut-legend-amount { font-size: 11.5px; color: var(--charcoal); min-width: 76px; text-align: right; }
 
 /* Fila inferior de Cobros & Costos: tabla de detalle a la izquierda +
    columna lateral (acciones rápidas + nota contable) a la derecha, en la
@@ -1896,10 +1894,10 @@ body:has(#view-payments.active) #sync-btn {
    referencia del usuario. Antes estas 3 piezas eran bloques sueltos
    apilados a lo alto sin ninguna grilla que las agrupe. */
 .payments-bottom-row {
-  display: grid; grid-template-columns: 1.5fr 1fr; gap: 12px;
+  display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
   align-items: start;
 }
-.payments-sidebar { display: flex; flex-direction: column; gap: 12px; }
+.payments-sidebar { display: flex; flex-direction: column; gap: 18px; }
 @media (max-width: 1100px) {
   .payments-bottom-row { grid-template-columns: 1fr; }
 }
@@ -1922,27 +1920,21 @@ body:has(#view-payments.active) #sync-btn {
 }
 .payments-table-card-header {
   display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 10px; padding: 12px 14px 9px;
+  gap: 12px; padding: 18px 20px 14px;
 }
-.payments-table-card .table-wrap { padding: 0 3px 3px; }
+.payments-table-card .table-wrap { padding: 0 4px 4px; }
 
-.payments-table-sub { font-size: 10px; color: var(--charcoal); margin-top: 2px; }
+.payments-table-sub { font-size: 12px; color: var(--charcoal); margin-top: 3px; }
 .payments-table td { vertical-align: middle; }
-/* Filas más compactas SOLO en la tabla de Detalle de registros (no se
-   toca .data-table base, que comparten otras tablas del portal), para
-   que las 8 filas quepan sin agrandar el alto total de la vista. */
-.payments-table th { padding: 6px 12px; font-size: 9px; }
-.payments-table td { padding: 6px 12px; font-size: 11.5px; }
 .payments-amount-cell { font-weight: 700; color: var(--charcoal); }
 .payments-svc-chip {
-  display: inline-flex; align-items: center; font-size: 10px; font-weight: 600;
-  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600;
+  padding: 4px 10px; border-radius: 999px; white-space: nowrap;
 }
 .payments-svc-chip--walks  { background: var(--svc-walks-bg);  color: var(--svc-walks); }
 .payments-svc-chip--food   { background: var(--svc-food-bg);   color: var(--svc-food); }
 .payments-svc-chip--deworm { background: var(--svc-deworm-bg); color: var(--svc-deworm); }
 .payments-svc-chip--home   { background: var(--svc-home-bg);   color: var(--svc-home); }
-
 
 .payments-progress-track {
   height: 9px; border-radius: 999px; background: var(--surface-hover, #EEEDE8);
@@ -1971,11 +1963,11 @@ body:has(#view-payments.active) #sync-btn {
    con ícono arriba, así es como se agrupan dentro de la columna lateral
    angosta de la imagen de referencia. */
 .payments-quick-actions-grid {
-  display: flex; flex-direction: column; gap: 6px;
+  display: flex; flex-direction: column; gap: 10px;
 }
 .payments-quick-action {
-  display: flex; flex-direction: row; align-items: center; gap: 9px;
-  padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line);
+  display: flex; flex-direction: row; align-items: center; gap: 12px;
+  padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--surface); cursor: pointer; text-align: left;
   font-family: inherit; width: 100%;
   transition: box-shadow .2s, transform .2s, border-color .2s;
@@ -1983,32 +1975,32 @@ body:has(#view-payments.active) #sync-btn {
 .payments-quick-action:hover { box-shadow: var(--shadow-sm); transform: translateY(-2px); border-color: var(--sage); }
 .payments-quick-action:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
 .payments-quick-action-icon {
-  width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 11px;
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 14px;
 }
-.payments-quick-action-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.payments-quick-action-title { font-size: 11px; font-weight: 600; color: var(--charcoal); }
-.payments-quick-action-sub { font-size: 9px; color: var(--charcoal); line-height: 1.2; }
+.payments-quick-action-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.payments-quick-action-title { font-size: 12.5px; font-weight: 600; color: var(--charcoal); }
+.payments-quick-action-sub { font-size: 10.5px; color: var(--charcoal); line-height: 1.3; }
 
 /* .payments-financial-note: antes sin CSS, renderizaba como texto plano
    suelto debajo de todo. Se convierte en su propia tarjeta chica (ícono +
    texto) para que viva dentro de la columna lateral, debajo de "Acciones
    rápidas", igual que en la imagen de referencia. */
 .payments-financial-note {
-  display: flex; align-items: flex-start; gap: 8px;
+  display: flex; align-items: flex-start; gap: 10px;
   background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
   border: 1px solid var(--glass-border);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  border-radius: var(--r-lg); padding: 9px 11px;
+  border-radius: var(--r-lg); padding: 14px 16px;
   box-shadow: var(--glass-shadow);
-  font-size: 9.5px; line-height: 1.35; color: var(--charcoal);
+  font-size: 11.5px; line-height: 1.5; color: var(--charcoal);
 }
 [data-theme="dark"] .payments-financial-note {
   background: linear-gradient(135deg, rgba(255,255,255,.12) 0%, rgba(255,255,255,.04) 100%);
 }
-.payments-financial-note i { color: var(--sage); font-size: 11px; margin-top: 1px; flex-shrink: 0; }
-.payments-financial-note strong { display: block; font-size: 10.5px; margin-bottom: 2px; }
+.payments-financial-note i { color: var(--sage); font-size: 14px; margin-top: 2px; flex-shrink: 0; }
+.payments-financial-note strong { display: block; font-size: 12.5px; margin-bottom: 3px; }
 
 /* Selector de período (Semanal/Mensual/Anual) en Cobros & Costos.
    Liquid glass: mismo patrón que .dog-card (línea ~2319) -- gradiente
@@ -12944,7 +12936,7 @@ function isPaymentsConfirmedHome(r) {
 }
 
 function buildPaymentsEvolutionChart(buckets, selectedMonth) {
-  const w=640,h=140,padL=8,padR=8,padT=10,padB=20,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=6,slot=innerW/n,barW=Math.max(8,slot-gap);
+  const w=640,h=230,padL=8,padR=8,padT=14,padB=28,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
   const maxVal=Math.max(1,...buckets.map(b=>b.total));
   const yAt=v=>(v/maxVal)*innerH;
   const bars=buckets.map((b,i)=>{
@@ -12952,21 +12944,21 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const segs=[{v:b.walks,c:'var(--svc-walks)'},{v:b.food,c:'var(--svc-food)'},{v:b.health,c:'var(--svc-deworm)'},{v:b.home,c:'var(--svc-home)'}].filter(s=>s.v>0);
     let y=padT+innerH;
     const rects=segs.map(s=>{const sh=yAt(s.v);y-=sh;return `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(sh,0)}" fill="${s.c}" opacity="${isSelected?1:.42}"/>`;}).join('');
-    const label=`<text x="${x+barW/2}" y="${h-6}" text-anchor="middle" font-size="9.5" font-weight="${isSelected?700:400}" fill="${isSelected?'var(--charcoal)':'var(--mist)'}">${b.label}</text>`;
+    const label=`<text x="${x+barW/2}" y="${h-9}" text-anchor="middle" font-size="11" font-weight="${isSelected?700:400}" fill="${isSelected?'var(--charcoal)':'var(--mist)'}">${b.label}</text>`;
     const ring=isSelected&&b.total>0?`<rect x="${x-2}" y="${padT+innerH-yAt(b.total)-2}" width="${barW+4}" height="${yAt(b.total)+4}" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.5" opacity=".55"/>`:'';
     return rects+ring+label;
   }).join('');
   const grid=[0,.5,1].map(f=>{const y=padT+innerH-innerH*f;return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".3"/>`;}).join('');
   const sel=buckets[selectedMonth];
-  const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-72,padL),w-padR-144)}, ${padT})"><rect width="144" height="86" rx="9" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="10" y="15" font-size="10" font-weight="700" fill="var(--charcoal)">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><text x="10" y="31" font-size="9" fill="var(--stone)">Paseos: ${formatCLP(sel.walks)}</text><text x="10" y="44" font-size="9" fill="var(--stone)">Alimentación: ${formatCLP(sel.food)}</text><text x="10" y="57" font-size="9" fill="var(--stone)">Desparasitarios: ${formatCLP(sel.health)}</text><text x="10" y="70" font-size="9" fill="var(--stone)">Cuidado: ${formatCLP(sel.home)}</text><text x="10" y="82" font-size="9" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(sel.total)}</text></g>`:'';
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:140px;overflow:visible">${grid}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
+  const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-84,padL),w-padR-168)}, ${padT})"><rect width="168" height="101" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><text x="12" y="38" font-size="10.5" fill="var(--stone)">Paseos: ${formatCLP(sel.walks)}</text><text x="12" y="53" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(sel.food)}</text><text x="12" y="68" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(sel.health)}</text><text x="12" y="83" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="96" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(sel.total)}</text></g>`:'';
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:230px;overflow:visible">${grid}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
 }
 
 function buildPaymentsDonut(servicios, total) {
-  const size=160,cx=80,cy=80,r=52,sw=28,circ=2*Math.PI*r;
+  const size=220,cx=110,cy=110,r=72,sw=38,circ=2*Math.PI*r;
   let acc=0;
   const segs=servicios.filter(s=>s.ingresos>0).map(s=>{const len=total?circ*s.ingresos/total:0;const off=-acc;acc+=len;return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len} ${Math.max(circ-len,0)}" stroke-dashoffset="${off}" transform="rotate(-90 ${cx} ${cy})"/>`;}).join('');
-  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="${cx}" y="${cy+11}" text-anchor="middle" font-size="8.5" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
+  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="20" font-weight="700" fill="var(--charcoal)">${formatCLP(total)}</text><text x="${cx}" y="${cy+15}" text-anchor="middle" font-size="11" fill="var(--mist)">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
 }
 
 function renderPayments() {
