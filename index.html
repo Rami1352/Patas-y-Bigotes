@@ -1843,9 +1843,15 @@ body:has(#view-payments.active) #sync-btn {
 [data-theme="dark"] .payments-stat-card--primary {
   background: linear-gradient(160deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 65%);
 }
-.payments-stat-icon {
-  width: 34px; height: 34px; border-radius: 10px; margin-bottom: 9px;
-  display: flex; align-items: center; justify-content: center; font-size: 16px;
+ .payments-stat-icon {
+  width: 44px; height: 44px; border-radius: 12px; margin-bottom: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.payments-stat-icon i,
+.payments-stat-icon svg {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
 }
 .payments-stat-icon--sage   { background: var(--sage-light);      color: var(--sage); }
 .payments-stat-icon--walks  { background: var(--svc-walks-bg);    color: var(--svc-walks); }
@@ -1864,9 +1870,16 @@ body:has(#view-payments.active) #sync-btn {
    (margin-left:auto), pero acá la referencia lo pone abajo de todo,
    ancho completo -- se sobreescribe posición y tamaño solo dentro de
    .payments-stat-card, sin tocar su uso original en Desparasitarios. */
-.payments-stat-card .deworm-stat-sparkline {
-  display: block; margin: 10px 0 0; width: 100%; height: 26px;
+ .payments-stat-card .deworm-stat-sparkline {
+  display: block;
+  margin: 10px 0 0;
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
 }
+.payments-stat-card .deworm-stat-sparkline .deworm-spark-line { stroke-width: 2.6; }
+.payments-stat-card .deworm-stat-sparkline .deworm-spark-dot { r: 3.2; }
+.payments-stat-card .deworm-stat-sparkline .deworm-spark-dot-halo { r: 7; }
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -11550,38 +11563,34 @@ async function deleteHomeCare(id) {
    area-chart, trazo que se dibuja al entrar en pantalla (stroke-dash),
    y un punto que recorre la curva en loop con un halo pulsante detrás. */
 function dewormSparkline(seed = 0, color = 'currentColor', stretch = false) {
+  /* Mini-gráficos suaves y continuos para las tarjetas KPI. */
   const paths = [
-    'M2 20 C10 8, 18 24, 26 14 S42 4, 50 12',
-    'M2 16 C10 22, 18 6, 26 18 S42 20, 50 8',
-    'M2 10 C10 20, 18 14, 26 4 S42 18, 50 6',
+    'M2 24 C18 23 24 10 40 15 C56 20 62 26 76 17 C90 8 101 10 118 6',
+    'M2 25 C18 27 29 14 43 18 C58 22 68 11 82 15 C96 19 103 10 118 9',
+    'M2 23 C16 18 27 20 40 12 C54 4 67 9 79 14 C92 19 103 12 118 5'
   ];
   const dotPos = [
-    { cx: 50, cy: 12 },
-    { cx: 50, cy: 8 },
-    { cx: 50, cy: 6 },
+    { cx: 118, cy: 6 },
+    { cx: 118, cy: 9 },
+    { cx: 118, cy: 5 }
   ];
   const d = paths[seed % paths.length];
   const dot = dotPos[seed % dotPos.length];
   const uid = 'spk-' + seed + '-' + (_capsule3dSeq++);
-  /* preserveAspectRatio="none" solo cuando stretch=true (uso en
-     .payments-stat-card, ancho completo tipo la imagen de referencia
-     del usuario): sin esto, el viewBox 52x30 se centra con su relación
-     de aspecto original y deja franjas vacías a los lados cuando el
-     SVG se estira por CSS a un ancho mayor a 52px -- con stretch la
-     curva llena el ancho real de la tarjeta. El uso original en
-     Desparasitarios (ancho fijo 52px) no pasa este parámetro, así que
-     no cambia. */
-  return `<svg class="deworm-stat-sparkline" width="52" height="30" viewBox="0 0 52 30" ${stretch ? 'preserveAspectRatio="none"' : ''} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="color:${color}">
+  return `<svg class="deworm-stat-sparkline" width="120" height="34" viewBox="0 0 120 34"
+      preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true" style="color:${color}">
     <defs>
       <linearGradient id="${uid}-fill" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="currentColor" stop-opacity=".35"/>
+        <stop offset="0%" stop-color="currentColor" stop-opacity=".18"/>
         <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <path class="deworm-spark-area" d="${d} L50 28 L2 28 Z" fill="url(#${uid}-fill)"/>
-    <path class="deworm-spark-line" d="${d}" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
-    <circle class="deworm-spark-dot-halo" cx="${dot.cx}" cy="${dot.cy}" r="6" fill="currentColor"/>
-    <circle class="deworm-spark-dot" cx="${dot.cx}" cy="${dot.cy}" r="2.6" fill="currentColor"/>
+    <path class="deworm-spark-area" d="${d} L118 31 L2 31 Z" fill="url(#${uid}-fill)"/>
+    <path class="deworm-spark-line" d="${d}" stroke="currentColor" stroke-width="2.6"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    <circle class="deworm-spark-dot-halo" cx="${dot.cx}" cy="${dot.cy}" r="7" fill="currentColor"/>
+    <circle class="deworm-spark-dot" cx="${dot.cx}" cy="${dot.cy}" r="3.2" fill="currentColor"/>
   </svg>`;
 }
 
