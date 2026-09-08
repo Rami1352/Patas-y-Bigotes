@@ -1874,12 +1874,15 @@ body:has(#view-payments.active) #sync-btn {
   display: block; margin: 9px 0 0; width: 100%; height: 28px;
   overflow: visible; pointer-events: none;
 }
-/* Solo el trazo de línea (el <path> suelto sin clase, con pathLength="1")
-   recibe fill:none + la animación de dibujado -- se excluye .deworm-spark-area
-   con :not() para que el área degradada (agregada junto al punto con halo,
-   ver dewormSparkline) conserve su propio fill y su propia animación de
-   fade-in en vez de heredar esta, que antes la habría dejado invisible. */
-.payments-stat-card .payments-sparkline path:not(.deworm-spark-area) {
+/* Reglas de DIBUJADO (trazo, relleno, animación de entrada) del path
+   suelto que arma la rama stretch de dewormSparkline. Antes vivían
+   colgadas solo de .payments-stat-card .payments-sparkline, así que al
+   usarse esta misma variante en Desparasitarios/Cuidado a Domicilio
+   (pedido del usuario: "hacer algo similar a Cobros y Costos") la línea
+   quedaba sin stroke ni animación -- se sacan a un selector de base
+   .payments-sparkline sin ancestro para que apliquen en cualquier
+   tarjeta que la use, sea cual sea su tamaño/posición. */
+.payments-sparkline path:not(.deworm-spark-area) {
   fill: none; stroke: currentColor; stroke-width: 2.25;
   stroke-linecap: round; stroke-linejoin: round;
   stroke-dasharray: 1; stroke-dashoffset: 1;
@@ -1887,8 +1890,19 @@ body:has(#view-payments.active) #sync-btn {
 }
 @keyframes paymentsSparkDraw { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .payments-stat-card .payments-sparkline path:not(.deworm-spark-area) { animation: none; stroke-dashoffset: 0; }
+  .payments-sparkline path:not(.deworm-spark-area) { animation: none; stroke-dashoffset: 0; }
 }
+/* Tamaño/posición de la MISMA variante stretch cuando vive al costado del
+   texto (Desparasitarios, Cuidado a Domicilio) en vez de abajo de todo
+   ancho completo (Cobros y Costos, regla de arriba). overflow:visible
+   evita que el halo del punto se recorte contra el borde de la tarjeta. */
+.deworm-stat-card .payments-sparkline,
+.hc-stat-spark .payments-sparkline {
+  display: block; margin-left: auto; flex-shrink: 1;
+  min-width: 56px; max-width: 130px; width: 100%; height: 30px;
+  overflow: visible; pointer-events: none;
+}
+
 
 .payments-charts-row {
   display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;
@@ -4226,14 +4240,7 @@ html[data-font-size="large"] .toast-container {
 .hc-stat-trend.up   { color: var(--sage); }
 .hc-stat-trend.flat { color: var(--mist); }
 .hc-stat-trend svg { width: 10px; height: 10px; }
-/* Mismo fix que .deworm-stat-sparkline: antes flex-shrink:0 a un width fijo
-   de 120px hacía que, si no entraba entero en la tarjeta, el propio
-   overflow:hidden de .hc-stat-card (línea de arriba) recortara en
-   silencio el tramo final de la curva -- la misma curva "cortada" que en
-   Desparasitarios, marcada en azul en la imagen 4. Ahora puede encogerse
-   dentro del espacio real disponible. */
-.hc-stat-spark { margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px; width: 100%; }
-.hc-stat-spark svg { display: block; width: 100%; overflow: visible; }
+.hc-stat-spark { margin-left: auto; flex-shrink: 1; min-width: 0; }
 
 /* Barra de filtros (Todas / Esta semana / Este mes) + botón de filtro */
 .hc-filter-bar { display: flex; align-items: center; gap: 8px; }
@@ -4474,10 +4481,6 @@ html[data-font-size="large"] .toast-container {
    que le queda (su propio viewBox interno sigue intacto, solo cambia el
    tamaño de caja en el que se dibuja), así la curva entera siempre es
    visible en vez de perder el tramo final contra el borde recortado. */
-.deworm-stat-sparkline {
-  display: block; margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px;
-  width: 100%; overflow: visible;
-}
 .deworm-spark-area { opacity: 0; animation: dewormSparkAreaIn .6s ease .5s both; }
 .deworm-spark-line {
   stroke-dasharray: 90; stroke-dashoffset: 90;
@@ -11749,9 +11752,9 @@ function renderModuleDesparasitarios() {
       <div class="deworm-header-capsule">${capsuleOrbitDecor()}${capsuleIcon3D(90)}</div>
     </div>
     <div class="stats-strip" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px;">
-      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)">${capsuleIcon(26)}</div><div><div class="stat-value">${myHealth.length}</div><div class="stat-label">Registros</div></div>${dewormSparkline(0, 'var(--svc-deworm)')}</div>
-      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--red-light);color:var(--red)"><i class="fa-solid fa-triangle-exclamation"></i></div><div><div class="stat-value">${myHealth.filter(h=>daysUntil(h.next)<=30).length}</div><div class="stat-label">Próximos 30 días</div></div>${dewormSparkline(1, 'var(--red)')}</div>
-      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-circle-check"></i></div><div><div class="stat-value">${myHealth.filter(h=>daysUntil(h.next)>30).length}</div><div class="stat-label">Al día</div></div>${dewormSparkline(2, 'var(--sage)')}</div>
+      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)">${capsuleIcon(26)}</div><div><div class="stat-value">${myHealth.length}</div><div class="stat-label">Registros</div></div>${dewormSparkline(0, 'var(--svc-deworm)', true)}</div>
+      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--red-light);color:var(--red)"><i class="fa-solid fa-triangle-exclamation"></i></div><div><div class="stat-value">${myHealth.filter(h=>daysUntil(h.next)<=30).length}</div><div class="stat-label">Próximos 30 días</div></div>${dewormSparkline(1, 'var(--red)', true)}</div>
+      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-circle-check"></i></div><div><div class="stat-value">${myHealth.filter(h=>daysUntil(h.next)>30).length}</div><div class="stat-label">Al día</div></div>${dewormSparkline(2, 'var(--sage)', true)}</div>
     </div>`;
 
   if (!myHealth.length) {
@@ -11957,17 +11960,17 @@ function renderModuleCuidadoDomicilio(filter) {
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-clipboard-list"></i></div>
         <div><div class="hc-stat-value">${bookings.length}</div><div class="hc-stat-label">Reservas activas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 20% vs mes anterior</div></div>
-        <div class="hc-stat-spark">${dewormSparkline(0, 'var(--svc-home)')}</div>
+        <div class="hc-stat-spark">${dewormSparkline(0, 'var(--svc-home)', true)}</div>
       </div>
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-circle-check"></i></div>
         <div><div class="hc-stat-value">${completedThisMonth}</div><div class="hc-stat-label">Completadas este mes</div><div class="hc-stat-trend flat">— 0% vs mes anterior</div></div>
-        <div class="hc-stat-spark">${dewormSparkline(1, 'var(--sage)')}</div>
+        <div class="hc-stat-spark">${dewormSparkline(1, 'var(--sage)', true)}</div>
       </div>
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--amber-light);color:var(--amber)"><i class="fa-solid fa-hourglass-half"></i></div>
         <div><div class="hc-stat-value">${upcoming}</div><div class="hc-stat-label">Próximas reservas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 15% vs mes anterior</div></div>
-        <div class="hc-stat-spark">${dewormSparkline(2, 'var(--amber)')}</div>
+        <div class="hc-stat-spark">${dewormSparkline(2, 'var(--amber)', true)}</div>
       </div>
     </div>`;
 
