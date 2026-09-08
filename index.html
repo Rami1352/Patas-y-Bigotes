@@ -1844,14 +1844,14 @@ body:has(#view-payments.active) #sync-btn {
   background: linear-gradient(160deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 65%);
 }
  .payments-stat-icon {
-  width: 44px; height: 44px; border-radius: 12px; margin-bottom: 9px;
-  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  width: 52px; height: 52px; border-radius: 14px; margin-bottom: 9px;
+  display: flex; align-items: center; justify-content: center; font-size: 25px;
 }
 .payments-stat-icon i,
 .payments-stat-icon svg {
-  width: 20px;
-  height: 20px;
-  font-size: 20px;
+  width: 25px;
+  height: 25px;
+  font-size: 25px;
 }
 .payments-stat-icon--sage   { background: var(--sage-light);      color: var(--sage); }
 .payments-stat-icon--walks  { background: var(--svc-walks-bg);    color: var(--svc-walks); }
@@ -1874,7 +1874,12 @@ body:has(#view-payments.active) #sync-btn {
   display: block; margin: 9px 0 0; width: 100%; height: 28px;
   overflow: visible; pointer-events: none;
 }
-.payments-stat-card .payments-sparkline path {
+/* Solo el trazo de línea (el <path> suelto sin clase, con pathLength="1")
+   recibe fill:none + la animación de dibujado -- se excluye .deworm-spark-area
+   con :not() para que el área degradada (agregada junto al punto con halo,
+   ver dewormSparkline) conserve su propio fill y su propia animación de
+   fade-in en vez de heredar esta, que antes la habría dejado invisible. */
+.payments-stat-card .payments-sparkline path:not(.deworm-spark-area) {
   fill: none; stroke: currentColor; stroke-width: 2.25;
   stroke-linecap: round; stroke-linejoin: round;
   stroke-dasharray: 1; stroke-dashoffset: 1;
@@ -1882,7 +1887,7 @@ body:has(#view-payments.active) #sync-btn {
 }
 @keyframes paymentsSparkDraw { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .payments-stat-card .payments-sparkline path { animation: none; stroke-dashoffset: 0; }
+  .payments-stat-card .payments-sparkline path:not(.deworm-spark-area) { animation: none; stroke-dashoffset: 0; }
 }
 
 .payments-charts-row {
@@ -4210,9 +4215,10 @@ html[data-font-size="large"] .toast-container {
   position: relative; overflow: hidden;
 }
 .hc-stat-icon {
-  width: 42px; height: 42px; border-radius: var(--r-md); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 17px;
+  width: 52px; height: 52px; border-radius: var(--r-md); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
 }
+.hc-stat-icon i { font-size: 22px; }
 .hc-stat-value { font-size: 21px; font-weight: 700; color: var(--charcoal); line-height: 1.1; }
 .hc-stat-label { font-size: 12px; color: var(--mist); margin-top: 2px; }
 .hc-howworks-text { color: var(--stone); }
@@ -4220,7 +4226,14 @@ html[data-font-size="large"] .toast-container {
 .hc-stat-trend.up   { color: var(--sage); }
 .hc-stat-trend.flat { color: var(--mist); }
 .hc-stat-trend svg { width: 10px; height: 10px; }
-.hc-stat-spark { margin-left: auto; flex-shrink: 0; }
+/* Mismo fix que .deworm-stat-sparkline: antes flex-shrink:0 a un width fijo
+   de 120px hacía que, si no entraba entero en la tarjeta, el propio
+   overflow:hidden de .hc-stat-card (línea de arriba) recortara en
+   silencio el tramo final de la curva -- la misma curva "cortada" que en
+   Desparasitarios, marcada en azul en la imagen 4. Ahora puede encogerse
+   dentro del espacio real disponible. */
+.hc-stat-spark { margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px; width: 100%; }
+.hc-stat-spark svg { width: 100%; overflow: visible; }
 
 /* Barra de filtros (Todas / Esta semana / Este mes) + botón de filtro */
 .hc-filter-bar { display: flex; align-items: center; gap: 8px; }
@@ -4424,18 +4437,33 @@ html[data-font-size="large"] .toast-container {
    la derecha — reusa .stat-card / .stat-icon del sistema base, solo
    agrega el sparkline y cuadra el ícono en vez de circular. */
 .deworm-stat-icon {
-  width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0;
+  width: 52px; height: 52px; border-radius: 15px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px;
+  font-size: 23px;
 }
+.deworm-stat-icon i { font-size: 23px; }
+.deworm-stat-icon svg { width: 26px; height: auto; }
 /* La tarjeta necesita min-width:0 para que el sparkline (margin-left:auto)
    no la empuje a desbordar en columnas angostas (mobile 2 columnas), que
    era lo que antes la dejaba "cortada"/aplastada en vez de visible entera. */
 .deworm-stat-card { min-width: 0; overflow: hidden; }
 .deworm-stat-card .stat-label { color: var(--charcoal); }
 [data-theme="dark"] .deworm-stat-card .stat-label { color: var(--mist); }
+/* FIX curva "bugueada"/cortada en Desparasitarios y Cuidado a Domicilio
+   (marcado en azul por el usuario, imágenes 3 y 4): el SVG tenía
+   flex-shrink:0 con un width fijo de 120px. Cuando el ícono (ahora 52px)
+   + el texto + ese ancho fijo no entraban en la columna de la grid, el
+   propio .deworm-stat-card de arriba (overflow:hidden, agregado antes
+   para blindar el desborde horizontal en mobile) recortaba en silencio
+   la parte del sparkline que sobraba -- por eso la curva se veía
+   "cortada" en vez de completa. Se saca flex-shrink:0 y se pone un
+   min-width chico: ahora el SVG puede encogerse dentro del espacio real
+   que le queda (su propio viewBox interno sigue intacto, solo cambia el
+   tamaño de caja en el que se dibuja), así la curva entera siempre es
+   visible en vez de perder el tramo final contra el borde recortado. */
 .deworm-stat-sparkline {
-  margin-left: auto; flex-shrink: 0; overflow: visible;
+  margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px;
+  width: 100%; overflow: visible;
 }
 .deworm-spark-area { opacity: 0; animation: dewormSparkAreaIn .6s ease .5s both; }
 .deworm-spark-line {
@@ -11568,17 +11596,39 @@ async function deleteHomeCare(id) {
    y un punto que recorre la curva en loop con un halo pulsante detrás. */
 function dewormSparkline(seed = 0, color = 'currentColor', stretch = false) {
   if (stretch) {
-    // Variante exclusiva para Cobros & Costos: una única curva panorámica,
-    // sin área de relleno ni círculos escalables. Esto evita el efecto
-    // "bugueado" que aparecía al estirar un viewBox pequeño con preserveAspectRatio=none.
+    // Variante exclusiva para Cobros & Costos: curva panorámica que ahora
+    // usa todo el alto disponible del viewBox (antes vivía apretada entre
+    // y=7 e y=21 de un alto de 28, por eso se veía chata/aplastada frente
+    // a la imagen de referencia). Suma relleno degradado y punto con halo
+    // pulsante, igual que la variante original, para que tenga la misma
+    // sensación "viva" que en la imagen de referencia en vez de una sola
+    // línea estática. El viewBox y el width/height del SVG coinciden 1:1
+    // en proporción (260x28), así que no hace falta preserveAspectRatio="none"
+    // acá — eso evita el estiramiento distorsionado que aparecía antes.
     const paths = [
-      'M6 21 C34 20, 48 13, 72 15 C97 17, 112 19, 136 15 C160 11, 176 10, 198 14 C219 17, 238 11, 258 8',
-      'M6 19 C32 20, 49 16, 72 17 C96 18, 111 12, 135 14 C159 16, 177 17, 199 13 C219 10, 239 12, 258 9',
-      'M6 21 C30 20, 48 21, 71 16 C94 11, 112 14, 136 16 C159 18, 176 12, 198 13 C220 14, 239 10, 258 7'
+      'M6 24 C34 22, 48 9, 72 13 C97 17, 112 21, 136 13 C160 5, 176 3, 198 11 C219 17, 238 5, 258 2',
+      'M6 20 C32 22, 49 14, 72 16 C96 18, 111 6, 135 10 C159 14, 177 16, 199 8 C219 2, 239 6, 258 3',
+      'M6 24 C30 22, 48 24, 71 14 C94 4, 112 10, 136 14 C159 18, 176 6, 198 8 C220 10, 239 2, 258 1'
+    ];
+    const dotPos = [
+      { cx: 258, cy: 2 },
+      { cx: 258, cy: 3 },
+      { cx: 258, cy: 1 }
     ];
     const d = paths[seed % paths.length];
+    const dot = dotPos[seed % dotPos.length];
+    const uid = 'pspk-' + seed + '-' + (_capsule3dSeq++);
     return `<svg class="payments-sparkline" width="260" height="28" viewBox="0 0 260 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="color:${color}">
+      <defs>
+        <linearGradient id="${uid}-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="currentColor" stop-opacity=".22"/>
+          <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path class="deworm-spark-area" d="${d} L258 28 L6 28 Z" fill="url(#${uid}-fill)"/>
       <path pathLength="1" d="${d}"/>
+      <circle class="deworm-spark-dot-halo" cx="${dot.cx}" cy="${dot.cy}" r="6" fill="currentColor"/>
+      <circle class="deworm-spark-dot" cx="${dot.cx}" cy="${dot.cy}" r="2.8" fill="currentColor"/>
     </svg>`;
   }
 
@@ -11686,7 +11736,7 @@ function renderModuleDesparasitarios() {
       <div class="deworm-header-capsule">${capsuleOrbitDecor()}${capsuleIcon3D(90)}</div>
     </div>
     <div class="stats-strip" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px;">
-      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)">${capsuleIcon(20)}</div><div><div class="stat-value">${myHealth.length}</div><div class="stat-label">Registros</div></div>${dewormSparkline(0, 'var(--svc-deworm)')}</div>
+      <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)">${capsuleIcon(26)}</div><div><div class="stat-value">${myHealth.length}</div><div class="stat-label">Registros</div></div>${dewormSparkline(0, 'var(--svc-deworm)')}</div>
       <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--red-light);color:var(--red)"><i class="fa-solid fa-triangle-exclamation"></i></div><div><div class="stat-value">${myHealth.filter(h=>daysUntil(h.next)<=30).length}</div><div class="stat-label">Próximos 30 días</div></div>${dewormSparkline(1, 'var(--red)')}</div>
       <div class="stat-card deworm-stat-card"><div class="deworm-stat-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-circle-check"></i></div><div><div class="stat-value">${myHealth.filter(h=>daysUntil(h.next)>30).length}</div><div class="stat-label">Al día</div></div>${dewormSparkline(2, 'var(--sage)')}</div>
     </div>`;
