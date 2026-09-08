@@ -4212,7 +4212,7 @@ html[data-font-size="large"] .toast-container {
   background: var(--white); border: 1px solid var(--border-sm);
   border-radius: var(--r-lg); padding: 16px 18px;
   box-shadow: var(--shadow-xs); display: flex; align-items: center; gap: 14px;
-  position: relative; overflow: hidden;
+  position: relative; overflow-x: hidden; overflow-y: visible;
 }
 .hc-stat-icon {
   width: 52px; height: 52px; border-radius: var(--r-md); flex-shrink: 0;
@@ -4446,7 +4446,20 @@ html[data-font-size="large"] .toast-container {
 /* La tarjeta necesita min-width:0 para que el sparkline (margin-left:auto)
    no la empuje a desbordar en columnas angostas (mobile 2 columnas), que
    era lo que antes la dejaba "cortada"/aplastada en vez de visible entera. */
-.deworm-stat-card { min-width: 0; overflow: hidden; }
+/* FIX real del recorte vertical de la curva en Desparasitarios y Cuidado
+   a Domicilio (seguía cortada después del fix de ancho anterior): el
+   problema no era el ancho del SVG sino que .deworm-stat-card/.hc-stat-card
+   tenían overflow:hidden en los DOS ejes. La curva y su halo (círculo de
+   radio 7 alrededor del punto pulsante) tocan o superan los bordes
+   superior/inferior del viewBox de 34px de alto -- overflow:visible en el
+   SVG mismo no alcanza para escapar de un ancestro con overflow:hidden.
+   Se separa en overflow-x:hidden (mantiene el blindaje horizontal contra
+   texto largo en mobile, el motivo original de esta regla) + overflow-y:visible
+   (deja pasar la curva y el halo). Nota: por spec, cuando un eje es
+   'visible' y el otro no, el navegador computa 'visible' como 'auto' --
+   en la práctica sigue sin recortar el contenido que se sale por Y, que
+   es el comportamiento que necesitamos acá. */
+.deworm-stat-card { min-width: 0; overflow-x: hidden; overflow-y: visible; }
 .deworm-stat-card .stat-label { color: var(--charcoal); }
 [data-theme="dark"] .deworm-stat-card .stat-label { color: var(--mist); }
 /* FIX curva "bugueada"/cortada en Desparasitarios y Cuidado a Domicilio
