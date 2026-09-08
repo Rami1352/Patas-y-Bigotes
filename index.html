@@ -4233,7 +4233,7 @@ html[data-font-size="large"] .toast-container {
    Desparasitarios, marcada en azul en la imagen 4. Ahora puede encogerse
    dentro del espacio real disponible. */
 .hc-stat-spark { margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px; width: 100%; }
-.hc-stat-spark svg { width: 100%; overflow: visible; }
+.hc-stat-spark svg { display: block; width: 100%; overflow: visible; }
 
 /* Barra de filtros (Todas / Esta semana / Este mes) + botón de filtro */
 .hc-filter-bar { display: flex; align-items: center; gap: 8px; }
@@ -4475,7 +4475,7 @@ html[data-font-size="large"] .toast-container {
    tamaño de caja en el que se dibuja), así la curva entera siempre es
    visible en vez de perder el tramo final contra el borde recortado. */
 .deworm-stat-sparkline {
-  margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px;
+  display: block; margin-left: auto; flex-shrink: 1; min-width: 56px; max-width: 120px;
   width: 100%; overflow: visible;
 }
 .deworm-spark-area { opacity: 0; animation: dewormSparkAreaIn .6s ease .5s both; }
@@ -11659,7 +11659,7 @@ function dewormSparkline(seed = 0, color = 'currentColor', stretch = false) {
   const d = paths[seed % paths.length];
   const dot = dotPos[seed % dotPos.length];
   const uid = 'spk-' + seed + '-' + (_capsule3dSeq++);
-  return `<svg class="deworm-stat-sparkline" width="120" height="34" viewBox="0 0 120 34"
+  return `<svg class="deworm-stat-sparkline" height="34" viewBox="0 0 120 34"
       preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true" style="color:${color}">
     <defs>
