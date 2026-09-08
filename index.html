@@ -1276,6 +1276,13 @@ body[data-bg-scene="payments"]::after {
   grid-template-columns: repeat(4, 1fr);
   gap: 14px; margin-bottom: 22px;
 }
+/* Variante de 3 columnas (Cuidado a Domicilio / Desparasitarios): sin
+   este tope, al ser grid de 1fr 1fr 1fr las tarjetas se estiran a
+   ocupar TODO el ancho del contenedor y quedan gigantes -- se limita
+   el ancho total del strip para que cada tarjeta vuelva al tamaño de
+   referencia en vez de crecer con el viewport. */
+.stats-strip[style*="repeat(3"] { max-width: 620px; }
+@media (max-width: 1100px) { .stats-strip[style*="repeat(3"] { max-width: none; } }
 
 /* ── VISTA MIS MASCOTAS (cliente) ── */
 
