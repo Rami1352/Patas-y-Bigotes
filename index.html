@@ -4232,8 +4232,8 @@ html[data-font-size="large"] .toast-container {
    para no acoplar Cuidado a Domicilio a los estilos de Desparasitarios. */
 .hc-stat-card {
   background: var(--white); border: 1px solid var(--border-sm);
-  border-radius: var(--r-lg); padding: 13px 12px;
-  box-shadow: var(--shadow-xs); display: flex; align-items: center; gap: 10px;
+  border-radius: var(--r-lg); padding: 16px 18px;
+  box-shadow: var(--shadow-xs); display: flex; align-items: center; gap: 14px;
   position: relative; overflow-x: hidden; overflow-y: visible;
 }
 .hc-stat-icon {
@@ -4245,20 +4245,30 @@ html[data-font-size="large"] .toast-container {
 .hc-stat-label { font-size: 12px; color: var(--mist); margin-top: 2px; }
 .hc-howworks-text { color: var(--stone); }
 .hc-stat-trend { font-size: 11px; font-weight: 700; margin-top: 3px; display: flex; align-items: center; gap: 3px; }
-/* Cuidado a Domicilio: la referencia visual pide una composición compacta.
-   El texto debe mantenerse en una sola línea y la curva debe ser más corta
-   horizontalmente, sin adelgazar el trazo. */
-.hc-stat-copy { flex: 1 1 auto; min-width: 0; }
-.hc-stat-copy .hc-stat-label,
-.hc-stat-copy .hc-stat-trend { white-space: nowrap; }
-.hc-stat-spark .payments-sparkline { flex: 0 0 86px; width: 86px; height: 30px; }
-.hc-stat-spark .payments-sparkline path:not(.deworm-spark-area) { vector-effect: non-scaling-stroke; }
 .hc-stat-trend.up   { color: var(--sage); }
 .hc-stat-trend.flat { color: var(--mist); }
 .hc-stat-trend svg { width: 10px; height: 10px; }
-.hc-stat-spark {
-  flex: 0 0 86px; width: 86px; min-width: 86px; margin-left: auto;
+.hc-stat-spark { margin-left: auto; flex-shrink: 0; width: 96px; min-width: 96px; overflow: visible; display: flex; align-items: center; justify-content: flex-end; }
+/* Cuidado a Domicilio: texto de variación en una sola línea, como en la referencia. */
+.hc-stat-trend.up { color: var(--sage); white-space: nowrap; }
+.hc-stat-trend.flat { white-space: nowrap; }
+.hc-stat-trend svg { flex: 0 0 auto; }
+.hc-stat-spark .hc-stat-spark-svg { width: 96px; height: 34px; display: block; overflow: visible; }
+.hc-stat-spark .hc-spark-line { vector-effect: non-scaling-stroke; }
+.hc-stat-spark .hc-spark-dot, .hc-stat-spark .hc-spark-dot-halo { transform-box: fill-box; transform-origin: center; }
+.hc-stat-spark .hc-spark-dot { animation: hcSparkDotPulse 2.2s ease-in-out 1.1s infinite; }
+.hc-stat-spark .hc-spark-dot-halo { opacity: 0; animation: hcSparkHaloPulse 2.2s ease-out 1.1s infinite; }
+@keyframes hcSparkDotPulse { 0%,100%{ transform:scale(1);} 50%{transform:scale(1.25);} }
+@keyframes hcSparkHaloPulse { 0%{opacity:.42;transform:scale(.65);} 70%{opacity:0;transform:scale(2.2);} 100%{opacity:0;transform:scale(2.2);} }
+@media (prefers-reduced-motion: reduce) {
+  .hc-stat-spark .hc-spark-dot, .hc-stat-spark .hc-spark-dot-halo { animation: none; }
+  .hc-stat-spark .hc-spark-dot-halo { opacity: 0; }
 }
+@media (max-width: 900px) {
+  .hc-stat-spark { width: 84px; min-width: 84px; }
+  .hc-stat-spark .hc-stat-spark-svg { width: 84px; }
+}
+
 
 /* Barra de filtros (Todas / Esta semana / Este mes) + botón de filtro */
 .hc-filter-bar { display: flex; align-items: center; gap: 8px; }
@@ -11915,6 +11925,26 @@ function hcTimelineHtml(steps) {
   return `<div class="hc-timeline"><div class="hc-tl-track">${inner}</div></div>`;
 }
 
+/* Mini-curvas exclusivas de Cuidado a Domicilio. No reutiliza el SVG estirado de otros módulos. */
+function hcStatSparkline(seed = 0, color = 'currentColor') {
+  const paths = [
+    'M4 25 C18 24 26 17 38 18 C50 19 57 12 70 14 C79 16 84 9 88 7',
+    'M4 24 C17 25 27 18 39 19 C51 20 58 15 69 15 C78 15 83 10 88 9',
+    'M4 26 C17 23 27 22 39 16 C50 10 58 15 69 16 C78 17 84 9 88 8'
+  ];
+  const dotPos = [
+    {cx:88, cy:7}, {cx:88, cy:9}, {cx:88, cy:8}
+  ];
+  const d = paths[seed % paths.length];
+  const dot = dotPos[seed % dotPos.length];
+  const uid = 'hcspk-' + seed + '-' + (_capsule3dSeq++);
+  return `<svg class="hc-stat-spark-svg" viewBox="0 0 96 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="color:${color}">
+    <path d="${d}" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" class="hc-spark-line"/>
+    <circle class="hc-spark-dot-halo" cx="${dot.cx}" cy="${dot.cy}" r="6.5" fill="currentColor"/>
+    <circle class="hc-spark-dot" cx="${dot.cx}" cy="${dot.cy}" r="3.1" fill="currentColor"/>
+  </svg>`;
+}
+
 function renderModuleCuidadoDomicilio(filter) {
   filter = filter || window.__hcFilter || 'todas';
   window.__hcFilter = filter;
@@ -11977,18 +12007,18 @@ function renderModuleCuidadoDomicilio(filter) {
     <div class="stats-strip" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px;">
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-clipboard-list"></i></div>
-        <div class="hc-stat-copy"><div class="hc-stat-value">${bookings.length}</div><div class="hc-stat-label">Reservas activas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 20% vs mes anterior</div></div>
-        <div class="hc-stat-spark">${dewormSparkline(0, 'var(--svc-home)', true)}</div>
+        <div><div class="hc-stat-value">${bookings.length}</div><div class="hc-stat-label">Reservas activas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 20% vs mes anterior</div></div>
+        <div class="hc-stat-spark">${hcStatSparkline(0, 'var(--svc-home)')}</div>
       </div>
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-circle-check"></i></div>
-        <div class="hc-stat-copy"><div class="hc-stat-value">${completedThisMonth}</div><div class="hc-stat-label">Completadas este mes</div><div class="hc-stat-trend flat">— 0% vs mes anterior</div></div>
-        <div class="hc-stat-spark">${dewormSparkline(1, 'var(--sage)', true)}</div>
+        <div><div class="hc-stat-value">${completedThisMonth}</div><div class="hc-stat-label">Completadas este mes</div><div class="hc-stat-trend flat">— 0% vs mes anterior</div></div>
+        <div class="hc-stat-spark">${hcStatSparkline(1, 'var(--sage)')}</div>
       </div>
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--amber-light);color:var(--amber)"><i class="fa-solid fa-hourglass-half"></i></div>
-        <div class="hc-stat-copy"><div class="hc-stat-value">${upcoming}</div><div class="hc-stat-label">Próximas reservas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 15% vs mes anterior</div></div>
-        <div class="hc-stat-spark">${dewormSparkline(2, 'var(--amber)', true)}</div>
+        <div><div class="hc-stat-value">${upcoming}</div><div class="hc-stat-label">Próximas reservas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 15% vs mes anterior</div></div>
+        <div class="hc-stat-spark">${hcStatSparkline(2, 'var(--amber)')}</div>
       </div>
     </div>`;
 
