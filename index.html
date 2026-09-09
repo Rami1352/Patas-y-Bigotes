@@ -1719,7 +1719,9 @@ body[data-bg-scene="payments"]::after {
 #view-payments .payments-donut-legend-pct { font-size: 14px; }
 #view-payments .payments-donut-legend-amount { font-size: 12.5px; }
 #view-payments .payments-quick-action-title { font-size: 13px; }
-#view-payments .payments-quick-action-sub { font-size: 11px; }
+#view-payments .payments-quick-actions .payments-chart-title { font-size: 18px; }
+.payments-quick-action-title { font-size: 15px; font-weight: 700; }
+.payments-quick-action-sub { font-size: 11px; }
 #view-payments .payments-chart-title { font-size: 17px; }
 #view-payments .payments-detail-title-row .payments-chart-title { font-size: 17px; }
 .payments-header {
@@ -1942,6 +1944,12 @@ body:has(#view-payments.active) #sync-btn {
    fondo/borde/padding quedaban en blanco, y por eso esa mitad de la
    pantalla se veía "plana" al lado de la segunda imagen de referencia.
    Mismo lenguaje visual (vidrio translúcido) que .payments-stat-card. */
+/* Ajuste visual final: tarjetas de gráficos con altura compacta y consistente. */
+.payments-charts-row > .payments-chart-card {
+  height: 350px;
+  box-sizing: border-box;
+  min-height: 0;
+}
 .payments-chart-card {
   display: flex; flex-direction: column;
   background: linear-gradient(135deg, rgba(255,255,255,.42) 0%, rgba(255,255,255,.20) 55%, rgba(255,255,255,.28) 100%);
@@ -1958,7 +1966,7 @@ body:has(#view-payments.active) #sync-btn {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin-bottom: 14px;
 }
- .payments-chart-title { font-size: 16px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
+ .payments-chart-title { font-size: 18px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
 /* Selector de año dentro del gráfico anual: visualmente es un control, no un badge estático. */
 .payments-year-select {
   min-width: 102px;
@@ -2018,11 +2026,11 @@ body:has(#view-payments.active) #sync-btn {
    a 14.5px/13px para el nombre/porcentaje y el monto respectivamente,
    en línea con el resto de los aumentos de esta sección. */
 .payments-donut-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
- .payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--charcoal); }
+ .payments-donut-legend-row { display: flex; align-items: center; gap: 9px; font-size: 16px; line-height: 1.2; color: var(--charcoal); }
 .payments-donut-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .payments-donut-legend-label { flex: 1; color: var(--charcoal); font-weight: 500; }
-.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 38px; text-align: right; }
- .payments-donut-legend-amount { font-size: 13px; color: var(--charcoal); min-width: 82px; text-align: right; }
+.payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 42px; text-align: right; font-size: 16px; }
+ .payments-donut-legend-amount { font-size: 14px; color: var(--charcoal); min-width: 92px; text-align: right; }
 
 @media (max-width: 1300px) {
   .payments-donut-wrap { flex-direction: column; gap: 18px; }
@@ -13466,12 +13474,11 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const label=value===0?'$0':(value>=1000000?`$${(value/1000000).toFixed(1).replace('.0','')}M`:`$${Math.round(value/1000)}K`);
     return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#ffffff" stroke-width="1" opacity=".86"/><text x="${padL-12}" y="${y+4}" text-anchor="end" font-size="11.5" font-weight="600" fill="#111">${label}</text>`;
   }).join('');
-  const axis=`<line x1="${padL}" y1="${padT+innerH}" x2="${w-padR}" y2="${padT+innerH}" stroke="#b9b9b9" stroke-width="1" opacity=".9"/>`;
-  const selectedX=padL+selectedMonth*slot+slot/2;
-  const selectedGuide=`<line x1="${selectedX}" y1="${padT}" x2="${selectedX}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="1.5" opacity=".88"/>`;
+  const axis=`<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="1.25" opacity=".94"/>
+               <line x1="${padL}" y1="${padT+innerH}" x2="${w-padR}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="1.25" opacity=".94"/>`;
   const sel=buckets[selectedMonth];
   const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-86,padL),w-padR-172)}, 8)"><rect width="172" height="110" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="#111">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><circle cx="14" cy="37" r="3.2" fill="var(--svc-walks)"/><text x="22" y="41" font-size="10.5" fill="#555">Paseos: ${formatCLP(sel.walks)}</text><circle cx="14" cy="53" r="3.2" fill="var(--svc-food)"/><text x="22" y="57" font-size="10.5" fill="#555">Alimentación: ${formatCLP(sel.food)}</text><circle cx="14" cy="69" r="3.2" fill="var(--svc-deworm)"/><text x="22" y="73" font-size="10.5" fill="#555">Desparasitarios: ${formatCLP(sel.health)}</text><circle cx="14" cy="85" r="3.2" fill="var(--svc-home)"/><text x="22" y="89" font-size="10.5" fill="#555">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="104" font-size="10.5" font-weight="700" fill="#111">Total: ${formatCLP(sel.total)}</text></g>`:'';
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:320px;overflow:visible" aria-label="Evolución de ingresos ${paymentsYear}">${grid}${selectedGuide}${axis}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:320px;overflow:visible" aria-label="Evolución de ingresos ${paymentsYear}">${grid}${axis}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
 }
 
 function buildPaymentsDonut(servicios, total) {
@@ -13487,7 +13494,7 @@ function buildPaymentsDonut(servicios, total) {
   const size=220,cx=110,cy=110,r=80,sw=30,circ=2*Math.PI*r;
   let acc=0;
   const segs=servicios.filter(s=>s.ingresos>0).map(s=>{const len=total?circ*s.ingresos/total:0;const off=-acc;acc+=len;return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len} ${Math.max(circ-len,0)}" stroke-dashoffset="${off}" transform="rotate(-90 ${cx} ${cy})"/>`;}).join('');
-  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="18" font-weight="700" fill="#111">${formatCLP(total)}</text><text x="${cx}" y="${cy+17}" text-anchor="middle" font-size="11" font-weight="600" fill="#111">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
+  return `<div class="payments-donut-wrap"><svg viewBox="0 0 ${size} ${size}" class="payments-donut-svg"><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-hover,#eee)" stroke-width="${sw}"/>${segs}<text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="20" font-weight="700" fill="#111">${formatCLP(total)}</text><text x="${cx}" y="${cy+17}" text-anchor="middle" font-size="12" font-weight="600" fill="#111">Total cobrado</text></svg><div class="payments-donut-legend">${servicios.map(s=>`<div class="payments-donut-legend-row"><span class="payments-donut-legend-name"><span class="payments-evo-dot" style="background:${s.color}"></span>${s.label}</span><span class="payments-donut-legend-pct">${total?Math.round(s.ingresos/total*100):0}%</span><span class="payments-donut-legend-amount">${formatCLP(s.ingresos)}</span></div>`).join('')}</div></div>`;
 }
 
 function renderPayments() {
