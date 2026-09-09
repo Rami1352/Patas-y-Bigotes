@@ -11037,12 +11037,9 @@ function renderModuleAlimentos() {
           <tbody>
             ${myFood.map(f => {
               const dog = getDog(f.dogId);
-              // Precio SIEMPRE de solo lectura acá: se resuelve en vivo
-              // contra el catálogo (ver foodPriceFor), nunca editable
-              // desde esta tabla ni desde ningún otro lugar de la
-              // página -- el cliente no tiene forma de tocarlo, tal
-              // como pidió el usuario.
-              const priceVal = foodPriceFor(f.brand);
+              // Precio histórico del registro: viene de f.price, que se carga desde
+              // precio_registro_de_alimentacion. Cambiar el catálogo no lo modifica.
+              const priceVal = parseCosto(f.price);
               // FIX: antes esta celda solo mostraba avatar + nombre, sin
               // nada debajo (ver Imagen 5 del usuario). Se agrega dueño y
               // raza, mismo patrón exacto que ya usa la tabla de
@@ -11356,7 +11353,15 @@ async function dwSaveEdit() {
   if (!last || !next) { showToast('Completá ambas fechas de aplicación', 'error'); return; }
 
   const h = state.health.find(x => x.id === editingDewormId);
-  if (h) Object.assign(h, { dogId, type: product, category: 'Desparasitación', desc: product, last, next, notes });
+  if (h) {
+    const oldProduct = String(h.type || '').trim();
+    const oldPrice = parseCosto(h.price);
+    const productChanged = oldProduct.toLowerCase() !== product.toLowerCase();
+    const newSnapshotPrice = productChanged
+      ? (parseCosto(document.getElementById('deworm-price')?.value) || dewormPriceFor(product))
+      : oldPrice;
+    Object.assign(h, { dogId, type: product, category: 'Desparasitación', desc: product, last, next, notes, price: newSnapshotPrice });
+  }
   const recordId = editingDewormId;
   editingDewormId = null;
   saveHealthToLS();
@@ -11882,7 +11887,7 @@ function renderModuleDesparasitarios() {
         // que ya usa la lógica de arriba para armar el texto de la
         // columna "Producto". Mismo patrón exacto que
         // foodPriceFor(f.brand) en renderModuleAlimentos.
-        const priceVal = dewormPriceFor(h.type);
+        const priceVal = parseCosto(h.price);
         return `<tr>
         <td><div style="display:flex;align-items:center;gap:10px">
           ${dewormPhotoHtml}
@@ -12470,7 +12475,7 @@ function renderFood() {
         <table class="data-table">
           <thead><tr><th>Mascota</th><th>Alimento</th><th>Precio</th><th>Porción/día</th><th>Frecuencia</th><th>Última compra</th><th>Próxima compra</th><th>Estado</th>${isAdmin() ? '<th style="width:40px"></th>' : ''}</tr></thead>
           <tbody>
-            ${myFood.map(f=>{const dog=getDog(f.dogId);const priceVal=foodPriceFor(f.brand);return `<tr><td><strong>${dogIcon(dog)} ${dog.name}</strong></td><td>${f.brand}</td><td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--sage)">${priceVal>0?formatCLP(priceVal):'—'}</td><td style="font-family:'Fira Code',monospace">${f.portion}g</td><td><span class="badge badge-green">${f.freq}</span></td><td>${formatDate(f.last)}</td><td>${formatDate(f.next)}</td><td>${urgencyBadge(f.next)}</td>${isAdmin() ? `<td><button style="background:none;border:none;cursor:pointer;color:var(--mist)" onclick="deleteFood('${f.id}')"><i class="fa-solid fa-xmark"></i></button></td>` : ''}</tr>`;}).join('')}
+            ${myFood.map(f=>{const dog=getDog(f.dogId);const priceVal=parseCosto(f.price);return `<tr><td><strong>${dogIcon(dog)} ${dog.name}</strong></td><td>${f.brand}</td><td style="font-family:'Fira Code',monospace;font-weight:600;color:var(--sage)">${priceVal>0?formatCLP(priceVal):'—'}</td><td style="font-family:'Fira Code',monospace">${f.portion}g</td><td><span class="badge badge-green">${f.freq}</span></td><td>${formatDate(f.last)}</td><td>${formatDate(f.next)}</td><td>${urgencyBadge(f.next)}</td>${isAdmin() ? `<td><button style="background:none;border:none;cursor:pointer;color:var(--mist)" onclick="deleteFood('${f.id}')"><i class="fa-solid fa-xmark"></i></button></td>` : ''}</tr>`;}).join('')}
           </tbody>
         </table>
       </div>
@@ -18062,7 +18067,15 @@ async function saveFood() {
   let recordId = null;
   if (editingFoodId) {
     const f = state.food.find(x => x.id === editingFoodId);
-    if (f) Object.assign(f, { dogId, brand, portion, freq, last, next, notes });
+    if (f) {
+      const oldBrand = String(f.brand || '').trim();
+      const oldPrice = parseCosto(f.price);
+      const productChanged = oldBrand.toLowerCase() !== brand.toLowerCase();
+      const newSnapshotPrice = productChanged
+        ? (parseCosto(document.getElementById('food-price')?.value) || foodPriceFor(brand))
+        : oldPrice;
+      Object.assign(f, { dogId, brand, portion, freq, last, next, notes, price: newSnapshotPrice });
+    }
     recordId = editingFoodId;
   } else {
     // El id se genera ACÁ, antes de guardar nada, y es el mismo valor que
