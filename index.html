@@ -1861,6 +1861,7 @@ body:has(#view-payments.active) #sync-btn {
 .payments-stat-value { font-size: 18px; font-weight: 700; color: var(--charcoal); letter-spacing: -.3px; line-height: 1.1; }
 .payments-stat-value--muted { font-size: 15px; color: var(--charcoal); font-weight: 600; }
 .payments-stat-label { font-size: 11px; color: var(--charcoal); margin-top: 4px; line-height: 1.35; }
+.payments-stat-card--primary .payments-stat-label { color: #111 !important; }
 
 /* Sparkline animado dentro de las 5 tarjetas de totales (a pedido del
    usuario, marcado en azul en su imagen de referencia): reusa
@@ -1939,7 +1940,29 @@ body:has(#view-payments.active) #sync-btn {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin-bottom: 14px;
 }
-.payments-chart-title { font-size: 14px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
+.payments-chart-title { font-size: 15px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
+/* Selector de año dentro del gráfico anual: visualmente es un control, no un badge estático. */
+.payments-year-select {
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(135deg, rgba(255,255,255,.66) 0%, rgba(255,255,255,.34) 100%);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  color: var(--charcoal);
+  font-family: inherit;
+  font-size: 12px; font-weight: 700;
+  padding: 6px 28px 6px 10px;
+  border-radius: 999px;
+  box-shadow: var(--glass-shadow);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%235C5952' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.payments-year-select:focus { outline: 2px solid rgba(41,94,25,.22); outline-offset: 1px; }
+[data-theme="dark"] .payments-year-select {
+  background: linear-gradient(135deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+}
 .payments-glass-card { border-radius: var(--r-lg); }
 .payments-year-tag {
   font-size: 12px; font-weight: 600; color: var(--charcoal);
@@ -2661,13 +2684,20 @@ body:has(#view-payments.active) #sync-btn {
 /* Cobros: contador verde y pegado al encabezado izquierdo */
 .payments-table-card-header { align-items: flex-start; }
 .payments-detail-heading {
-  display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap;
+  display: flex; align-items: flex-start; gap: 10px; min-width: 0; width: 100%; flex-wrap: nowrap;
+}
+.payments-detail-heading > div:first-child {
+  min-width: 0;
+}
+.payments-detail-title-row {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
 }
 .payments-badge-count {
   background: var(--sage-light) !important;
   color: var(--sage) !important;
   border: 1px solid var(--svc-walks-border);
   font-weight: 700; white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 /* Avatar de foto del perro dentro de cada fila de paseo — mismo patrón
@@ -13395,8 +13425,10 @@ function isPaymentsConfirmedHome(r) {
 }
 
 function buildPaymentsEvolutionChart(buckets, selectedMonth) {
-  const w=640,h=230,padL=8,padR=8,padT=14,padB=28,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
-  const maxVal=Math.max(1,...buckets.map(b=>b.total));
+  const w=640,h=230,padL=52,padR=8,padT=14,padB=28,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
+  /* Escala legible en pasos de $500k. Mantiene un mínimo de $2,5 M como en la referencia para que la gráfica no se sienta comprimida cuando el mes seleccionado es pequeño. */
+  const rawMax=Math.max(1,...buckets.map(b=>b.total));
+  const maxVal=Math.max(2500000,Math.ceil(rawMax/500000)*500000);
   const yAt=v=>(v/maxVal)*innerH;
   const bars=buckets.map((b,i)=>{
     const x=padL+i*slot+(slot-barW)/2,isSelected=i===selectedMonth;
@@ -13407,7 +13439,12 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const ring=isSelected&&b.total>0?`<rect x="${x-2}" y="${padT+innerH-yAt(b.total)-2}" width="${barW+4}" height="${yAt(b.total)+4}" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.5" opacity=".55"/>`:'';
     return rects+ring+label;
   }).join('');
-  const grid=[0,.5,1].map(f=>{const y=padT+innerH-innerH*f;return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".3"/>`;}).join('');
+  const grid=[0,.2,.4,.6,.8,1].map(f=>{
+    const y=padT+innerH-innerH*f;
+    const value=maxVal*f;
+    const label=value===0?'$0':(value>=1000000?`$${(value/1000000).toFixed(1).replace('.0','') }M`:`$${Math.round(value/1000)}K`);
+    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--line)" stroke-width="1" opacity=".36"/><text x="${padL-8}" y="${y+4}" text-anchor="end" font-size="10.5" font-weight="500" fill="var(--mist)">${label}</text>`;
+  }).join('');
   const sel=buckets[selectedMonth];
   const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-84,padL),w-padR-168)}, ${padT})"><rect width="168" height="101" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="var(--charcoal)">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><text x="12" y="38" font-size="10.5" fill="var(--stone)">Paseos: ${formatCLP(sel.walks)}</text><text x="12" y="53" font-size="10.5" fill="var(--stone)">Alimentación: ${formatCLP(sel.food)}</text><text x="12" y="68" font-size="10.5" fill="var(--stone)">Desparasitarios: ${formatCLP(sel.health)}</text><text x="12" y="83" font-size="10.5" fill="var(--stone)">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="96" font-size="10.5" font-weight="700" fill="var(--charcoal)">Total: ${formatCLP(sel.total)}</text></g>`:'';
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:230px;overflow:visible">${grid}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
@@ -13474,9 +13511,9 @@ function renderPayments() {
       <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--deworm"><i class="fa-solid fa-syringe"></i></div><div class="payments-stat-value">${formatCLP(healthTotal)}</div><div class="payments-stat-label">Desparasitarios · ${pct(healthTotal)}% del total</div>${dewormSparkline(0, 'var(--svc-deworm)', true)}</div>
       <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--home"><i class="fa-solid fa-house-chimney"></i></div><div class="payments-stat-value">${formatCLP(homeTotal)}</div><div class="payments-stat-label">Cuidado a Domicilio · ${pct(homeTotal)}% del total</div>${dewormSparkline(1, 'var(--svc-home)', true)}</div>
     </div>
-    <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><span class="badge badge-stone payments-badge-stone">Año ${paymentsYear}</span></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
+    <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><select class="payments-year-select" aria-label="Año del gráfico de evolución" onchange="setPaymentsMonthYear(paymentsMonth, this.value)">${financialYears().map(y=>`<option value="${y}" ${y===paymentsYear?'selected':''}>Año ${y}</option>`).join('')}</select></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
     <div class="payments-bottom-row">
-      <div class="payments-table-card"><div class="payments-table-card-header"><div class="payments-detail-heading"><div><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div><span class="badge payments-badge-stone payments-badge-count">${recordCount} ${recordCount===1?'registro':'registros'}</span></div></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
+      <div class="payments-table-card"><div class="payments-table-card-header"><div class="payments-detail-heading"><div><div class="payments-detail-title-row"><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><span class="badge payments-badge-stone payments-badge-count">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div></div></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
       <div class="payments-sidebar">
         <div class="payments-quick-actions payments-chart-card"><div class="payments-chart-title">Acciones rápidas</div><div class="payments-quick-actions-grid"><button class="payments-quick-action" onclick="openFoodWizard()"><span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bowl-food"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Alimento</span><span class="payments-quick-action-sub">Nueva operación</span></span></button><button class="payments-quick-action" onclick="openDewormModal()"><span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-syringe"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Desparasitario</span><span class="payments-quick-action-sub">Nueva operación</span></span></button><button class="payments-quick-action" onclick="openHomeCareModal()"><span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Cuidado</span><span class="payments-quick-action-sub">Nueva reserva</span></span></button><button class="payments-quick-action" onclick="showView('admin-comprobantes')"><span class="payments-quick-action-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-file-circle-check"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Verificar comprobantes</span><span class="payments-quick-action-sub">Pagos pendientes</span></span></button></div></div>
         <div class="payments-financial-note"><i class="fa-solid fa-circle-info"></i><div><strong>Criterio contable</strong><div>Alimentación usa Última compra · Desparasitarios usa Última aplicación · Cuidado a Domicilio solo cuenta reservas confirmadas · Paseos se calcula como abono mensual fijo desde diciembre de 2025.</div></div></div>
