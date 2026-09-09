@@ -4232,8 +4232,8 @@ html[data-font-size="large"] .toast-container {
    para no acoplar Cuidado a Domicilio a los estilos de Desparasitarios. */
 .hc-stat-card {
   background: var(--white); border: 1px solid var(--border-sm);
-  border-radius: var(--r-lg); padding: 16px 18px;
-  box-shadow: var(--shadow-xs); display: flex; align-items: center; gap: 14px;
+  border-radius: var(--r-lg); padding: 13px 12px;
+  box-shadow: var(--shadow-xs); display: flex; align-items: center; gap: 10px;
   position: relative; overflow-x: hidden; overflow-y: visible;
 }
 .hc-stat-icon {
@@ -4245,10 +4245,20 @@ html[data-font-size="large"] .toast-container {
 .hc-stat-label { font-size: 12px; color: var(--mist); margin-top: 2px; }
 .hc-howworks-text { color: var(--stone); }
 .hc-stat-trend { font-size: 11px; font-weight: 700; margin-top: 3px; display: flex; align-items: center; gap: 3px; }
+/* Cuidado a Domicilio: la referencia visual pide una composición compacta.
+   El texto debe mantenerse en una sola línea y la curva debe ser más corta
+   horizontalmente, sin adelgazar el trazo. */
+.hc-stat-copy { flex: 1 1 auto; min-width: 0; }
+.hc-stat-copy .hc-stat-label,
+.hc-stat-copy .hc-stat-trend { white-space: nowrap; }
+.hc-stat-spark .payments-sparkline { flex: 0 0 86px; width: 86px; height: 30px; }
+.hc-stat-spark .payments-sparkline path:not(.deworm-spark-area) { vector-effect: non-scaling-stroke; }
 .hc-stat-trend.up   { color: var(--sage); }
 .hc-stat-trend.flat { color: var(--mist); }
 .hc-stat-trend svg { width: 10px; height: 10px; }
-.hc-stat-spark { margin-left: auto; flex-shrink: 1; min-width: 0; }
+.hc-stat-spark {
+  flex: 0 0 86px; width: 86px; min-width: 86px; margin-left: auto;
+}
 
 /* Barra de filtros (Todas / Esta semana / Este mes) + botón de filtro */
 .hc-filter-bar { display: flex; align-items: center; gap: 8px; }
@@ -11967,17 +11977,17 @@ function renderModuleCuidadoDomicilio(filter) {
     <div class="stats-strip" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px;">
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-clipboard-list"></i></div>
-        <div><div class="hc-stat-value">${bookings.length}</div><div class="hc-stat-label">Reservas activas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 20% vs mes anterior</div></div>
+        <div class="hc-stat-copy"><div class="hc-stat-value">${bookings.length}</div><div class="hc-stat-label">Reservas activas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 20% vs mes anterior</div></div>
         <div class="hc-stat-spark">${dewormSparkline(0, 'var(--svc-home)', true)}</div>
       </div>
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-circle-check"></i></div>
-        <div><div class="hc-stat-value">${completedThisMonth}</div><div class="hc-stat-label">Completadas este mes</div><div class="hc-stat-trend flat">— 0% vs mes anterior</div></div>
+        <div class="hc-stat-copy"><div class="hc-stat-value">${completedThisMonth}</div><div class="hc-stat-label">Completadas este mes</div><div class="hc-stat-trend flat">— 0% vs mes anterior</div></div>
         <div class="hc-stat-spark">${dewormSparkline(1, 'var(--sage)', true)}</div>
       </div>
       <div class="hc-stat-card">
         <div class="hc-stat-icon" style="background:var(--amber-light);color:var(--amber)"><i class="fa-solid fa-hourglass-half"></i></div>
-        <div><div class="hc-stat-value">${upcoming}</div><div class="hc-stat-label">Próximas reservas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 15% vs mes anterior</div></div>
+        <div class="hc-stat-copy"><div class="hc-stat-value">${upcoming}</div><div class="hc-stat-label">Próximas reservas</div><div class="hc-stat-trend up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="18 15 12 9 6 15"/></svg> 15% vs mes anterior</div></div>
         <div class="hc-stat-spark">${dewormSparkline(2, 'var(--amber)', true)}</div>
       </div>
     </div>`;
