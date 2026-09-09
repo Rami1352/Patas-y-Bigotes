@@ -2626,6 +2626,10 @@ body:has(#view-payments.active) #sync-btn {
   color: var(--charcoal);
   white-space: nowrap;
 }
+
+/* AGENDA_PERSISTENCE_UI — acciones persistentes contra Apps Script */
+.row-actions-btn[disabled], .btn[disabled] { cursor: wait; opacity: .65; }
+.walk-history-meta { color: var(--mist); font-size: 12px; }
 .agenda-price-glass {
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 28px; padding: 5px 11px;
@@ -9892,6 +9896,7 @@ function processSheetData(rawRows) {
         cost: costo || 5000, notes, sexo, lote, cumple,
         mail, rol: rol || 'usuario',
         clienteId: col(row, 'clienteid', 'cliente_id', 'clientid'),
+        codigoMascota: col(row, 'codigomascota', 'codigo_mascota', 'codigo mascota', 'codigo'),
         servicios_activos: serviciosActivosFinal || '',
         photo: photoUrl || photoOverride || '',
         emoji: emojis[Math.floor(Math.random() * emojis.length)]
@@ -9902,6 +9907,8 @@ function processSheetData(rawRows) {
       if (breed) dog.breed = breed;
       if (barrio) dog.neighborhood = barrio;
       if (costo > 0) dog.cost = costo;
+      const rowCodigo = col(row, 'codigomascota', 'codigo_mascota', 'codigo mascota', 'codigo');
+      if (rowCodigo) dog.codigoMascota = rowCodigo;
       if (age) dog.age = age;
       if (mail) dog.mail = mail;
       if (rol) dog.rol = rol;
@@ -9917,7 +9924,9 @@ function processSheetData(rawRows) {
       diaList.forEach(diaRaw => {
         const diaMatch = matchDay(diaRaw);
         if (diaMatch) {
-          state.walks.push({ id: wc++, dogId: dog.id, day: diaMatch, start: normalizeTime(inicio), end: normalizeTime(fin) });
+          const stablePaseoId = col(row, 'paseoid', 'paseo_id') || '';
+          const uiWalkId = stablePaseoId ? (stablePaseoId + '__' + diaMatch) : String(wc++);
+          state.walks.push({ id: uiWalkId, paseoId: stablePaseoId || '', dogId: dog.id, day: diaMatch, start: normalizeTime(inicio), end: normalizeTime(fin) });
         }
       });
     }
@@ -12189,8 +12198,177 @@ function renderAgenda() {
   el.innerHTML = html;
 }
 function selectDay(d) { selectedDay = d; renderAgenda(); }
-function deleteWalk(id) { state.walks = state.walks.filter(w=>String(w.id)!==String(id)); if (editingWalkId === String(id)) editingWalkId = null; renderAgenda(); renderDashboard(); refreshPaymentsIfActive(); showToast('Paseo eliminado',''); }
 
+let walkMutationBusy = false;
+function genPaseoIdClient() {
+  try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return 'PASEO-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+async function syncAgendaAfterMutation(successMessage) {
+  try {
+    await loadFromGoogleSheets(false, userStateEpoch);
+    if (currentUser) {
+      buildSidebar();
+      markViewDirty('agenda');
+      renderView('agenda');
+      __renderedViews.add('agenda');
+    }
+    refreshPaymentsIfActive();
+    renderDashboard();
+    if (successMessage) showToast(successMessage, 'success');
+    return true;
+  } catch (e) {
+    addLiveLog('[WARN] El cambio se guardó en Sheets, pero no se pudo resincronizar la agenda: ' + e.message, 'err');
+    if (successMessage) showToast(successMessage + ' · Sincronización pendiente', 'success');
+    return false;
+  }
+}
+
+function agendaAdminGuard() {
+  if (!currentUser) { showToast('Iniciá sesión primero', 'error'); return false; }
+  if (!isAdmin()) { showToast('Solo un administrador puede modificar la agenda', 'error'); return false; }
+  return true;
+}
+
+async function saveWalk() {
+  if (!agendaAdminGuard() || walkMutationBusy) return;
+  const dogId = parseInt(document.getElementById('walk-dog').value, 10);
+  const day = document.getElementById('walk-day').value;
+  const start = document.getElementById('walk-start').value;
+  const end = document.getElementById('walk-end').value;
+  if (!dogId || !day || !start || !end) { showToast('Completá mascota, día y horario','error'); return; }
+  if (start >= end) { showToast('La hora de fin debe ser posterior a la de inicio','error'); return; }
+
+  const dog = getDog(dogId);
+  if (!dog) { showToast('No encontré la mascota seleccionada','error'); return; }
+
+  const isEditing = editingWalkId !== null;
+  const current = isEditing ? state.walks.find(x => String(x.id) === String(editingWalkId)) : null;
+  const paseoId = isEditing ? String((current && current.paseoId) || '').trim() : genPaseoIdClient();
+  if (isEditing && !paseoId) {
+    showToast('Este paseo todavía no tiene PASEO_ID. Sincronizá la agenda y volvé a intentarlo.', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('#modal-add-walk .modal-footer .btn-primary');
+  const originalBtn = btn ? btn.innerHTML : '';
+  walkMutationBusy = true;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando…'; }
+  try {
+    const action = isEditing ? 'updatePaseo' : 'addPaseo';
+    const params = new URLSearchParams({
+      action,
+      paseoId,
+      id: paseoId,
+      codigoMascota: dog.codigoMascota || '',
+      nombreMascota: dog.name || '',
+      dueno: dog.owner || '',
+      day,
+      start,
+      end,
+      costo: String(dog.cost || 0),
+      cantDias: '1'
+    });
+    const res = await fetchJSONP(APPS_SCRIPT_URL + '?' + params.toString());
+    const item = Array.isArray(res) ? res[0] : res;
+    if (!item || item.ok !== true) throw new Error((item && item.error) || 'El servidor no pudo guardar el paseo.');
+
+    editingWalkId = null;
+    closeModal('modal-add-walk');
+    const msg = isEditing ? 'Paseo actualizado correctamente' : (item.duplicate ? 'El paseo ya existía y no se duplicó' : 'Paseo guardado correctamente');
+    await syncAgendaAfterMutation(msg);
+  } catch (e) {
+    addLiveLog('[ERR] No se pudo guardar el paseo: ' + e.message, 'err');
+    showToast('No se pudo guardar el paseo: ' + e.message, 'error');
+  } finally {
+    walkMutationBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = originalBtn || (isEditing ? 'Guardar cambios' : 'Guardar paseo'); }
+  }
+}
+
+function editWalk(id) {
+  if (!agendaAdminGuard()) return;
+  openWalkModal(id);
+}
+
+async function deleteWalk(id) {
+  if (!agendaAdminGuard() || walkMutationBusy) return;
+  const w = state.walks.find(x => String(x.id) === String(id));
+  const paseoId = String((w && w.paseoId) || '').trim();
+  if (!paseoId) { showToast('Este paseo no tiene PASEO_ID. Sincronizá la agenda antes de eliminarlo.', 'error'); return; }
+  const dog = w ? getDog(w.dogId) : null;
+  const ok = confirm('¿Eliminar el paseo de ' + (dog ? dog.name : 'la mascota') + ' del ' + (w ? w.day : 'día seleccionado') + '?\n\nEsta acción quedará registrada en el historial.');
+  if (!ok) return;
+
+  walkMutationBusy = true;
+  try {
+    const params = new URLSearchParams({action:'deletePaseo', paseoId, id:paseoId});
+    const res = await fetchJSONP(APPS_SCRIPT_URL + '?' + params.toString());
+    const item = Array.isArray(res) ? res[0] : res;
+    if (!item || item.ok !== true) throw new Error((item && item.error) || 'El servidor no pudo eliminar el paseo.');
+    if (editingWalkId === String(id)) editingWalkId = null;
+    await syncAgendaAfterMutation('Paseo eliminado correctamente');
+  } catch (e) {
+    addLiveLog('[ERR] No se pudo eliminar el paseo: ' + e.message, 'err');
+    showToast('No se pudo eliminar el paseo: ' + e.message, 'error');
+  } finally {
+    walkMutationBusy = false;
+  }
+}
+
+async function duplicateWalk(id) {
+  if (!agendaAdminGuard() || walkMutationBusy) return;
+  const w = state.walks.find(x => String(x.id) === String(id));
+  const paseoId = String((w && w.paseoId) || '').trim();
+  if (!paseoId) { showToast('Este paseo no tiene PASEO_ID. Sincronizá la agenda antes de duplicarlo.', 'error'); return; }
+
+  walkMutationBusy = true;
+  try {
+    const params = new URLSearchParams({action:'duplicatePaseo', paseoId, id:paseoId});
+    const res = await fetchJSONP(APPS_SCRIPT_URL + '?' + params.toString());
+    const item = Array.isArray(res) ? res[0] : res;
+    if (!item || item.ok !== true) throw new Error((item && item.error) || 'El servidor no pudo duplicar el paseo.');
+    await syncAgendaAfterMutation('Paseo duplicado correctamente');
+  } catch (e) {
+    addLiveLog('[ERR] No se pudo duplicar el paseo: ' + e.message, 'err');
+    showToast('No se pudo duplicar el paseo: ' + e.message, 'error');
+  } finally {
+    walkMutationBusy = false;
+  }
+}
+
+async function viewWalkHistory(id) {
+  if (!agendaAdminGuard() || walkMutationBusy) return;
+  const w = state.walks.find(x => String(x.id) === String(id));
+  const paseoId = String((w && w.paseoId) || '').trim();
+  if (!paseoId) { showToast('Este paseo no tiene PASEO_ID. Sincronizá la agenda y volvé a intentarlo.', 'error'); return; }
+
+  try {
+    const params = new URLSearchParams({action:'getHistorialPaseo', paseoId, id:paseoId});
+    const res = await fetchJSONP(APPS_SCRIPT_URL + '?' + params.toString());
+    const rows = Array.isArray(res) ? res.filter(r => !(r && r.ok === false)) : [];
+    const dog = w ? getDog(w.dogId) : null;
+    const overlayId = 'modal-walk-history';
+    const existing = document.getElementById(overlayId);
+    if (existing) existing.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'modal-overlay open';
+    wrap.id = overlayId;
+    wrap.innerHTML = `<div class="modal" style="max-width:760px;width:min(92vw,760px)">
+      <div class="modal-header"><div class="modal-title modal-title--inter">Historial del paseo${dog ? ' · ' + escapeHtml(dog.name) : ''}</div><button class="modal-close" onclick="document.getElementById('${overlayId}').remove()"><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="modal-body" style="max-height:60vh;overflow:auto">
+        <div class="card" style="margin-bottom:12px;background:rgba(255,255,255,.55)"><div class="card-body" style="padding:12px 14px;font-size:12px">PASEO_ID: <strong>${escapeHtml(paseoId)}</strong></div></div>
+        ${rows.length ? rows.map(r => `<div class="card" style="margin-bottom:10px"><div class="card-body" style="padding:12px 14px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><strong>${escapeHtml(r.Accion || r.accion || 'Movimiento')}</strong><span style="font-size:11px;color:var(--mist)">${escapeHtml(r.FechaHora || '')}</span></div><div style="font-size:12px;color:var(--stone);margin-top:5px">${escapeHtml(r.Usuario || '')}</div><div style="font-size:12px;margin-top:8px">${r.Dia ? escapeHtml(r.Dia) + ' · ' : ''}${r['Hora inicio'] || ''}${r['Hora Fin'] ? ' → ' + r['Hora Fin'] : ''}${r.Costo != null && r.Costo !== '' ? ' · ' + formatCLP(Number(r.Costo) || 0) : ''}</div></div></div>`).join('') : '<div class="empty-state"><div class="empty-msg">Todavía no hay movimientos registrados.</div></div>'}
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary" onclick="document.getElementById('${overlayId}').remove()">Cerrar</button></div>
+    </div>`;
+    document.body.appendChild(wrap);
+  } catch (e) {
+    addLiveLog('[ERR] No se pudo consultar el historial: ' + e.message, 'err');
+    showToast('No se pudo cargar el historial: ' + e.message, 'error');
+  }
+}
 /* ── RENDER: MIS PERROS ── */
 function renderDogs() {
   const grid = document.getElementById('dogs-grid');
@@ -17513,39 +17691,6 @@ function openWalkModal(editId = null) {
     if (btn) btn.textContent = 'Guardar paseo';
   }
   openModal('modal-add-walk');
-}
-function saveWalk() {
-  const dogId = parseInt(document.getElementById('walk-dog').value);
-  const day = document.getElementById('walk-day').value;
-  const start = document.getElementById('walk-start').value;
-  const end = document.getElementById('walk-end').value;
-  if (!dogId || !day || !start || !end) { showToast('Completá mascota, día y horario','error'); return; }
-  if (editingWalkId !== null) {
-    const w = state.walks.find(x => String(x.id) === editingWalkId);
-    if (w) Object.assign(w, { dogId, day, start, end });
-    showToast('Paseo actualizado','success');
-  } else {
-    const newId = Date.now();
-    state.walks.push({ id:newId, dogId, day, start, end });
-    showToast('Paseo programado','success');
-  }
-  editingWalkId = null;
-  closeModal('modal-add-walk');
-  renderAgenda(); renderDashboard(); refreshPaymentsIfActive();
-}
-function editWalk(id) { openWalkModal(id); }
-function duplicateWalk(id) {
-  const w = state.walks.find(x => String(x.id) === String(id));
-  if (!w) return;
-  const copy = { ...w, id: Date.now() + Math.floor(Math.random()*1000) };
-  state.walks.push(copy);
-  renderAgenda(); renderDashboard(); refreshPaymentsIfActive();
-  showToast('Paseo duplicado','success');
-}
-function viewWalkHistory(id) {
-  const w = state.walks.find(x => String(x.id) === String(id));
-  const dog = w ? getDog(w.dogId) : null;
-  showToast(dog ? `Historial de ${dog.name}: próximamente` : 'Historial: próximamente', '');
 }
 async function saveHealth() {
   const dogId = parseInt(document.getElementById('health-dog').value);
