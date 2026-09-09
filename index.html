@@ -1958,7 +1958,7 @@ body:has(#view-payments.active) #sync-btn {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin-bottom: 14px;
 }
-.payments-chart-title { font-size: 15px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
+ .payments-chart-title { font-size: 16px; font-weight: 700; color: var(--charcoal); letter-spacing: -.2px; }
 /* Selector de año dentro del gráfico anual: visualmente es un control, no un badge estático. */
 .payments-year-select {
   min-width: 102px;
@@ -2018,11 +2018,11 @@ body:has(#view-payments.active) #sync-btn {
    a 14.5px/13px para el nombre/porcentaje y el monto respectivamente,
    en línea con el resto de los aumentos de esta sección. */
 .payments-donut-legend { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--charcoal); }
+ .payments-donut-legend-row { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--charcoal); }
 .payments-donut-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
 .payments-donut-legend-label { flex: 1; color: var(--charcoal); font-weight: 500; }
 .payments-donut-legend-pct { font-weight: 700; color: var(--charcoal); min-width: 38px; text-align: right; }
-.payments-donut-legend-amount { font-size: 11px; color: var(--charcoal); min-width: 82px; text-align: right; }
+ .payments-donut-legend-amount { font-size: 13px; color: var(--charcoal); min-width: 82px; text-align: right; }
 
 @media (max-width: 1300px) {
   .payments-donut-wrap { flex-direction: column; gap: 18px; }
@@ -2131,8 +2131,8 @@ body:has(#view-payments.active) #sync-btn {
 /* TIPOGRAFÍA (a pedido del usuario: "agrandar la letra" de Acciones
    Rápidas): título y subtítulo suben de 11px/9.5px a 13px/11px, en
    línea con el resto de los aumentos de tipografía de la sección. */
-.payments-quick-action-title { font-size: 11.5px; font-weight: 600; color: var(--charcoal); line-height: 1.25; }
-.payments-quick-action-sub { font-size: 10px; color: var(--charcoal); line-height: 1.3; }
+ .payments-quick-action-title { font-size: 13px; font-weight: 600; color: var(--charcoal); line-height: 1.25; }
+ .payments-quick-action-sub { font-size: 11px; color: var(--charcoal); line-height: 1.3; }
 
 @media (max-width: 1300px) {
   .payments-quick-actions-grid { grid-template-columns: repeat(2, 1fr); }
@@ -13444,10 +13444,10 @@ function isPaymentsConfirmedHome(r) {
 }
 
 function buildPaymentsEvolutionChart(buckets, selectedMonth) {
-  // El gráfico reserva una franja superior exclusiva para el tooltip: así
-  // el recuadro nunca tapa las barras ni la grilla. La escala y las líneas
-  // quedan alineadas exactamente con sus etiquetas del eje Y.
-  const w=640,h=250,padL=66,padR=10,padT=62,padB=34,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
+  // Reserva una franja superior real para el tooltip. El área de trazado
+  // comienza debajo de esa franja para que el recuadro jamás tape barras,
+  // líneas de grilla ni el mes seleccionado.
+  const w=640,h=320,padL=66,padR=10,padT=128,padB=38,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
   const rawMax=Math.max(1,...buckets.map(b=>b.total));
   const maxVal=Math.max(2500000,Math.ceil(rawMax/500000)*500000);
   const yAt=v=>(v/maxVal)*innerH;
@@ -13456,7 +13456,7 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const segs=[{v:b.walks,c:'var(--svc-walks)'},{v:b.food,c:'var(--svc-food)'},{v:b.health,c:'var(--svc-deworm)'},{v:b.home,c:'var(--svc-home)'}].filter(s=>s.v>0);
     let y=padT+innerH;
     const rects=segs.map(s=>{const sh=yAt(s.v);y-=sh;return `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(sh,0)}" fill="${s.c}" opacity="${isSelected?1:.42}"/>`;}).join('');
-    const label=`<text x="${x+barW/2}" y="${h-10}" text-anchor="middle" font-size="11.5" font-weight="${isSelected?700:400}" fill="#111">${b.label}</text>`;
+    const label=`<text x="${x+barW/2}" y="${h-12}" text-anchor="middle" font-size="11.5" font-weight="${isSelected?700:400}" fill="#111">${b.label}</text>`;
     const ring=isSelected&&b.total>0?`<rect x="${x-2}" y="${padT+innerH-yAt(b.total)-2}" width="${barW+4}" height="${yAt(b.total)+4}" rx="4" fill="none" stroke="var(--sage)" stroke-width="1.5" opacity=".65"/>`:'';
     return rects+ring+label;
   }).join('');
@@ -13464,12 +13464,14 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const y=padT+innerH-innerH*f;
     const value=maxVal*f;
     const label=value===0?'$0':(value>=1000000?`$${(value/1000000).toFixed(1).replace('.0','')}M`:`$${Math.round(value/1000)}K`);
-    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#ffffff" stroke-width="1" opacity=".82"/><text x="${padL-12}" y="${y+4}" text-anchor="end" font-size="11.5" font-weight="600" fill="#111">${label}</text>`;
+    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#ffffff" stroke-width="1" opacity=".86"/><text x="${padL-12}" y="${y+4}" text-anchor="end" font-size="11.5" font-weight="600" fill="#111">${label}</text>`;
   }).join('');
   const axis=`<line x1="${padL}" y1="${padT+innerH}" x2="${w-padR}" y2="${padT+innerH}" stroke="#b9b9b9" stroke-width="1" opacity=".9"/>`;
+  const selectedX=padL+selectedMonth*slot+slot/2;
+  const selectedGuide=`<line x1="${selectedX}" y1="${padT}" x2="${selectedX}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="1.5" opacity=".88"/>`;
   const sel=buckets[selectedMonth];
-  const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-86,padL),w-padR-172)}, 6)"><rect width="172" height="110" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="#111">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><circle cx="14" cy="37" r="3.2" fill="var(--svc-walks)"/><text x="22" y="41" font-size="10.5" fill="#555">Paseos: ${formatCLP(sel.walks)}</text><circle cx="14" cy="53" r="3.2" fill="var(--svc-food)"/><text x="22" y="57" font-size="10.5" fill="#555">Alimentación: ${formatCLP(sel.food)}</text><circle cx="14" cy="69" r="3.2" fill="var(--svc-deworm)"/><text x="22" y="73" font-size="10.5" fill="#555">Desparasitarios: ${formatCLP(sel.health)}</text><circle cx="14" cy="85" r="3.2" fill="var(--svc-home)"/><text x="22" y="89" font-size="10.5" fill="#555">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="104" font-size="10.5" font-weight="700" fill="#111">Total: ${formatCLP(sel.total)}</text></g>`:'';
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:250px;overflow:visible" aria-label="Evolución de ingresos ${paymentsYear}">${grid}${axis}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
+  const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-86,padL),w-padR-172)}, 8)"><rect width="172" height="110" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="#111">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><circle cx="14" cy="37" r="3.2" fill="var(--svc-walks)"/><text x="22" y="41" font-size="10.5" fill="#555">Paseos: ${formatCLP(sel.walks)}</text><circle cx="14" cy="53" r="3.2" fill="var(--svc-food)"/><text x="22" y="57" font-size="10.5" fill="#555">Alimentación: ${formatCLP(sel.food)}</text><circle cx="14" cy="69" r="3.2" fill="var(--svc-deworm)"/><text x="22" y="73" font-size="10.5" fill="#555">Desparasitarios: ${formatCLP(sel.health)}</text><circle cx="14" cy="85" r="3.2" fill="var(--svc-home)"/><text x="22" y="89" font-size="10.5" fill="#555">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="104" font-size="10.5" font-weight="700" fill="#111">Total: ${formatCLP(sel.total)}</text></g>`:'';
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:320px;overflow:visible" aria-label="Evolución de ingresos ${paymentsYear}">${grid}${selectedGuide}${axis}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
 }
 
 function buildPaymentsDonut(servicios, total) {
