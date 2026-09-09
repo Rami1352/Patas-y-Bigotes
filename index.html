@@ -1944,11 +1944,27 @@ body:has(#view-payments.active) #sync-btn {
    fondo/borde/padding quedaban en blanco, y por eso esa mitad de la
    pantalla se veía "plana" al lado de la segunda imagen de referencia.
    Mismo lenguaje visual (vidrio translúcido) que .payments-stat-card. */
-/* Ajuste visual final: tarjetas de gráficos con altura compacta y consistente. */
+/* Ajuste visual final: tarjetas de gráficos con altura compacta y consistente.
+   FIX: era "height:350px" (techo duro) en vez de "min-height". Con altura fija,
+   el header (título + selector de año) más el SVG de 320px + su leyenda ya no
+   entraban en 350px, y al ser flex-column el navegador comprimía verticalmente
+   el <svg> (su viewBox 640x320 se reescala completo) para que cupiera dentro
+   del contenedor -- eso empujaba fuera del área visible la fila de meses
+   (Ene/Feb/.../Dic), que vive pegada al borde inferior del viewBox. Con
+   min-height la tarjeta sigue midiendo 350px cuando el contenido entra
+   holgado (mismo alto visual que antes), pero puede crecer si el gráfico +
+   leyenda lo necesitan, sin recortar ni comprimir el SVG. */
 .payments-charts-row > .payments-chart-card {
-  height: 350px;
+  min-height: 350px;
   box-sizing: border-box;
-  min-height: 0;
+}
+/* Blindaje adicional: el svg del gráfico de evolución nunca debe encogerse
+   dentro del flex-column de .payments-chart-card, sin importar cuánto crezca
+   el header en el futuro. Se selecciona por [aria-label] porque el <svg> no
+   tiene clase propia y ese atributo es estable (no depende del contenido
+   variable "Evolución de ingresos {año}", solo del prefijo). */
+.payments-chart-card svg[aria-label^="Evolución de ingresos"] {
+  flex-shrink: 0;
 }
 .payments-chart-card {
   display: flex; flex-direction: column;
@@ -13472,12 +13488,10 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
     const y=padT+innerH-innerH*f;
     const value=maxVal*f;
     const label=value===0?'$0':(value>=1000000?`$${(value/1000000).toFixed(1).replace('.0','')}M`:`$${Math.round(value/1000)}K`);
-    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#ffffff" stroke-width="1.2" opacity=".88" style="filter:drop-shadow(0 0 1px rgba(70,80,70,.28))"/><text x="${padL-12}" y="${y+4}" text-anchor="end" font-size="11.5" font-weight="600" fill="#111">${label}</text>`;
+    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#ffffff" stroke-width="1" opacity=".86"/><text x="${padL-12}" y="${y+4}" text-anchor="end" font-size="11.5" font-weight="600" fill="#111">${label}</text>`;
   }).join('');
-  const axis=`<g aria-hidden="true">
-               <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="2.5" opacity="1" vector-effect="non-scaling-stroke" style="filter:drop-shadow(0 0 1.5px rgba(65,75,65,.34))"/>
-               <line x1="${padL}" y1="${padT+innerH}" x2="${w-padR}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="2.5" opacity="1" vector-effect="non-scaling-stroke" style="filter:drop-shadow(0 0 1.5px rgba(65,75,65,.34))"/>
-             </g>`;
+  const axis=`<line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="1.25" opacity=".94"/>
+               <line x1="${padL}" y1="${padT+innerH}" x2="${w-padR}" y2="${padT+innerH}" stroke="#ffffff" stroke-width="1.25" opacity=".94"/>`;
   const sel=buckets[selectedMonth];
   const tooltip=sel?`<g transform="translate(${Math.min(Math.max(padL+selectedMonth*slot+slot/2-86,padL),w-padR-172)}, 8)"><rect width="172" height="110" rx="10" fill="var(--surface-card,#fff)" stroke="var(--line)" stroke-width="1" style="filter:drop-shadow(0 4px 10px rgba(0,0,0,.12))"/><text x="12" y="18" font-size="11.5" font-weight="700" fill="#111">${PAYMENTS_MONTHS[selectedMonth]} ${paymentsYear}</text><circle cx="14" cy="37" r="3.2" fill="var(--svc-walks)"/><text x="22" y="41" font-size="10.5" fill="#555">Paseos: ${formatCLP(sel.walks)}</text><circle cx="14" cy="53" r="3.2" fill="var(--svc-food)"/><text x="22" y="57" font-size="10.5" fill="#555">Alimentación: ${formatCLP(sel.food)}</text><circle cx="14" cy="69" r="3.2" fill="var(--svc-deworm)"/><text x="22" y="73" font-size="10.5" fill="#555">Desparasitarios: ${formatCLP(sel.health)}</text><circle cx="14" cy="85" r="3.2" fill="var(--svc-home)"/><text x="22" y="89" font-size="10.5" fill="#555">Cuidado: ${formatCLP(sel.home)}</text><text x="12" y="104" font-size="10.5" font-weight="700" fill="#111">Total: ${formatCLP(sel.total)}</text></g>`:'';
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:320px;overflow:visible" aria-label="Evolución de ingresos ${paymentsYear}">${grid}${axis}${bars}${tooltip}</svg><div class="payments-evo-legend"><span><span class="payments-evo-dot" style="background:var(--svc-walks)"></span>Paseos</span><span><span class="payments-evo-dot" style="background:var(--svc-food)"></span>Alimentación</span><span><span class="payments-evo-dot" style="background:var(--svc-deworm)"></span>Desparasitarios</span><span><span class="payments-evo-dot" style="background:var(--svc-home)"></span>Cuidado a Domicilio</span></div>`;
