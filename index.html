@@ -2619,6 +2619,53 @@ body:has(#view-payments.active) #sync-btn {
   .timeline-row { animation: none !important; }
 }
 
+/* Ajustes finales Agenda Semanal: conteo legible, precio liquid glass y menú ⋯ */
+.agenda-walk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--charcoal);
+  white-space: nowrap;
+}
+.agenda-price-glass {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 28px; padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.68);
+  background: linear-gradient(135deg, rgba(255,255,255,.72), rgba(255,255,255,.34));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 5px 14px rgba(31,45,20,.08);
+  backdrop-filter: blur(14px) saturate(135%);
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  color: var(--charcoal);
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.agenda-row-actions { margin-left: 4px; flex-shrink: 0; }
+.agenda-row-actions .row-actions-btn {
+  background: rgba(255,255,255,.62);
+  border: 1px solid rgba(255,255,255,.72);
+  box-shadow: 0 3px 10px rgba(31,45,20,.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.agenda-row-actions .row-actions-btn:hover { background: rgba(255,255,255,.9); }
+[data-theme="dark"] .agenda-price-glass,
+[data-theme="dark"] .agenda-row-actions .row-actions-btn {
+  border-color: rgba(255,255,255,.14);
+  background: linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
+  color: var(--charcoal);
+}
+
+/* Cobros: contador verde y pegado al encabezado izquierdo */
+.payments-table-card-header { align-items: flex-start; }
+.payments-detail-heading {
+  display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap;
+}
+.payments-badge-count {
+  background: var(--sage-light) !important;
+  color: var(--sage) !important;
+  border: 1px solid var(--svc-walks-border);
+  font-weight: 700; white-space: nowrap;
+}
+
 /* Avatar de foto del perro dentro de cada fila de paseo — mismo patrón
    visual que .hc-row-photo (Cuidado a Domicilio), pero un poco más grande
    para que la cara del perro se note bien en la lista de paseos. */
@@ -12111,7 +12158,7 @@ function renderAgenda() {
   }
   const dayRev = dayWalks.reduce((a,w) => a+(getDog(w.dogId).cost||0), 0);
   let html = `<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap">
-    <span style="font-size:13px;color:var(--mist)">${dayWalks.length} paseo${dayWalks.length!==1?'s':''}</span>
+    <span class="agenda-walk-count">${dayWalks.length} paseo${dayWalks.length!==1?'s':''}</span>
     ${isAdmin()?`<span style="font-size:13px;font-weight:700;color:var(--sage)">Ingreso Semanal Paseos: ${formatCLP(dayRev)}</span>`:''}
   </div>`;
   html += dayWalks.map(w => {
@@ -12126,14 +12173,23 @@ function renderAgenda() {
         <div class="timeline-meta">${dog.owner} · ${dog.neighborhood}</div>
       </div>
       ${neighborhoodBadge(dog.neighborhood)}
-      <span style="margin-left:8px" class="badge badge-stone">${formatCLP(dog.cost)}</span>
-      ${del}
+      <span style="margin-left:8px" class="agenda-price-glass">${formatCLP(dog.cost)}</span>
+      ${isAdmin()?`<div class="row-actions-wrap agenda-row-actions">
+        <button type="button" class="row-actions-btn" aria-label="Acciones del paseo" onclick="toggleWalkRowActions(event, ${w.id})"><i class="fa-solid fa-ellipsis"></i></button>
+        <div class="row-actions-popover" id="walk-row-actions-${w.id}">
+          <button class="row-actions-item" onclick="closeFoodRowActions(); editWalk('${w.id}')"><i class="fa-solid fa-pen"></i> Editar registro</button>
+          <button class="row-actions-item" onclick="closeFoodRowActions(); viewWalkHistory('${w.id}')"><i class="fa-solid fa-clock-rotate-left"></i> Ver historial</button>
+          <button class="row-actions-item" onclick="closeFoodRowActions(); duplicateWalk('${w.id}')"><i class="fa-solid fa-copy"></i> Duplicar</button>
+          <div class="row-actions-divider"></div>
+          <button class="row-actions-item danger" onclick="closeFoodRowActions(); deleteWalk(${w.id})"><i class="fa-solid fa-trash"></i> Eliminar</button>
+        </div>
+      </div>`:''}
     </div>`;
   }).join('');
   el.innerHTML = html;
 }
 function selectDay(d) { selectedDay = d; renderAgenda(); }
-function deleteWalk(id) { state.walks = state.walks.filter(w=>w.id!==id); renderAgenda(); renderDashboard(); refreshPaymentsIfActive(); showToast('Paseo eliminado',''); }
+function deleteWalk(id) { state.walks = state.walks.filter(w=>String(w.id)!==String(id)); if (editingWalkId === String(id)) editingWalkId = null; renderAgenda(); renderDashboard(); refreshPaymentsIfActive(); showToast('Paseo eliminado',''); }
 
 /* ── RENDER: MIS PERROS ── */
 function renderDogs() {
@@ -13237,7 +13293,7 @@ function renderPayments() {
     </div>
     <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><span class="badge badge-stone payments-badge-stone">Año ${paymentsYear}</span></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
     <div class="payments-bottom-row">
-      <div class="payments-table-card"><div class="payments-table-card-header"><div><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div><span class="badge badge-stone payments-badge-stone">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
+      <div class="payments-table-card"><div class="payments-table-card-header"><div class="payments-detail-heading"><div><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div><span class="badge payments-badge-stone payments-badge-count">${recordCount} ${recordCount===1?'registro':'registros'}</span></div></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
       <div class="payments-sidebar">
         <div class="payments-quick-actions payments-chart-card"><div class="payments-chart-title">Acciones rápidas</div><div class="payments-quick-actions-grid"><button class="payments-quick-action" onclick="openFoodWizard()"><span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bowl-food"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Alimento</span><span class="payments-quick-action-sub">Nueva operación</span></span></button><button class="payments-quick-action" onclick="openDewormModal()"><span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-syringe"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Desparasitario</span><span class="payments-quick-action-sub">Nueva operación</span></span></button><button class="payments-quick-action" onclick="openHomeCareModal()"><span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Cuidado</span><span class="payments-quick-action-sub">Nueva reserva</span></span></button><button class="payments-quick-action" onclick="showView('admin-comprobantes')"><span class="payments-quick-action-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-file-circle-check"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Verificar comprobantes</span><span class="payments-quick-action-sub">Pagos pendientes</span></span></button></div></div>
         <div class="payments-financial-note"><i class="fa-solid fa-circle-info"></i><div><strong>Criterio contable</strong><div>Alimentación usa Última compra · Desparasitarios usa Última aplicación · Cuidado a Domicilio solo cuenta reservas confirmadas · Paseos se calcula como abono mensual fijo desde diciembre de 2025.</div></div></div>
@@ -14007,7 +14063,8 @@ function closeSidebar() { document.getElementById('sidebar').classList.remove('o
 ══════════════════════════════════ */
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function openWalkModal()   { populateDogSelect('walk-dog'); openModal('modal-add-walk'); }
+// openWalkModal definido más abajo para soportar alta y edición.
+
 function openHealthModal() { populateDogSelect('health-dog'); openModal('modal-add-health'); }
 
 // "+ Agregar registro" (Alimentación) ahora abre el wizard nuevo de 6
@@ -17429,7 +17486,67 @@ function wizardFinish() {
   renderMisMascotas();
   showToast(`¡${name} fue agregado a tu familia! 🐾`, 'success');
 }
-function saveWalk() { closeModal('modal-add-walk'); showToast('Paseo programado','success'); }
+let editingWalkId = null;
+function openWalkModal(editId = null) {
+  populateDogSelect('walk-dog');
+  editingWalkId = editId != null ? String(editId) : null;
+  if (editingWalkId !== null) {
+    const w = state.walks.find(x => String(x.id) === editingWalkId);
+    if (w) {
+      const dogEl = document.getElementById('walk-dog');
+      const dayEl = document.getElementById('walk-day');
+      const startEl = document.getElementById('walk-start');
+      const endEl = document.getElementById('walk-end');
+      if (dogEl) dogEl.value = String(w.dogId);
+      if (dayEl) dayEl.value = w.day || 'Lunes';
+      if (startEl) startEl.value = w.start || '';
+      if (endEl) endEl.value = w.end || '';
+      const title = document.querySelector('#modal-add-walk .modal-title');
+      const btn = document.querySelector('#modal-add-walk .modal-footer .btn-primary');
+      if (title) title.textContent = 'Editar Paseo';
+      if (btn) btn.textContent = 'Guardar cambios';
+    }
+  } else {
+    const title = document.querySelector('#modal-add-walk .modal-title');
+    const btn = document.querySelector('#modal-add-walk .modal-footer .btn-primary');
+    if (title) title.textContent = 'Agregar Paseo';
+    if (btn) btn.textContent = 'Guardar paseo';
+  }
+  openModal('modal-add-walk');
+}
+function saveWalk() {
+  const dogId = parseInt(document.getElementById('walk-dog').value);
+  const day = document.getElementById('walk-day').value;
+  const start = document.getElementById('walk-start').value;
+  const end = document.getElementById('walk-end').value;
+  if (!dogId || !day || !start || !end) { showToast('Completá mascota, día y horario','error'); return; }
+  if (editingWalkId !== null) {
+    const w = state.walks.find(x => String(x.id) === editingWalkId);
+    if (w) Object.assign(w, { dogId, day, start, end });
+    showToast('Paseo actualizado','success');
+  } else {
+    const newId = Date.now();
+    state.walks.push({ id:newId, dogId, day, start, end });
+    showToast('Paseo programado','success');
+  }
+  editingWalkId = null;
+  closeModal('modal-add-walk');
+  renderAgenda(); renderDashboard(); refreshPaymentsIfActive();
+}
+function editWalk(id) { openWalkModal(id); }
+function duplicateWalk(id) {
+  const w = state.walks.find(x => String(x.id) === String(id));
+  if (!w) return;
+  const copy = { ...w, id: Date.now() + Math.floor(Math.random()*1000) };
+  state.walks.push(copy);
+  renderAgenda(); renderDashboard(); refreshPaymentsIfActive();
+  showToast('Paseo duplicado','success');
+}
+function viewWalkHistory(id) {
+  const w = state.walks.find(x => String(x.id) === String(id));
+  const dog = w ? getDog(w.dogId) : null;
+  showToast(dog ? `Historial de ${dog.name}: próximamente` : 'Historial: próximamente', '');
+}
 async function saveHealth() {
   const dogId = parseInt(document.getElementById('health-dog').value);
   const type  = document.getElementById('health-type').value;
@@ -17556,6 +17673,31 @@ let rowActionsOpenFrame = null;
 // nextSibling) para poder devolverlo exactamente a su lugar al cerrar, así
 // el DOM del row no queda alterado en reposo.
 let rowActionsHomeMap = new WeakMap(); // popover -> { parent, nextSibling }
+function toggleWalkRowActions(e, id) {
+  e.stopPropagation();
+  const btn = e.currentTarget;
+  const target = document.getElementById('walk-row-actions-' + id);
+  const wasOpen = target && target.classList.contains('open');
+  closeFoodRowActions();
+  if (target && !wasOpen) {
+    if (!rowActionsHomeMap.has(target)) {
+      rowActionsHomeMap.set(target, { parent: target.parentNode, nextSibling: target.nextSibling });
+    }
+    document.body.appendChild(target);
+    target.classList.add('open');
+    target.style.opacity = '0';
+    if (rowActionsOpenFrame) cancelAnimationFrame(rowActionsOpenFrame);
+    rowActionsOpenFrame = requestAnimationFrame(() => {
+      positionRowActionsPopover(btn, target);
+      target.style.opacity = '';
+      rowActionsOpenFrame = null;
+    });
+    rowActionsRepositionHandler = () => positionRowActionsPopover(btn, target);
+    window.addEventListener('scroll', rowActionsRepositionHandler, true);
+    window.addEventListener('resize', rowActionsRepositionHandler);
+  }
+}
+
 function toggleFoodRowActions(e, id) {
   e.stopPropagation();
   const btn = e.currentTarget;
