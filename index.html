@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Patas y Bigotes — Portal de Clientes</title>
+<!-- V9: login initial-state guard + exact one-dot-per-pet mobile indicator -->
 
 <!-- Safari iOS 26: no solid theme-color. The real scene artwork is allowed to
      extend underneath Safari's translucent browser chrome. -->
@@ -7213,18 +7214,26 @@ var PYB_AUTH = (function () {
     margin-top: 4px;
     padding: 2px 12px 0;
   }
+  #view-mis-mascotas .mascota-carousel-dots {
+    gap: 2px;
+    padding-left: 4px;
+    padding-right: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
   #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot {
     display: block;
-    width: 6px;
-    height: 6px;
-    flex: 0 0 6px;
+    width: 3px;
+    height: 3px;
+    flex: 0 0 3px;
     border-radius: 50%;
     background: var(--fog);
   }
   #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot.active {
-    width: 18px;
-    flex-basis: 18px;
-    border-radius: 4px;
+    width: 9px;
+    flex-basis: 9px;
+    height: 4px;
+    border-radius: 3px;
     background: var(--sage-solid);
   }
 }
@@ -7304,6 +7313,21 @@ var PYB_AUTH = (function () {
     margin-top: 6px;
     padding-top: 7px;
   }
+}
+</style>
+
+
+<style id="pyb-v9-login-initial-state">
+/* V9 — LOGIN INITIAL STATE */
+#login-screen:not(.register-active) #register-nombre-field,
+#login-screen:not(.register-active) #register-telefono-field,
+#login-screen:not(.register-active) #register-pass-confirm-field {
+  display: none !important;
+}
+#login-screen.register-active #register-nombre-field,
+#login-screen.register-active #register-telefono-field,
+#login-screen.register-active #register-pass-confirm-field {
+  display: block !important;
 }
 </style>
 
@@ -13385,12 +13409,12 @@ function buildMascotaCarouselDots(count) {
   const perView = grid ? Math.max(1, Math.floor((grid.clientWidth + 1) / Math.max(step, 1))) : 1;
   const pages = Math.max(1, Math.ceil(count / perView));
   if (pages <= 1) { dotsWrap.innerHTML = ''; return; }
-  /* En mobile mostramos un indicador compacto de páginas, nunca más de 7
-     puntos. Cada página representa un pequeño bloque de tarjetas. */
+  /* En mobile mostramos EXACTAMENTE un indicador por mascota.
+     Cada tarjeta corresponde a una página del carrusel. */
   if (window.innerWidth <= 767.98) {
-    const mobilePages = Math.min(7, pages);
+    const mobilePages = pages;
     dotsWrap.innerHTML = Array.from({ length: mobilePages }).map((_, i) =>
-      `<button class="mascota-carousel-dot${i === 0 ? ' active' : ''}" onclick="goToMascotaPage(${Math.round(i * (pages - 1) / Math.max(mobilePages - 1, 1))})" aria-label="Página ${i + 1}"></button>`
+      `<button class="mascota-carousel-dot${i === 0 ? ' active' : ''}" onclick="goToMascotaPage(${i})" aria-label="Mascota ${i + 1} de ${count}"></button>`
     ).join('');
     return;
   }
