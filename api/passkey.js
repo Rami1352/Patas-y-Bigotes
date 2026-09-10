@@ -118,6 +118,26 @@ function normalizeCredentialForFirestore(credential) {
   };
 }
 
+
+function normalizeCredentialIdForCompare(value) {
+  if (value == null) return '';
+  const s = String(value).trim();
+  if (!s) return '';
+  try {
+    return Buffer.from(s, 'base64url').toString('hex');
+  } catch (e) {}
+  try {
+    return Buffer.from(s, 'base64').toString('hex');
+  } catch (e) {}
+  return s;
+}
+
+function credentialIdsEquivalent(a, b) {
+  const na = normalizeCredentialIdForCompare(a);
+  const nb = normalizeCredentialIdForCompare(b);
+  return !!na && !!nb && na === nb;
+}
+
 function credentialFromFirestore(data) {
   return {
     id: data.id,
@@ -230,60 +250,54 @@ async function handleAuthenticationVerify(req, res) {
   const challenge = await consumeChallenge(challengeId, 'authentication');
 
   if (!response || !response.id) {
-    return json(res, 400, { ok: false, error: 'Respuesta WebAuthn incompleta.', errorCode: 'MISSING_RESPONSE_ID' });
+    return json(res, 400, { ok: false, error: 'Respuesta WebAuthn incompleta.' });
   }
 
-  // SimpleWebAuthn Browser sends response.id as the credential ID in base64url.
-  // rawId is kept as a second lookup candidate because some browser versions
-  // can serialize the same credential through a slightly different field.
-  const candidates = [...new Set([
-    response.id,
-    response.rawId,
-  ].filter(Boolean).map(String))];
+  // Do not use response.id as a Firestore path: a credential ID may contain
+  // characters such as '/' that are invalid inside a document path.
+  const responseId = String(response.id);
+  const responseRawId = response.rawId ? String(response.rawId) : '';
 
-  console.log('[PASSKEY] authentication candidates:', candidates.map(x => ({
-    length: x.length,
-    preview: x.slice(0, 12),
-  })));
+  // Prefer an exact credential-ID match. Some browser/authenticator stacks can
+  // expose id/rawId in slightly different encodings, so try both fields.
+  let passkeyQuery = await db.collection('passkeys')
+    .where('id', '==', responseId)
+    .limit(1)
+    .get();
 
-  let passkeyDoc = null;
-  for (const candidate of candidates) {
-    const q = await db.collection('passkeys')
-      .where('id', '==', candidate)
+  if (passkeyQuery.empty && responseRawId && responseRawId !== responseId) {
+    passkeyQuery = await db.collection('passkeys')
+      .where('id', '==', responseRawId)
       .limit(1)
       .get();
-    if (!q.empty) {
-      passkeyDoc = q.docs[0];
-      console.log('[PASSKEY] credential found by id candidate.');
-      break;
+  }
+
+  // Final fallback for iOS/Safari representation differences: compare the
+  // decoded credential-ID bytes across the stored passkeys. This avoids
+  // depending on whether a client serializes the same credential as base64,
+  // base64url, or another textual representation.
+  if (passkeyQuery.empty) {
+    const allPasskeys = await db.collection('passkeys').get();
+    const targetIds = [responseId, responseRawId].filter(Boolean);
+    const match = allPasskeys.docs.find((doc) => {
+      const stored = doc.data() || {};
+      return targetIds.some((target) => credentialIdsEquivalent(stored.id, target));
+    });
+    if (match) {
+      passkeyQuery = { docs: [match], empty: false };
     }
   }
 
-  if (!passkeyDoc) {
-    console.error('[PASSKEY] credential NOT FOUND for authentication.');
-    return json(res, 401, {
-      ok: false,
-      error: 'Esta passkey no está registrada en Patas y Bigotes.',
-      errorCode: 'CREDENTIAL_NOT_FOUND',
+  if (passkeyQuery.empty) {
+    console.warn('[PASSKEY AUTH] credential NOT FOUND after exact + rawId + normalized scan', {
+      responseId,
+      responseRawId,
     });
+    return json(res, 401, { ok: false, error: 'Esta passkey no está registrada en Patas y Bigotes.' });
   }
 
-  const passkeyRef = passkeyDoc.ref;
-  const passkeyData = passkeyDoc.data() || {};
-
-  if (!passkeyData.uid || !passkeyData.publicKey || !passkeyData.id) {
-    console.error('[PASSKEY] stored credential is incomplete:', {
-      hasUid: !!passkeyData.uid,
-      hasPublicKey: !!passkeyData.publicKey,
-      hasId: !!passkeyData.id,
-    });
-    return json(res, 500, {
-      ok: false,
-      error: 'La passkey almacenada está incompleta.',
-      errorCode: 'STORED_CREDENTIAL_INCOMPLETE',
-    });
-  }
-
+  const passkeyRef = passkeyQuery.docs[0].ref;
+  const passkeyData = passkeyQuery.docs[0].data() || {};
   const credential = credentialFromFirestore(passkeyData);
 
   let verification;
@@ -297,27 +311,21 @@ async function handleAuthenticationVerify(req, res) {
       requireUserVerification: true,
     });
   } catch (err) {
-    console.error('[PASSKEY] WebAuthn verification exception:', err?.name, err?.message);
+    console.error('[PASSKEY AUTH] WebAuthn verification exception', err);
     return json(res, 401, {
       ok: false,
-      error: 'La verificación de la llave de acceso fue rechazada.',
-      errorCode: 'WEBAUTHN_VERIFY_EXCEPTION',
-      detail: String(err?.message || err),
+      error: 'La verificación de la llave de acceso falló.',
     });
   }
 
-  console.log('[PASSKEY] WebAuthn verification result:', {
-    verified: !!verification?.verified,
-    credentialId: passkeyData.id,
-    newCounter: verification?.authenticationInfo?.newCounter,
-  });
-
-  if (!verification?.verified || !verification.authenticationInfo) {
-    return json(res, 401, {
-      ok: false,
-      error: 'La verificación biométrica no fue válida.',
-      errorCode: 'WEBAUTHN_VERIFY_FAILED',
+  if (!verification.verified) {
+    console.warn('[PASSKEY AUTH] WebAuthn verification returned false', {
+      credentialId: responseId,
+      storedCredentialId: passkeyData.id,
+      expectedOrigin: ORIGIN,
+      expectedRPID: RP_ID,
     });
+    return json(res, 401, { ok: false, error: 'La verificación biométrica no fue válida.' });
   }
 
   await passkeyRef.update({
@@ -325,22 +333,19 @@ async function handleAuthenticationVerify(req, res) {
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  // Confirm the Firebase account still exists and is not disabled before
-  // issuing a fresh Firebase custom token after a real logout.
-  const firebaseUser = await getAuth(adminApp).getUser(passkeyData.uid);
-  if (firebaseUser.disabled) {
-    return json(res, 403, {
-      ok: false,
-      error: 'La cuenta de Firebase está deshabilitada.',
-      errorCode: 'FIREBASE_USER_DISABLED',
-    });
+  try {
+    const account = await getAuth(adminApp).getUser(String(passkeyData.uid));
+    if (account.disabled) {
+      return json(res, 403, { ok: false, error: 'La cuenta está deshabilitada.' });
+    }
+  } catch (err) {
+    console.error('[PASSKEY AUTH] Firebase user lookup failed', err);
+    return json(res, 401, { ok: false, error: 'La cuenta asociada a esta passkey no está disponible.' });
   }
 
   const customToken = await getAuth(adminApp).createCustomToken(passkeyData.uid, {
     authMethod: 'passkey',
   });
-
-  console.log('[PASSKEY] authentication SUCCESS for uid:', passkeyData.uid);
 
   return json(res, 200, {
     ok: true,
