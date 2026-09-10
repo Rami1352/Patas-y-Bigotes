@@ -7202,17 +7202,142 @@ var PYB_AUTH = (function () {
     box-sizing: border-box;
   }
 
-  /* Con muchas mascotas, los 50+ puntitos ocupan toda la pantalla y
-     Safari termina mostrando una tira visual extraña. Dejamos un
-     indicador compacto; el carrusel sigue funcionando con swipe. */
-  #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot {
-    display: none;
+  /* Indicador móvil compacto: conserva los puntos bajo el carrusel sin
+     crear una tira interminable cuando hay muchas mascotas. */
+  #view-mis-mascotas .mascota-carousel-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    min-height: 14px;
+    margin-top: 4px;
+    padding: 2px 12px 0;
   }
-  #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot:first-child {
+  #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot {
     display: block;
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: var(--fog);
+  }
+  #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot.active {
+    width: 18px;
+    flex-basis: 18px;
+    border-radius: 4px;
+    background: var(--sage-solid);
   }
 }
 </style>
+
+<style id="pyb-login-register-desktop-v7">
+/* ================================================================
+   LOGIN — REGISTRARSE DESKTOP V7
+   Evita que el crecimiento del formulario deje el pie de la tarjeta
+   fuera de la ventana en alturas de escritorio cortas.
+   No modifica autenticación ni el layout de la app.
+================================================================ */
+@media (min-width: 768px) and (max-height: 920px) {
+  #login-screen {
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+
+  #login-screen .login-tilt {
+    margin: 0;
+    width: min(100%, 430px);
+    flex: 0 0 auto;
+  }
+
+  #login-screen .login-card {
+    padding: 30px 34px 24px;
+  }
+
+  #login-screen .login-logo {
+    margin-bottom: 16px;
+  }
+
+  #login-screen .paw-icon {
+    width: 92px;
+    height: 92px;
+    margin-bottom: 10px;
+  }
+
+  #login-screen .login-logo::before {
+    width: 116px;
+    height: 116px;
+    margin: -58px 0 0 -58px;
+    top: 46px;
+  }
+
+  #login-screen .login-logo::after {
+    width: 140px;
+    height: 140px;
+    margin: -70px 0 0 -70px;
+    top: 46px;
+  }
+
+  #login-screen .brand {
+    font-size: 25px;
+  }
+
+  #login-screen .tagline {
+    margin-top: 4px;
+  }
+
+  #login-screen .login-tabs {
+    margin-bottom: 13px;
+  }
+
+  #login-screen .login-field {
+    margin-bottom: 10px;
+  }
+
+  #login-screen .login-footer-text {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  /* Cuando está en Registrarse compactamos ligeramente los campos
+     extra, conservando tipografía y apariencia originales. */
+  #login-screen.register-active .login-field {
+    margin-bottom: 9px;
+  }
+
+  #login-screen.register-active .login-footer-text {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+}
+
+/* Para escritorios muy bajos, el formulario mantiene margen respirable
+   y gana espacio vertical sin quedar pegado al borde. */
+@media (min-width: 768px) and (max-height: 760px) {
+  #login-screen {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  #login-screen .login-card {
+    padding-top: 22px;
+    padding-bottom: 18px;
+  }
+  #login-screen .paw-icon {
+    width: 78px;
+    height: 78px;
+  }
+  #login-screen .login-logo {
+    margin-bottom: 10px;
+  }
+  #login-screen .login-tabs {
+    margin-bottom: 10px;
+  }
+}
+</style>
+
 </head>
 <body>
 
@@ -9440,6 +9565,8 @@ let userStateEpoch = 0;
    LOGIN
 ══════════════════════════════════ */
 function switchLoginTab(tab) {
+  const loginScreen = document.getElementById('login-screen');
+  if (loginScreen) loginScreen.classList.toggle('register-active', tab === 'register');
   activeLoginTab = tab;
   ['login','register','recover'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
@@ -13289,9 +13416,13 @@ function buildMascotaCarouselDots(count) {
   const perView = grid ? Math.max(1, Math.floor((grid.clientWidth + 1) / Math.max(step, 1))) : 1;
   const pages = Math.max(1, Math.ceil(count / perView));
   if (pages <= 1) { dotsWrap.innerHTML = ''; return; }
-  /* En mobile el swipe es el control principal; evitamos decenas de dots. */
+  /* En mobile mostramos un indicador compacto de páginas, nunca más de 7
+     puntos. Cada página representa un pequeño bloque de tarjetas. */
   if (window.innerWidth <= 767.98) {
-    dotsWrap.innerHTML = `<span class="mascota-carousel-mobile-page" aria-hidden="true"></span>`;
+    const mobilePages = Math.min(7, pages);
+    dotsWrap.innerHTML = Array.from({ length: mobilePages }).map((_, i) =>
+      `<button class="mascota-carousel-dot${i === 0 ? ' active' : ''}" onclick="goToMascotaPage(${Math.round(i * (pages - 1) / Math.max(mobilePages - 1, 1))})" aria-label="Página ${i + 1}"></button>`
+    ).join('');
     return;
   }
   dotsWrap.innerHTML = Array.from({ length: pages }).map((_, i) =>
@@ -13322,9 +13453,14 @@ function updateMascotaCarouselNav() {
 
   const step = getMascotaCarouselStep();
   const pageIdx = Math.round(grid.scrollLeft / Math.max(step, 1));
-  document.querySelectorAll('#mascota-carousel-dots .mascota-carousel-dot').forEach((dot, i) => {
-    dot.classList.toggle('active', i === pageIdx);
-  });
+  const dotEls = document.querySelectorAll('#mascota-carousel-dots .mascota-carousel-dot');
+  if (dotEls.length) {
+    const isMobile = window.innerWidth <= 767.98;
+    const activeDot = isMobile
+      ? Math.min(dotEls.length - 1, Math.round((pageIdx / Math.max(1, Math.ceil((grid.scrollWidth / Math.max(step, 1)) - 1))) * (dotEls.length - 1)))
+      : pageIdx;
+    dotEls.forEach((dot, i) => dot.classList.toggle('active', i === activeDot));
+  }
 }
 (function initMascotaCarouselListener() {
   document.addEventListener('scroll', function(e) {
