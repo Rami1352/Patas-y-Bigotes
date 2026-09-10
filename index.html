@@ -18847,25 +18847,31 @@ async function toggleBiometricAccess(inputEl) {
 
   if (!turningOn) {
     inputEl.disabled = true;
-    try {
-      const credentialId = localStorage.getItem(LS_BIOMETRIC_CRED_ID);
-      if (credentialId && PYB_AUTH.currentUser()) {
+    const credentialId = localStorage.getItem(LS_BIOMETRIC_CRED_ID);
+
+    // Limpiamos SIEMPRE el estado local primero.
+    // Esto permite recuperarnos de una passkey que quedó guardada en el
+    // dispositivo pero que no existe (o ya no existe) en Firestore.
+    localStorage.removeItem(LS_BIOMETRIC_CRED_ID);
+    localStorage.setItem(LS_BIOMETRIC_ENABLED, '0');
+    syncBiometricUI();
+
+    // Intentamos borrar también la credencial del servidor, pero un fallo
+    // del endpoint no debe dejar bloqueado el interruptor local.
+    if (credentialId && PYB_AUTH.currentUser()) {
+      try {
         await passkeyApi('?action=remove', {
           method: 'POST',
           body: { credentialId }
         });
+      } catch (err) {
+        console.warn('[passkey remove]', err);
       }
-      localStorage.removeItem(LS_BIOMETRIC_CRED_ID);
-      localStorage.setItem(LS_BIOMETRIC_ENABLED, '0');
-      syncBiometricUI();
-      showToast('Acceso con Face ID desactivado', '');
-    } catch (err) {
-      inputEl.checked = true;
-      syncBiometricUI();
-      showToast(err.message || 'No se pudo desactivar el acceso biométrico.', 'error');
-    } finally {
-      inputEl.disabled = false;
     }
+
+    inputEl.disabled = false;
+    syncBiometricUI();
+    showToast('Acceso con Face ID desactivado', '');
     return;
   }
 
