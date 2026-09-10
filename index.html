@@ -7230,110 +7230,79 @@ var PYB_AUTH = (function () {
 }
 </style>
 
-<style id="pyb-login-register-desktop-v7">
+<style id="pyb-login-register-desktop-v8">
 /* ================================================================
-   LOGIN — REGISTRARSE DESKTOP V7
-   Evita que el crecimiento del formulario deje el pie de la tarjeta
-   fuera de la ventana en alturas de escritorio cortas.
-   No modifica autenticación ni el layout de la app.
+   LOGIN / REGISTRO — DESKTOP V8
+   Mantiene LOGIN y RECUPERAR exactamente con el layout original.
+   Solo REGISTRARSE usa el ajuste vertical necesario para que todos
+   los campos entren en pantallas de escritorio bajas.
 ================================================================ */
-@media (min-width: 768px) and (max-height: 920px) {
-  #login-screen {
-    align-items: center;
-    justify-content: flex-start;
-    padding-top: 18px;
-    padding-bottom: 18px;
-    box-sizing: border-box;
-    overflow-y: auto;
-  }
-
+@media (min-width: 768px) {
+  /* Restaurar la posición original del conjunto: los márgenes auto
+     vuelven a centrar verticalmente la tarjeta cuando hay espacio. */
   #login-screen .login-tilt {
-    margin: 0;
-    width: min(100%, 430px);
-    flex: 0 0 auto;
+    margin: auto 0;
+    width: 100%;
+    max-width: 440px;
+    flex: 0 1 auto;
   }
 
-  #login-screen .login-card {
+  /* Solo la pestaña REGISTRARSE se compacta; LOGIN y RECUPERAR no cambian. */
+  #login-screen.register-active .login-card {
     padding: 30px 34px 24px;
   }
 
-  #login-screen .login-logo {
+  #login-screen.register-active .login-logo {
     margin-bottom: 16px;
   }
 
-  #login-screen .paw-icon {
+  #login-screen.register-active .paw-icon {
     width: 92px;
     height: 92px;
     margin-bottom: 10px;
   }
 
-  #login-screen .login-logo::before {
+  #login-screen.register-active .login-logo::before {
     width: 116px;
     height: 116px;
     margin: -58px 0 0 -58px;
     top: 46px;
   }
 
-  #login-screen .login-logo::after {
+  #login-screen.register-active .login-logo::after {
     width: 140px;
     height: 140px;
     margin: -70px 0 0 -70px;
     top: 46px;
   }
 
-  #login-screen .brand {
-    font-size: 25px;
-  }
-
-  #login-screen .tagline {
-    margin-top: 4px;
-  }
-
-  #login-screen .login-tabs {
-    margin-bottom: 13px;
-  }
-
-  #login-screen .login-field {
-    margin-bottom: 10px;
-  }
-
-  #login-screen .login-footer-text {
-    margin-top: 10px;
-    padding-top: 10px;
-  }
-
-  /* Cuando está en Registrarse compactamos ligeramente los campos
-     extra, conservando tipografía y apariencia originales. */
-  #login-screen.register-active .login-field {
-    margin-bottom: 9px;
-  }
-
+  #login-screen.register-active .brand { font-size: 25px; }
+  #login-screen.register-active .tagline { margin-top: 4px; }
+  #login-screen.register-active .login-tabs { margin-bottom: 13px; }
+  #login-screen.register-active .login-field { margin-bottom: 9px; }
   #login-screen.register-active .login-footer-text {
     margin-top: 8px;
     padding-top: 8px;
   }
 }
 
-/* Para escritorios muy bajos, el formulario mantiene margen respirable
-   y gana espacio vertical sin quedar pegado al borde. */
 @media (min-width: 768px) and (max-height: 760px) {
-  #login-screen {
-    padding-top: 10px;
-    padding-bottom: 10px;
-  }
-  #login-screen .login-card {
+  /* En escritorios muy bajos, solo REGISTRARSE gana unos píxeles más. */
+  #login-screen.register-active .login-card {
     padding-top: 22px;
     padding-bottom: 18px;
   }
-  #login-screen .paw-icon {
+  #login-screen.register-active .paw-icon {
     width: 78px;
     height: 78px;
+    margin-bottom: 8px;
   }
-  #login-screen .login-logo {
-    margin-bottom: 10px;
-  }
-  #login-screen .login-tabs {
-    margin-bottom: 10px;
+  #login-screen.register-active .login-logo { margin-bottom: 10px; }
+  #login-screen.register-active .login-tabs { margin-bottom: 10px; }
+  #login-screen.register-active .login-field { margin-bottom: 7px; }
+  #login-screen.register-active .login-footer-text {
+    margin-top: 6px;
+    padding-top: 7px;
   }
 }
 </style>
@@ -13457,7 +13426,7 @@ function updateMascotaCarouselNav() {
   if (dotEls.length) {
     const isMobile = window.innerWidth <= 767.98;
     const activeDot = isMobile
-      ? Math.min(dotEls.length - 1, Math.round((pageIdx / Math.max(1, Math.ceil((grid.scrollWidth / Math.max(step, 1)) - 1))) * (dotEls.length - 1)))
+      ? Math.min(dotEls.length - 1, Math.max(0, pageIdx))
       : pageIdx;
     dotEls.forEach((dot, i) => dot.classList.toggle('active', i === activeDot));
   }
