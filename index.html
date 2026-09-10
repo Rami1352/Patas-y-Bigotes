@@ -13042,12 +13042,23 @@ function calcEdadStr(d) {
 async function saveFichaChanges(dogId) {
   const d = getDog(dogId);
   if (!d) return;
-  // Cumpleaños es solo lectura — viene del sheet, no se edita aquí
   const newWeight = document.getElementById('ficha-edit-peso').value.trim();
+  // Cumpleaños ahora es editable: input type="date" en formato YYYY-MM-DD,
+  // igual que d.cumple ya llega desde el sheet (ver processSheetData).
+  const cumpleInput = document.getElementById('ficha-edit-cumple');
+  const newCumple = cumpleInput ? cumpleInput.value.trim() : '';
 
   // Validar peso
   if (!newWeight || isNaN(parseFloat(newWeight)) || parseFloat(newWeight) <= 0) {
     showToast('Ingresá un peso válido', 'error'); return;
+  }
+  // Validar cumpleaños si se cargó algo: no puede ser una fecha futura
+  if (newCumple) {
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const fechaElegida = new Date(newCumple + 'T00:00:00');
+    if (isNaN(fechaElegida.getTime()) || fechaElegida > hoy) {
+      showToast('Ingresá una fecha de cumpleaños válida', 'error'); return;
+    }
   }
 
   const btn = document.getElementById('ficha-save-btn');
@@ -13055,27 +13066,53 @@ async function saveFichaChanges(dogId) {
 
   // Actualizar en state local
   d.weight = parseFloat(newWeight);
+  const cumpleCambio = newCumple && newCumple !== d.cumple;
+  if (cumpleCambio) d.cumple = newCumple;
 
-  // Guardar en Google Sheet via AppScript — action=updatePeso (igual que antes)
-  try {
-    const url = APPS_SCRIPT_URL
-      + '?action=updatePeso'
+  // Guardar en Google Sheet via AppScript. El peso sigue viajando por
+  // action=updatePeso (igual que antes); el cumpleaños viaja en paralelo
+  // por action=updateCumple, que escribe en la columna "Cumple" de la
+  // solapa "Mascota Paseo" (ver handleUpdateCumple en el Apps Script,
+  // clonado 1:1 de handleUpdatePeso: mismo criterio de búsqueda por
+  // nombre+mail).
+  const pesoUrl = APPS_SCRIPT_URL
+    + '?action=updatePeso'
+    + '&mail=' + encodeURIComponent(d.mail)
+    + '&name=' + encodeURIComponent(d.name)
+    + '&peso=' + encodeURIComponent(newWeight);
+
+  const requests = [fetchJSONP(pesoUrl).then(r => ({ tipo: 'peso', result: r })).catch(() => ({ tipo: 'peso', result: null }))];
+
+  if (cumpleCambio) {
+    const cumpleUrl = APPS_SCRIPT_URL
+      + '?action=updateCumple'
       + '&mail=' + encodeURIComponent(d.mail)
       + '&name=' + encodeURIComponent(d.name)
-      + '&peso=' + encodeURIComponent(newWeight);
-    const result = await fetchJSONP(url);
-    if (result && result[0] && result[0].ok) {
-      showToast('Peso actualizado en la planilla', 'success');
-    } else {
-      showToast('Peso actualizado localmente (sin conexión a planilla)', '');
-    }
-  } catch(e) {
-    showToast('Peso actualizado localmente (sin conexión a planilla)', '');
+      + '&cumple=' + encodeURIComponent(newCumple);
+    requests.push(fetchJSONP(cumpleUrl).then(r => ({ tipo: 'cumple', result: r })).catch(() => ({ tipo: 'cumple', result: null })));
   }
 
-  if (btn) { btn.disabled = false; btn.textContent = 'Guardar peso'; }
+  try {
+    const resultados = await Promise.all(requests);
+    const pesoOk = resultados.find(x => x.tipo === 'peso' && x.result && x.result[0] && x.result[0].ok);
+    const cumpleRes = resultados.find(x => x.tipo === 'cumple');
+    const cumpleOk = !cumpleCambio || (cumpleRes && cumpleRes.result && cumpleRes.result[0] && cumpleRes.result[0].ok);
 
-  // Re-renderizar tarjeta de mascotas
+    if (pesoOk && cumpleOk) {
+      showToast(cumpleCambio ? 'Peso y cumpleaños actualizados en la planilla' : 'Peso actualizado en la planilla', 'success');
+    } else if (pesoOk || cumpleOk) {
+      showToast('Guardado parcialmente: revisá la conexión e intentá de nuevo', '');
+    } else {
+      showToast('Actualizado localmente (sin conexión a planilla)', '');
+    }
+  } catch(e) {
+    showToast('Actualizado localmente (sin conexión a planilla)', '');
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
+
+  // Refrescar edad mostrada y re-renderizar tarjeta de mascotas
+  if (cumpleCambio) recalcFichaEdad(newCumple);
   renderMisMascotas();
 }
 
@@ -13177,11 +13214,11 @@ function openFichaModal(dogId) {
           ${d.sexo ? `<div class="pet-detail-row" style="background:var(--cream)"><div class="pd-icon"><i class="fa-solid fa-venus-mars"></i></div><div><div class="pet-detail-label">Sexo</div><div class="pet-detail-value">${d.sexo}</div></div></div>` : ''}
           ${d.neighborhood ? `<div class="pet-detail-row" style="background:var(--cream)"><div class="pd-icon"><i class="fa-solid fa-location-dot"></i></div><div><div class="pet-detail-label">Barrio</div><div class="pet-detail-value">${d.neighborhood}</div></div></div>` : ''}
           <div class="pet-detail-row" style="background:var(--cream)"><div class="pd-icon"><i class="fa-solid fa-weight-scale"></i></div><div style="width:100%"><div class="pet-detail-label">Peso</div><input id="ficha-edit-peso" type="number" step="0.1" min="0" placeholder="ej: 12" value="${d.weight || ''}" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:5px 8px;font-size:13px;font-family:'Inter',sans-serif;background:var(--white);color:var(--charcoal);outline:none" onfocus="this.style.borderColor='var(--sage)'" onblur="this.style.borderColor='var(--border)'"/></div></div>
-          <div class="pet-detail-row" style="background:var(--cream)"><div class="pd-icon"><i class="fa-solid fa-cake-candles"></i></div><div><div class="pet-detail-label">Fecha de cumpleaños</div><div class="pet-detail-value">${cumpleStr}</div></div></div>
+          <div class="pet-detail-row" style="background:var(--cream)"><div class="pd-icon"><i class="fa-solid fa-cake-candles"></i></div><div style="width:100%"><div class="pet-detail-label">Fecha de cumpleaños</div><input id="ficha-edit-cumple" type="date" value="${d.cumple || ''}" max="${new Date().toISOString().slice(0,10)}" oninput="recalcFichaEdad(this.value)" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:5px 8px;font-size:13px;font-family:'Inter',sans-serif;background:var(--white);color:var(--charcoal);outline:none" onfocus="this.style.borderColor='var(--sage)'" onblur="this.style.borderColor='var(--border)'"/></div></div>
         </div>
         <button id="ficha-save-btn" onclick="saveFichaChanges(${d.id})" style="margin-top:12px;display:inline-flex;align-items:center;gap:7px;padding:9px 18px;background:var(--sage-solid);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;transition:background .2s" onmouseover="this.style.background='var(--sage-solid-hover)'" onmouseout="this.style.background='var(--sage-solid)'">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Guardar peso
+          Guardar cambios
         </button>
       </div>
 
