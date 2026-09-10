@@ -5,6 +5,7 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
 
+import { createHash, randomBytes } from 'node:crypto';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -61,8 +62,22 @@ function originAllowed(req) {
 }
 
 function randomId() {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return Buffer.from(bytes).toString('base64url');
+  return randomBytes(24).toString('base64url');
+}
+
+// Firestore document IDs cannot contain '/'. Some WebAuthn credential IDs
+// can arrive in a representation that contains a slash, so never use the
+// credential ID itself as the Firestore document path.
+function passkeyDocId(credentialId) {
+  return 'pk_' + createHash('sha256')
+    .update(String(credentialId), 'utf8')
+    .digest('base64url');
+}
+
+function withoutUndefined(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  );
 }
 
 async function saveChallenge(kind, challenge, uid = null) {
@@ -96,10 +111,10 @@ async function consumeChallenge(id, expectedKind) {
 
 function normalizeCredentialForFirestore(credential) {
   return {
-    id: credential.id,
+    id: String(credential.id),
     publicKey: Buffer.from(credential.publicKey).toString('base64url'),
     counter: Number(credential.counter || 0),
-    transports: credential.transports || [],
+    transports: Array.isArray(credential.transports) ? credential.transports : [],
   };
 }
 
@@ -120,10 +135,10 @@ async function handleRegistrationOptions(req, res) {
   snap.forEach((doc) => {
     const d = doc.data() || {};
     if (d.id) {
-      userPasskeys.push({
-        id: d.id,
+      userPasskeys.push(withoutUndefined({
+        id: String(d.id),
         transports: Array.isArray(d.transports) ? d.transports : undefined,
-      });
+      }));
     }
   });
 
@@ -176,7 +191,7 @@ async function handleRegistrationVerify(req, res) {
 
   const passkey = normalizeCredentialForFirestore(credential);
 
-  await db.collection('passkeys').doc(passkey.id).set({
+  const passkeyRecord = withoutUndefined({
     ...passkey,
     uid: user.uid,
     email: user.email || '',
@@ -186,6 +201,10 @@ async function handleRegistrationVerify(req, res) {
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // Use a safe Firestore document ID; keep the real WebAuthn credential ID
+  // inside the document for lookup and verification.
+  await db.collection('passkeys').doc(passkeyDocId(passkey.id)).set(passkeyRecord);
 
   return json(res, 200, {
     ok: true,
@@ -214,13 +233,19 @@ async function handleAuthenticationVerify(req, res) {
     return json(res, 400, { ok: false, error: 'Respuesta WebAuthn incompleta.' });
   }
 
-  const passkeyRef = db.collection('passkeys').doc(String(response.id));
-  const passkeySnap = await passkeyRef.get();
-  if (!passkeySnap.exists) {
+  // Do not use response.id as a Firestore path: a credential ID may contain
+  // characters such as '/' that are invalid inside a document path.
+  const passkeyQuery = await db.collection('passkeys')
+    .where('id', '==', String(response.id))
+    .limit(1)
+    .get();
+
+  if (passkeyQuery.empty) {
     return json(res, 401, { ok: false, error: 'Esta passkey no está registrada en Patas y Bigotes.' });
   }
 
-  const passkeyData = passkeySnap.data() || {};
+  const passkeyRef = passkeyQuery.docs[0].ref;
+  const passkeyData = passkeyQuery.docs[0].data() || {};
   const credential = credentialFromFirestore(passkeyData);
 
   const verification = await verifyAuthenticationResponse({
@@ -257,11 +282,15 @@ async function handleRemove(req, res) {
   const { credentialId } = req.body || {};
   if (!credentialId) return json(res, 400, { ok: false, error: 'Falta credentialId.' });
 
-  const ref = db.collection('passkeys').doc(String(credentialId));
-  const snap = await ref.get();
-  if (!snap.exists) return json(res, 200, { ok: true });
+  const query = await db.collection('passkeys')
+    .where('id', '==', String(credentialId))
+    .limit(1)
+    .get();
 
-  const data = snap.data() || {};
+  if (query.empty) return json(res, 200, { ok: true });
+
+  const ref = query.docs[0].ref;
+  const data = query.docs[0].data() || {};
   if (data.uid !== user.uid) {
     return json(res, 403, { ok: false, error: 'No autorizado.' });
   }
