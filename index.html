@@ -13111,8 +13111,13 @@ async function saveFichaChanges(dogId) {
 
   if (btn) { btn.disabled = false; btn.textContent = 'Guardar cambios'; }
 
-  // Refrescar edad mostrada y re-renderizar tarjeta de mascotas
-  if (cumpleCambio) recalcFichaEdad(newCumple);
+  // Re-renderizar la ficha completa (no solo la edad): openFichaModal
+  // vuelve a calcular cumpleStr, edadCalculada, etc. a partir de `d` ya
+  // actualizado, así que el badge "Cumpleaños" y cualquier otro dato
+  // derivado del peso/cumpleaños queda al día sin salir del modal.
+  // Reconstruye siempre en la pestaña "Información" (donde vive este
+  // botón), que es la que el usuario ya está viendo al guardar.
+  openFichaModal(dogId);
   renderMisMascotas();
 }
 
