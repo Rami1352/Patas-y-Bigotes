@@ -7136,6 +7136,83 @@ var PYB_AUTH = (function () {
   .mobile-nav { width:100vw !important; max-width:100vw !important; }
 }
 </style>
+
+<style id="pyb-mascotas-mobile-carousel-v5">
+/* ================================================================
+   MIS MASCOTAS — MOBILE CAROUSEL REPAIR V5
+   Reemplaza el grid de columnas porcentuales por un carrusel flexible
+   estable en Safari/iPhone. No toca datos ni autenticación.
+================================================================ */
+@media (max-width: 767.98px) {
+  #view-mis-mascotas .mis-mascotas-carousel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  #view-mis-mascotas #mis-mascotas-grid {
+    display: flex !important;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 14px;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 4px;
+    padding: 4px 4px 10px !important;
+  }
+
+  #view-mis-mascotas #mis-mascotas-grid .pet-profile-card {
+    flex: 0 0 calc(100% - 8px) !important;
+    width: calc(100% - 8px) !important;
+    max-width: calc(100% - 8px) !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+    scroll-snap-align: start;
+    overflow: hidden;
+  }
+
+  /* Evita que el contenido interno cree una segunda dimensión de ancho. */
+  #view-mis-mascotas #mis-mascotas-grid .pet-profile-header,
+  #view-mis-mascotas #mis-mascotas-grid .pet-profile-name-block,
+  #view-mis-mascotas #mis-mascotas-grid .pet-profile-body,
+  #view-mis-mascotas #mis-mascotas-grid .pet-profile-footer {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  #view-mis-mascotas #mis-mascotas-grid .pet-profile-photo {
+    flex: 0 0 100px;
+  }
+
+  #view-mis-mascotas .mascota-carousel-dots {
+    min-height: 6px;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  /* Con muchas mascotas, los 50+ puntitos ocupan toda la pantalla y
+     Safari termina mostrando una tira visual extraña. Dejamos un
+     indicador compacto; el carrusel sigue funcionando con swipe. */
+  #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot {
+    display: none;
+  }
+  #view-mis-mascotas .mascota-carousel-dots .mascota-carousel-dot:first-child {
+    display: block;
+  }
+}
+</style>
 </head>
 <body>
 
@@ -13194,13 +13271,29 @@ function buildSparklinePath(vals, w, h) {
 }
 
 /* ── Carrusel horizontal: flechas + dots ── */
+function getMascotaCarouselStep() {
+  const grid = document.getElementById('mis-mascotas-grid');
+  if (!grid) return 258;
+  const card = grid.querySelector('.pet-profile-card');
+  if (card) {
+    const gap = parseFloat(getComputedStyle(grid).columnGap || getComputedStyle(grid).gap || '14') || 14;
+    return card.getBoundingClientRect().width + gap;
+  }
+  return window.innerWidth <= 767.98 ? Math.max(1, grid.clientWidth - 8 + 14) : 258;
+}
 function buildMascotaCarouselDots(count) {
   const dotsWrap = document.getElementById('mascota-carousel-dots');
   if (!dotsWrap) return;
   const grid = document.getElementById('mis-mascotas-grid');
-  const perView = grid ? Math.max(1, Math.round(grid.clientWidth / 258)) : 1;
+  const step = getMascotaCarouselStep();
+  const perView = grid ? Math.max(1, Math.floor((grid.clientWidth + 1) / Math.max(step, 1))) : 1;
   const pages = Math.max(1, Math.ceil(count / perView));
   if (pages <= 1) { dotsWrap.innerHTML = ''; return; }
+  /* En mobile el swipe es el control principal; evitamos decenas de dots. */
+  if (window.innerWidth <= 767.98) {
+    dotsWrap.innerHTML = `<span class="mascota-carousel-mobile-page" aria-hidden="true"></span>`;
+    return;
+  }
   dotsWrap.innerHTML = Array.from({ length: pages }).map((_, i) =>
     `<button class="mascota-carousel-dot${i === 0 ? ' active' : ''}" onclick="goToMascotaPage(${i})" aria-label="Página ${i + 1}"></button>`
   ).join('');
@@ -13208,26 +13301,27 @@ function buildMascotaCarouselDots(count) {
 function goToMascotaPage(pageIdx) {
   const grid = document.getElementById('mis-mascotas-grid');
   if (!grid) return;
-  const perView = Math.max(1, Math.round(grid.clientWidth / 258));
-  grid.scrollTo({ left: pageIdx * perView * 258, behavior: 'smooth' });
+  const step = getMascotaCarouselStep();
+  grid.scrollTo({ left: pageIdx * step, behavior: 'smooth' });
 }
 function scrollMascotasCarousel(dir) {
   const grid = document.getElementById('mis-mascotas-grid');
   if (!grid) return;
-  const perView = Math.max(1, Math.round(grid.clientWidth / 258));
-  grid.scrollBy({ left: dir * perView * 258, behavior: 'smooth' });
+  const step = getMascotaCarouselStep();
+  const perView = window.innerWidth <= 767.98 ? 1 : Math.max(1, Math.floor(grid.clientWidth / Math.max(step, 1)));
+  grid.scrollBy({ left: dir * perView * step, behavior: 'smooth' });
 }
 function updateMascotaCarouselNav() {
   const grid = document.getElementById('mis-mascotas-grid');
   const prevBtn = document.getElementById('mascota-carousel-prev');
   const nextBtn = document.getElementById('mascota-carousel-next');
   if (!grid || !prevBtn || !nextBtn) return;
-  const maxScroll = grid.scrollWidth - grid.clientWidth;
+  const maxScroll = Math.max(0, grid.scrollWidth - grid.clientWidth);
   prevBtn.disabled = grid.scrollLeft <= 4;
-  nextBtn.disabled = grid.scrollLeft >= maxScroll - 4;
+  nextBtn.disabled = maxScroll <= 4 || grid.scrollLeft >= maxScroll - 4;
 
-  const perView = Math.max(1, Math.round(grid.clientWidth / 258));
-  const pageIdx = Math.round(grid.scrollLeft / (perView * 258));
+  const step = getMascotaCarouselStep();
+  const pageIdx = Math.round(grid.scrollLeft / Math.max(step, 1));
   document.querySelectorAll('#mascota-carousel-dots .mascota-carousel-dot').forEach((dot, i) => {
     dot.classList.toggle('active', i === pageIdx);
   });
@@ -13237,7 +13331,11 @@ function updateMascotaCarouselNav() {
     if (e.target && e.target.id === 'mis-mascotas-grid') updateMascotaCarouselNav();
   }, true);
   window.addEventListener('resize', function() {
-    if (currentView === 'mis-mascotas') updateMascotaCarouselNav();
+    if (currentView === 'mis-mascotas') {
+      const dogs = getMyDogsForMascotas();
+      buildMascotaCarouselDots(dogs.length);
+      updateMascotaCarouselNav();
+    }
   });
 })();
 
