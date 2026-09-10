@@ -1,0 +1,12 @@
+{
+  "name": "patas-y-bigotes-passkeys",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "14.0.1",
+    "firebase-admin": "14.3.0"
+  }
+}
