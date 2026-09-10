@@ -80,15 +80,17 @@ function withoutUndefined(obj) {
   );
 }
 
-async function saveChallenge(kind, challenge, uid = null) {
+async function saveChallenge(kind, challenge, uid = null, extra = {}) {
   const id = randomId();
-  await db.collection('passkeyChallenges').doc(id).set({
+  const payload = withoutUndefined({
     kind,
     challenge,
     uid: uid || null,
     createdAt: Date.now(),
     expiresAt: Date.now() + CHALLENGE_TTL_MS,
+    ...extra,
   });
+  await db.collection('passkeyChallenges').doc(id).set(payload);
   return id;
 }
 
@@ -235,13 +237,44 @@ async function handleRegistrationVerify(req, res) {
 }
 
 async function handleAuthenticationOptions(req, res) {
+  // When the browser already knows which passkey belongs to this device,
+  // constrain WebAuthn to that exact credential. This prevents iOS/Safari
+  // from presenting or selecting an older passkey for the same RP.
+  const requestedCredentialId = String(req.query?.credentialId || '').trim();
+
+  let allowCredentials = [];
+  let allowedCredentialId = null;
+
+  if (requestedCredentialId) {
+    let passkeyQuery = await db.collection('passkeys')
+      .where('id', '==', requestedCredentialId)
+      .limit(1)
+      .get();
+
+    if (passkeyQuery.empty) {
+      return json(res, 401, {
+        ok: false,
+        error: 'La passkey configurada en este dispositivo no está registrada en Patas y Bigotes.',
+      });
+    }
+
+    const data = passkeyQuery.docs[0].data() || {};
+    allowedCredentialId = String(data.id || requestedCredentialId);
+    allowCredentials = [withoutUndefined({
+      id: allowedCredentialId,
+      transports: Array.isArray(data.transports) ? data.transports : undefined,
+    })];
+  }
+
   const options = await generateAuthenticationOptions({
     rpID: RP_ID,
     userVerification: 'required',
-    allowCredentials: [],
+    allowCredentials,
   });
 
-  const challengeId = await saveChallenge('authentication', options.challenge);
+  const challengeId = await saveChallenge('authentication', options.challenge, null, {
+    allowedCredentialId,
+  });
   return json(res, 200, { ok: true, challengeId, options });
 }
 
@@ -298,6 +331,19 @@ async function handleAuthenticationVerify(req, res) {
 
   const passkeyRef = passkeyQuery.docs[0].ref;
   const passkeyData = passkeyQuery.docs[0].data() || {};
+
+  if (challenge.allowedCredentialId &&
+      !credentialIdsEquivalent(challenge.allowedCredentialId, passkeyData.id)) {
+    console.warn('[PASSKEY AUTH] credential does not match challenge allow-list', {
+      allowedCredentialId: challenge.allowedCredentialId,
+      receivedCredentialId: passkeyData.id,
+    });
+    return json(res, 401, {
+      ok: false,
+      error: 'La llave de acceso seleccionada no coincide con la credencial configurada en este dispositivo.',
+    });
+  }
+
   const credential = credentialFromFirestore(passkeyData);
 
   let verification;

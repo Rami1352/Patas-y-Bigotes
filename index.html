@@ -18824,9 +18824,15 @@ async function verifyBiometricCredential() {
     throw new Error('La librería de passkeys no está disponible.');
   }
 
-  const begin = await passkeyApi('?action=authentication-options', {
-    firebaseAuth: false
-  });
+  const localCredentialId = localStorage.getItem(LS_BIOMETRIC_CRED_ID);
+  if (!localCredentialId) {
+    throw new Error('La passkey de este dispositivo no está configurada.');
+  }
+
+  const begin = await passkeyApi(
+    '?action=authentication-options&credentialId=' + encodeURIComponent(localCredentialId),
+    { firebaseAuth: false }
+  );
 
   const asseResp = await SimpleWebAuthnBrowser.startAuthentication({
     optionsJSON: begin.options
