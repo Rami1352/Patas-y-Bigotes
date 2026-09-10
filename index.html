@@ -5143,6 +5143,11 @@ html[data-font-size="large"] .toast-container {
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
+.biometric-login-gate-icon .pyb-faceid-icon {
+  width: 62px; height: 62px; display: block;
+  color: #fff;
+  filter: drop-shadow(0 2px 7px rgba(0,0,0,.14));
+}
 .biometric-login-gate-title {
   color: #fff; font-size: 21px; font-weight: 700;
   letter-spacing: -.35px;
@@ -6831,6 +6836,7 @@ html.safari-ios body:not([data-bg-scene])::after {
 ══════════════════════════════════════════════════════════════ -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://unpkg.com/@simplewebauthn/browser@14.0.0/dist/bundle/index.umd.min.js"></script>
 <script>
 /* ══════════════════════════════════════════════════════════════
    PYB_AUTH — capa de autenticación con Firebase
@@ -6884,26 +6890,21 @@ var PYB_AUTH = (function () {
       // apertura como continuación de la misma sesión de navegación en
       // vez de una pestaña nueva, así que la sesión de Firebase seguía
       // viva y PYB_AUTH.onChange la restauraba sola.
-      // Por defecto usamos Persistence.NONE para mantener el login manual
-      // efímero. La única excepción es cuando ya existe una credencial
-      // biométrica enrolada en este dispositivo: en ese caso usamos
-      // Persistence.LOCAL para poder restaurar la sesión y pedir Face ID
-      // explícitamente antes de mostrar la app.
-      // Persistir Firebase SOLO cuando el usuario haya configurado el
-      // acceso biométrico en este dispositivo. Así una recarga puede
-      // restaurar la sesión y mostrar primero el candado de Face ID, sin
-      // convertir el login normal en un auto-login silencioso.
-      var biometricRemembered = false;
-      try {
-        biometricRemembered = localStorage.getItem('pyb_biometric_enabled') === '1'
-          && !!localStorage.getItem('pyb_biometric_cred_id');
-      } catch (e) {}
+      // Con Persistence.NONE, Firebase no guarda la sesión en ningún
+      // lado (ni localStorage ni sessionStorage): cada carga de página
+      // arranca sin sesión, sin importar el navegador o cómo se haya
+      // abierto el link. Esto significa que ahora SIEMPRE hay que
+      // loguearse de nuevo al abrir el portal, incluso recargando la
+      // misma pestaña.
+      // Fase Passkey real: Firebase NO se persiste localmente.
+      // Incluso si existe una passkey configurada, una recarga/cierre/logout
+      // deja Firebase sin sesión. La passkey vuelve a autenticar al usuario
+      // desde cero mediante el servidor WebAuthn, que luego emite un custom
+      // token de Firebase.
       _persistenceReady = _auth.setPersistence(
-        biometricRemembered
-          ? firebase.auth.Auth.Persistence.LOCAL
-          : firebase.auth.Auth.Persistence.NONE
+        firebase.auth.Auth.Persistence.NONE
       ).catch(function (err) {
-        console.warn('[PYB_AUTH] No se pudo aplicar la persistencia seleccionada:', err);
+        console.warn('[PYB_AUTH] No se pudo fijar Persistence.NONE:', err);
       });
       _ready = true;
     } catch (err) {
@@ -6926,6 +6927,12 @@ var PYB_AUTH = (function () {
   async function login(email, password) {
     if (!init()) throw new Error('Firebase no está configurado.');
     var cred = await _auth.signInWithEmailAndPassword(String(email).trim(), password);
+    return cred.user;
+  }
+
+  async function signInWithCustomToken(customToken) {
+    if (!init()) throw new Error('Firebase no está configurado.');
+    var cred = await _auth.signInWithCustomToken(String(customToken || ''));
     return cred.user;
   }
 
@@ -6987,8 +6994,9 @@ var PYB_AUTH = (function () {
   return {
     isConfigured: isConfigured, init: init, getIdToken: getIdToken,
     currentUser: currentUser, login: login, register: register,
-    recover: recover, logout: logout, setLocalPersistence: setLocalPersistence,
-    setNonePersistence: setNonePersistence, miCuenta: miCuenta, onChange: onChange
+    recover: recover, logout: logout, signInWithCustomToken: signInWithCustomToken,
+    setLocalPersistence: setLocalPersistence, setNonePersistence: setNonePersistence,
+    miCuenta: miCuenta, onChange: onChange
   };
 })();
 </script>
@@ -7069,9 +7077,16 @@ var PYB_AUTH = (function () {
         </div>
       </div>
       <div class="biometric-login-gate" id="biometric-login-gate" aria-live="polite">
-        <div class="biometric-login-gate-icon" aria-hidden="true"><i class="fa-solid fa-face-viewfinder"></i></div>
+        <div class="biometric-login-gate-icon" aria-hidden="true">
+          <svg class="pyb-faceid-icon" viewBox="0 0 72 72" fill="none" aria-hidden="true">
+            <path d="M18 27v-4a5 5 0 0 1 5-5h4M54 27v-4a5 5 0 0 0-5-5h-4M18 45v4a5 5 0 0 0 5 5h4M54 45v4a5 5 0 0 1-5 5h-4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+            <path d="M27 31c1.8-2.2 4.3-3.3 6.9-3.3S39 28.8 41 31M28.5 40.5c2 2 4.1 3 6.5 3s4.5-1 6.5-3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="29.5" cy="34.5" r="1.7" fill="currentColor"/>
+            <circle cx="42.5" cy="34.5" r="1.7" fill="currentColor"/>
+          </svg>
+        </div>
         <div class="biometric-login-gate-title">Confirmá tu identidad</div>
-        <div class="biometric-login-gate-desc">Usá Face ID para entrar de forma rápida y segura a Patas y Bigotes.</div>
+        <div class="biometric-login-gate-desc">Usá Face ID para iniciar sesión de forma rápida y segura en Patas y Bigotes.</div>
         <button type="button" class="biometric-login-button" id="biometric-login-button" onclick="loginWithBiometric()">Continuar con Face ID</button>
         <button type="button" class="biometric-login-secondary" id="biometric-login-password" onclick="usePasswordInstead()">Usar contraseña</button>
       </div>
@@ -7247,8 +7262,15 @@ document.addEventListener('DOMContentLoaded', function () {
   //  listener no debe pisarlo ni duplicar trabajo.
   PYB_AUTH.onChange(function (user) {
     if (!user) {
-      // Si el usuario eligió "Usar contraseña", mostramos el login normal.
-      setBiometricLoginGateVisible(false);
+      // Con passkey real no existe una sesión Firebase persistida.
+      // Por eso, después de una recarga o logout real, el primer estado es
+      // Firebase=null y mostramos directamente el gate de Face ID si este
+      // dispositivo tiene una passkey registrada.
+      if (biometricLoginEligible() && isMobileBiometricClient()) {
+        setBiometricLoginGateVisible(true);
+      } else {
+        setBiometricLoginGateVisible(false);
+      }
       return;
     }
 
@@ -7261,6 +7283,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // la sesión LOCAL, NO entramos automáticamente: primero mostramos el gate
     // grande de Face ID. En desktop no usamos biometría en este portal.
     if (biometricLoginEligible() && isMobileBiometricClient()) {
+      addLiveLog('[INFO] Sesión biométrica encontrada. Mostrando Face ID.', 'ok');
       setBiometricLoginGateVisible(true);
       return;
     }
@@ -9349,33 +9372,38 @@ function setBiometricLoginGateVisible(visible) {
 }
 
 function biometricLoginEligible() {
-  try {
-    if (!isMobileBiometricClient()) return false;
-    if (!window.isSecureContext || !biometricSupported()) return false;
-    if (!getBiometricPref()) return false;
-    return !!localStorage.getItem(LS_BIOMETRIC_CRED_ID);
-  } catch (e) {
-    return false;
-  }
+  if (!isMobileBiometricClient()) return false;
+  if (!getBiometricPref()) return false;
+  return !!localStorage.getItem(LS_BIOMETRIC_CRED_ID);
 }
 
 async function loginWithBiometric() {
   const gateBtn = document.getElementById('biometric-login-button');
   if (gateBtn) { gateBtn.disabled = true; gateBtn.style.opacity = '.7'; }
+
   try {
-    if (!biometricLoginEligible()) throw new Error('El acceso biométrico no está configurado en este dispositivo.');
-    const firebaseUser = PYB_AUTH.currentUser();
-    if (!firebaseUser) {
-      setBiometricLoginGateVisible(false);
-      throw new Error('La sesión segura de este dispositivo no está disponible. Ingresá con tu contraseña una vez y luego volvé a usar Face ID.');
+    if (!biometricLoginEligible()) {
+      throw new Error('El acceso con Face ID no está configurado en este dispositivo.');
     }
-    const credId = localStorage.getItem(LS_BIOMETRIC_CRED_ID);
+
     authFlowInProgress = true;
-    await verifyBiometricCredential(credId);
-    await entrarConCuentaVerificada(firebaseUser.email || '');
+
+    // IMPORTANTE: no usamos la sesión de Firebase existente para autorizar
+    // esta operación. authentication-options es público y el servidor
+    // valida la firma WebAuthn antes de emitir el custom token.
+    const result = await verifyBiometricCredential();
+
+    if (!result || !result.customToken) {
+      throw new Error('El servidor no devolvió una sesión válida.');
+    }
+
+    await PYB_AUTH.setNonePersistence();
+    await PYB_AUTH.signInWithCustomToken(result.customToken);
+    await entrarConCuentaVerificada('');
+
     setBiometricLoginGateVisible(false);
   } catch (err) {
-    console.warn('[biometría login]', err);
+    console.warn('[passkey login]', err);
     const errEl = document.getElementById('login-error');
     if (errEl) {
       errEl.textContent = err && err.name === 'NotAllowedError'
@@ -9391,12 +9419,6 @@ async function loginWithBiometric() {
 
 async function usePasswordInstead() {
   setBiometricLoginGateVisible(false);
-  try {
-    await PYB_AUTH.setNonePersistence();
-    await PYB_AUTH.logout();
-  } catch (err) {
-    console.warn('[biometría fallback]', err);
-  }
   const emailInput = document.getElementById('login-user');
   if (emailInput) emailInput.focus();
 }
@@ -9416,11 +9438,10 @@ async function doLogin() {
 
   authFlowInProgress = true;
   try {
-    // Si el usuario ya configuró biometría en este celular, una autenticación
-    // manual correcta también deja la sesión lista para que la próxima
-    // apertura pueda mostrar el gate de Face ID. Si no, seguimos con NONE.
-    if (biometricLoginEligible()) await PYB_AUTH.setLocalPersistence();
-    else await PYB_AUTH.setNonePersistence();
+    // La sesión Firebase es siempre de esta carga de página.
+    // Si el usuario tiene passkey, el próximo acceso se hará por WebAuthn;
+    // no guardamos la sesión de Firebase en localStorage.
+    await PYB_AUTH.setNonePersistence();
 
     // 1) Firebase valida email + contraseña.
     await PYB_AUTH.login(email, pass);
@@ -9698,36 +9719,34 @@ function firebaseErrorToSpanish(err) {
   return map[code] || (err && err.message) || 'Ocurrió un error inesperado. Intentá de nuevo.';
 }
 
-function doLogout() {
-  // FIX v30: limpiar inmediatamente los datos privados del usuario anterior,
-  // antes incluso de terminar el signOut de Firebase.
+async function doLogout() {
   clearUserScopedState();
   currentUser = null;
-  // Antes esta función no llamaba a PYB_AUTH.logout(): solo limpiaba
-  // currentUser y la UI, pero la sesión real de Firebase (persistida con
-  // setPersistence(LOCAL)) seguía viva en el navegador. No se notaba
-  // porque nada releía esa sesión automáticamente -- pero ahora que
-  // PYB_AUTH.onChange restaura la sesión al cargar/volver a la pantalla
-  // de login (ver el fix de "currentUser vacío al recargar"), esa
-  // sesión de Firebase que nunca se cerró hacía que se reconstruyera
-  // currentUser con la cuenta vieja de nuevo, sin dejar tipear otro
-  // mail. PYB_AUTH.logout() cierra la sesión de verdad del lado de
-  // Firebase para que eso deje de pasar.
-  PYB_AUTH.logout().catch(function (err) {
-    console.warn('[doLogout] PYB_AUTH.logout() falló:', err);
-  });
+
   document.body.classList.remove('readonly');
   const appEl = document.getElementById('app');
-  appEl.classList.remove('visible'); appEl.style.display = 'none';
+  appEl.classList.remove('visible');
+  appEl.style.display = 'none';
   document.getElementById('login-screen').classList.remove('hidden');
-  // Al volver al login también quitamos la escena fotográfica anterior,
-  // para que el fondo de respaldo y el chrome de Safari vuelvan al verde
-  // propio del login de forma atómica.
   setBgScene(null);
   document.getElementById('login-user').value = '';
   document.getElementById('login-pass').value = '';
   document.getElementById('login-error').classList.remove('show');
   closeSidebar();
+
+  try {
+    // Logout REAL: elimina la sesión de Firebase. La passkey NO se elimina.
+    // La siguiente entrada vuelve a empezar con un challenge WebAuthn nuevo.
+    await PYB_AUTH.logout();
+  } catch (err) {
+    console.warn('[doLogout] PYB_AUTH.logout() falló:', err);
+  }
+
+  if (biometricLoginEligible() && isMobileBiometricClient()) {
+    setBiometricLoginGateVisible(true);
+  } else {
+    setBiometricLoginGateVisible(false);
+  }
 }
 
 /* ══════════════════════════════════
@@ -18694,6 +18713,7 @@ function syncFontSizeUI() {
    dispositivo, igual que en la Variante 1 de referencia (el toggle
    vive dentro de Configuración, no en la pantalla de login).
 ══════════════════════════════════ */
+const PASSKEY_API_BASE = '/api/passkey';
 const LS_BIOMETRIC_ENABLED = 'pyb_biometric_enabled';
 const LS_BIOMETRIC_CRED_ID = 'pyb_biometric_cred_id';
 
@@ -18702,16 +18722,22 @@ function getBiometricPref() {
 }
 
 function biometricSupported() {
-  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+  return !!(
+    window.PublicKeyCredential &&
+    navigator.credentials &&
+    navigator.credentials.create &&
+    navigator.credentials.get &&
+    typeof SimpleWebAuthnBrowser !== 'undefined'
+  );
 }
 
-/* Sensor de plataforma disponible (no solo la API presente): en desktop
-   sin lector de huella / Face ID configurado, isUserVerifyingPlatformAuthenticatorAvailable
-   resuelve false y evitamos ofrecer un toggle que fallaría al tocarlo. */
+/* Face ID / Touch ID / biometría de plataforma:
+   el portal ofrece passkeys solo en celulares/tablets y HTTPS. */
 function isMobileBiometricClient() {
   try {
     return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')
-      || window.matchMedia('(pointer: coarse)').matches && Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 900;
+      || (window.matchMedia('(pointer: coarse)').matches &&
+          Math.min(window.innerWidth || 9999, window.innerHeight || 9999) <= 900);
   } catch (e) { return false; }
 }
 
@@ -18719,99 +18745,127 @@ async function biometricPlatformAvailable() {
   if (!isMobileBiometricClient()) return false;
   if (!window.isSecureContext) return false;
   if (!biometricSupported()) return false;
-  if (!window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return true;
-  try { return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }
-  catch(e) { return false; }
-}
 
-function randomChallenge() {
-  const arr = new Uint8Array(32);
-  (window.crypto || window.msCrypto).getRandomValues(arr);
-  return arr;
-}
+  if (SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable) {
+    try { return await SimpleWebAuthnBrowser.platformAuthenticatorIsAvailable(); }
+    catch(e) { return false; }
+  }
 
-/* Identificador estable del usuario para la credencial, sin depender de
-   que PYB_AUTH exponga un uid síncrono en este punto: usa el email de
-   sesión si ya está disponible, si no un id local persistido. */
-function biometricUserHandle() {
-  try {
-    const email = (typeof getCurrentUserEmail === 'function' && getCurrentUserEmail())
-      || (document.getElementById('settings-account-email') ? document.getElementById('settings-account-email').value : '')
-      || 'usuario-pyb';
-    let handle = localStorage.getItem('pyb_biometric_user_handle');
-    if (!handle) {
-      handle = email + '-' + Date.now();
-      localStorage.setItem('pyb_biometric_user_handle', handle);
-    }
-    return handle;
-  } catch(e) { return 'usuario-pyb-' + Date.now(); }
-}
+  if (window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+    try { return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }
+    catch(e) { return false; }
+  }
 
-function strToBuffer(str) {
-  return new TextEncoder().encode(str);
-}
-function bufferToBase64(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
-}
-function base64ToBuffer(b64) {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes.buffer;
-}
-
-/* Registra una credencial de plataforma nueva: acá es donde el sistema
-   operativo muestra el prompt real de Face ID / Touch ID / huella. */
-async function registerBiometricCredential() {
-  const publicKey = {
-    challenge: randomChallenge(),
-    rp: { name: 'Patas y Bigotes' },
-    user: {
-      id: strToBuffer(biometricUserHandle()),
-      name: biometricUserHandle(),
-      displayName: 'Acceso rápido Patas y Bigotes'
-    },
-    pubKeyCredParams: [
-      { type: 'public-key', alg: -7 },   // ES256
-      { type: 'public-key', alg: -257 }  // RS256 (fallback, algunos autenticadores viejos)
-    ],
-    authenticatorSelection: {
-      authenticatorAttachment: 'platform',
-      userVerification: 'required',
-      residentKey: 'preferred'
-    },
-    timeout: 60000,
-    attestation: 'none'
-  };
-  const cred = await navigator.credentials.create({ publicKey });
-  if (!cred) throw new Error('No se pudo crear la credencial.');
-  return bufferToBase64(cred.rawId);
-}
-
-/* Verifica contra la credencial ya registrada: dispara el mismo prompt
-   biométrico nativo, pero en modo "confirmá tu identidad" en vez de alta. */
-async function verifyBiometricCredential(credIdB64) {
-  const publicKey = {
-    challenge: randomChallenge(),
-    allowCredentials: [{ type: 'public-key', id: base64ToBuffer(credIdB64) }],
-    userVerification: 'required',
-    timeout: 60000
-  };
-  const assertion = await navigator.credentials.get({ publicKey });
-  if (!assertion) throw new Error('Verificación cancelada.');
   return true;
+}
+
+async function passkeyApi(path, options) {
+  const opts = options || {};
+  const headers = Object.assign(
+    { 'Content-Type': 'application/json' },
+    opts.headers || {}
+  );
+
+  if (opts.firebaseAuth !== false) {
+    const token = await PYB_AUTH.getIdToken();
+    if (!token) throw new Error('La sesión de Firebase no está disponible.');
+    headers.Authorization = 'Bearer ' + token;
+  }
+
+  const res = await fetch(PASSKEY_API_BASE + path, {
+    method: opts.method || 'GET',
+    headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+    credentials: 'same-origin',
+    cache: 'no-store'
+  });
+
+  let data = null;
+  try { data = await res.json(); } catch (e) {}
+
+  if (!res.ok || !data || data.ok === false) {
+    throw new Error((data && data.error) || 'El servidor de passkeys rechazó la operación.');
+  }
+
+  return data;
+}
+
+/* Alta REAL de una passkey:
+   1) servidor genera challenge
+   2) el dispositivo crea la credencial y la desbloquea con Face ID/Touch ID
+   3) servidor verifica la atestación y guarda la clave pública */
+async function registerBiometricCredential() {
+  if (!SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.startRegistration) {
+    throw new Error('La librería de passkeys no está disponible.');
+  }
+
+  const begin = await passkeyApi('?action=registration-options');
+  const attResp = await SimpleWebAuthnBrowser.startRegistration({
+    optionsJSON: begin.options
+  });
+
+  const verified = await passkeyApi('?action=registration-verify', {
+    method: 'POST',
+    body: {
+      challengeId: begin.challengeId,
+      response: attResp
+    }
+  });
+
+  return verified.credentialId;
+}
+
+/* Autenticación REAL de passkey:
+   no necesita Firebase persistido ni contraseña. El servidor entrega un
+   challenge nuevo, el autenticador firma con la clave privada y el servidor
+   verifica la firma antes de emitir un Firebase custom token. */
+async function verifyBiometricCredential() {
+  if (!SimpleWebAuthnBrowser || !SimpleWebAuthnBrowser.startAuthentication) {
+    throw new Error('La librería de passkeys no está disponible.');
+  }
+
+  const begin = await passkeyApi('?action=authentication-options', {
+    firebaseAuth: false
+  });
+
+  const asseResp = await SimpleWebAuthnBrowser.startAuthentication({
+    optionsJSON: begin.options
+  });
+
+  return await passkeyApi('?action=authentication-verify', {
+    method: 'POST',
+    firebaseAuth: false,
+    body: {
+      challengeId: begin.challengeId,
+      response: asseResp
+    }
+  });
 }
 
 async function toggleBiometricAccess(inputEl) {
   const turningOn = inputEl.checked;
-  const row = document.getElementById('biometric-row');
 
   if (!turningOn) {
-    localStorage.setItem(LS_BIOMETRIC_ENABLED, '0');
-    localStorage.removeItem(LS_BIOMETRIC_CRED_ID);
-    try { await PYB_AUTH.setNonePersistence(); } catch (e) { console.warn('[biometría] no se pudo cambiar la persistencia:', e); }
-    syncBiometricUI();
-    showToast('Acceso biométrico desactivado', '');
+    inputEl.disabled = true;
+    try {
+      const credentialId = localStorage.getItem(LS_BIOMETRIC_CRED_ID);
+      if (credentialId && PYB_AUTH.currentUser()) {
+        await passkeyApi('?action=remove', {
+          method: 'POST',
+          body: { credentialId }
+        });
+      }
+      localStorage.removeItem(LS_BIOMETRIC_CRED_ID);
+      localStorage.setItem(LS_BIOMETRIC_ENABLED, '0');
+      syncBiometricUI();
+      showToast('Acceso con Face ID desactivado', '');
+    } catch (err) {
+      inputEl.checked = true;
+      syncBiometricUI();
+      showToast(err.message || 'No se pudo desactivar el acceso biométrico.', 'error');
+    } finally {
+      inputEl.disabled = false;
+    }
     return;
   }
 
@@ -18821,28 +18875,34 @@ async function toggleBiometricAccess(inputEl) {
     return;
   }
 
+  if (!PYB_AUTH.currentUser()) {
+    inputEl.checked = false;
+    showToast('Primero iniciá sesión con tu contraseña.', 'error');
+    return;
+  }
+
   inputEl.disabled = true;
   try {
-    // La configuración biométrica se hace SIEMPRE desde una acción explícita
-    // del usuario: es requisito del navegador para iniciar WebAuthn.
     const credId = await registerBiometricCredential();
-
-    // Primero dejamos lista la persistencia LOCAL de Firebase. Si esto falla,
-    // no declaramos la biometría como activa: evitamos un estado incoherente
-    // en el que el switch diga "activo" pero no pueda restaurar la cuenta.
-    await PYB_AUTH.setLocalPersistence();
 
     localStorage.setItem(LS_BIOMETRIC_CRED_ID, credId);
     localStorage.setItem(LS_BIOMETRIC_ENABLED, '1');
     syncBiometricUI();
-    showToast('Acceso con Face ID activado', 'success');
+    showToast('Passkey con Face ID activada', 'success');
   } catch (err) {
     inputEl.checked = false;
     localStorage.removeItem(LS_BIOMETRIC_CRED_ID);
     localStorage.setItem(LS_BIOMETRIC_ENABLED, '0');
-    try { await PYB_AUTH.setNonePersistence(); } catch (e) {}
-    const cancelled = err && (err.name === 'NotAllowedError' || err.name === 'AbortError');
-    showToast(cancelled ? 'Configuración de Face ID cancelada.' : 'No se pudo activar el acceso biométrico.', 'error');
+
+    const cancelled = err && (
+      err.name === 'NotAllowedError' ||
+      err.name === 'AbortError'
+    );
+    showToast(
+      cancelled ? 'Configuración de Face ID cancelada.' :
+      (err.message || 'No se pudo activar el acceso con Face ID.'),
+      'error'
+    );
   } finally {
     inputEl.disabled = false;
   }
@@ -18853,22 +18913,21 @@ function syncBiometricUI() {
   const toggle = document.getElementById('biometric-toggle');
   const status = document.getElementById('biometric-status');
   if (!row || !toggle) return;
+
   const enabled = getBiometricPref() && !!localStorage.getItem(LS_BIOMETRIC_CRED_ID);
   toggle.checked = enabled;
   row.classList.toggle('is-active', enabled);
   if (status) status.style.display = enabled ? '' : 'none';
 }
 
-/* Inicialización: solo muestra la fila si el dispositivo puede de
-   verdad ofrecer biometría de plataforma. Si no hay soporte, no se
-   oculta la fila entera (mantiene el layout de la Variante 1) pero se
-   deshabilita con una leyenda clara en vez de dejar un switch roto. */
 async function initBiometricRow() {
   const row = document.getElementById('biometric-row');
   const toggle = document.getElementById('biometric-toggle');
   if (!row || !toggle) return;
+
   syncBiometricUI();
   const available = await biometricPlatformAvailable();
+
   if (!available) {
     row.classList.add('biometric-row--unsupported');
     toggle.disabled = true;
@@ -19132,6 +19191,16 @@ function syncLanguageUI() {
   applyFontSize(getFontSizePref());
   syncFontSizeUI();
   initBiometricRow();
+  // Pintado anticipado del gate biométrico: si el dispositivo ya tiene Face ID
+  // configurado para Patas y Bigotes, mostramos inmediatamente la pantalla
+  // biométrica mientras Firebase termina de restaurar la sesión LOCAL. Esto
+  // evita que el login normal aparezca durante un frame de carga y luego
+  // desaparezca/reaparezca según el timing de IndexedDB/Firebase en Safari.
+  try {
+    if (biometricLoginEligible() && isMobileBiometricClient()) {
+      setBiometricLoginGateVisible(true);
+    }
+  } catch (e) {}
   translateApp(getLanguagePref());
   syncLanguageUI();
   seedData();
