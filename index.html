@@ -5089,6 +5089,39 @@ html[data-font-size="large"] .toast-container {
 .switch input:checked + .switch-slider::before { transform: translateX(18px); }
 .switch input:focus-visible + .switch-slider { box-shadow: 0 0 0 3px rgba(45,80,22,.22); }
 
+/* ── Acceso biométrico (Face ID / Touch ID / huella) ──
+   Vive dentro de la tarjeta "Apariencia", entre las opciones de tema y
+   "Tamaño de letra". Estructura calcada de .settings-option (mismo
+   padding/radio/borde) pero con icono circular a la izquierda y switch
+   a la derecha, más una línea de estado opcional ("Configurado en este
+   dispositivo") cuando ya hay una credencial de plataforma registrada. */
+.biometric-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px; border-radius: var(--r-md);
+  border: 1.5px solid var(--border-sm); background: var(--cream);
+  margin-top: 10px; transition: all .18s;
+}
+.biometric-row.is-active {
+  border-color: var(--sage); background: var(--sage-xlight);
+  box-shadow: 0 0 0 3px rgba(45,80,22,.08);
+}
+.biometric-row-icon {
+  width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--sage-light); color: var(--sage); font-size: 16px;
+}
+.biometric-row-text { flex: 1; min-width: 0; }
+.biometric-row-title { font-size: 13.5px; font-weight: 600; color: var(--charcoal); }
+.biometric-row-desc { font-size: 12px; color: var(--mist); margin-top: 2px; }
+.biometric-row-status {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-weight: 600; color: var(--green-ok);
+  margin-top: 6px;
+}
+.biometric-row-status i { font-size: 11px; }
+.biometric-row--unsupported { opacity: .68; }
+.biometric-row--unsupported .biometric-row-desc { color: var(--mist); }
+
 .form-control:disabled { background: var(--cream); color: var(--stone); cursor: not-allowed; opacity: 1; }
 
 .settings-caption { font-size: 11.5px; color: var(--mist); margin-top: 10px; line-height: 1.5; }
@@ -7433,6 +7466,23 @@ document.addEventListener('DOMContentLoaded', function () {
                   <div class="settings-option-desc">Se adapta automáticamente al modo de tu dispositivo</div>
                 </div>
                 <span class="badge badge-green appearance-active-badge" id="appearance-badge-system" style="display:none">Activo</span>
+              </label>
+            </div>
+
+            <!-- Acceso biométrico -->
+            <div class="biometric-row" id="biometric-row">
+              <div class="biometric-row-icon"><i class="fa-solid fa-face-viewfinder"></i></div>
+              <div class="biometric-row-text">
+                <div class="biometric-row-title">Acceso biométrico</div>
+                <div class="biometric-row-desc">Entrá más rápido y de forma segura desde tu celular</div>
+                <div class="biometric-row-status" id="biometric-status" style="display:none">
+                  <i class="fa-solid fa-circle-check"></i>
+                  <span id="biometric-status-text">Configurado en este dispositivo</span>
+                </div>
+              </div>
+              <label class="switch" id="biometric-switch-wrap">
+                <input type="checkbox" id="biometric-toggle" onchange="toggleBiometricAccess(this)">
+                <span class="switch-slider"></span>
               </label>
             </div>
 
@@ -18442,6 +18492,183 @@ function syncFontSizeUI() {
 }
 
 /* ══════════════════════════════════
+   ACCESO BIOMÉTRICO — Face ID / Touch ID / huella
+   Usa la Web Authentication API real del navegador
+   (navigator.credentials con authenticatorAttachment:'platform'),
+   que es la misma API que dispara el sensor nativo del dispositivo
+   (Face ID en iOS/Safari, Touch ID en macOS, huella/rostro en Android
+   con soporte de Credential Manager, Windows Hello en desktop).
+
+   No depende de ningún backend nuevo: solo se guarda localmente
+   (misma estrategia que pyb_appearance / pyb_font_size) si el
+   dispositivo YA registró una credencial de plataforma, más el id de
+   esa credencial para poder pedir la verificación después. No
+   reemplaza ni toca el login real con Firebase (PYB_AUTH) definido
+   más arriba en este archivo — es una preferencia adicional del
+   dispositivo, igual que en la Variante 1 de referencia (el toggle
+   vive dentro de Configuración, no en la pantalla de login).
+══════════════════════════════════ */
+const LS_BIOMETRIC_ENABLED = 'pyb_biometric_enabled';
+const LS_BIOMETRIC_CRED_ID = 'pyb_biometric_cred_id';
+
+function getBiometricPref() {
+  try { return localStorage.getItem(LS_BIOMETRIC_ENABLED) === '1'; } catch(e) { return false; }
+}
+
+function biometricSupported() {
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+
+/* Sensor de plataforma disponible (no solo la API presente): en desktop
+   sin lector de huella / Face ID configurado, isUserVerifyingPlatformAuthenticatorAvailable
+   resuelve false y evitamos ofrecer un toggle que fallaría al tocarlo. */
+async function biometricPlatformAvailable() {
+  if (!biometricSupported()) return false;
+  if (!window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return true;
+  try { return await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }
+  catch(e) { return false; }
+}
+
+function randomChallenge() {
+  const arr = new Uint8Array(32);
+  (window.crypto || window.msCrypto).getRandomValues(arr);
+  return arr;
+}
+
+/* Identificador estable del usuario para la credencial, sin depender de
+   que PYB_AUTH exponga un uid síncrono en este punto: usa el email de
+   sesión si ya está disponible, si no un id local persistido. */
+function biometricUserHandle() {
+  try {
+    const email = (typeof getCurrentUserEmail === 'function' && getCurrentUserEmail())
+      || (document.getElementById('settings-account-email') ? document.getElementById('settings-account-email').value : '')
+      || 'usuario-pyb';
+    let handle = localStorage.getItem('pyb_biometric_user_handle');
+    if (!handle) {
+      handle = email + '-' + Date.now();
+      localStorage.setItem('pyb_biometric_user_handle', handle);
+    }
+    return handle;
+  } catch(e) { return 'usuario-pyb-' + Date.now(); }
+}
+
+function strToBuffer(str) {
+  return new TextEncoder().encode(str);
+}
+function bufferToBase64(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function base64ToBuffer(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+/* Registra una credencial de plataforma nueva: acá es donde el sistema
+   operativo muestra el prompt real de Face ID / Touch ID / huella. */
+async function registerBiometricCredential() {
+  const publicKey = {
+    challenge: randomChallenge(),
+    rp: { name: 'Patas y Bigotes' },
+    user: {
+      id: strToBuffer(biometricUserHandle()),
+      name: biometricUserHandle(),
+      displayName: 'Acceso rápido Patas y Bigotes'
+    },
+    pubKeyCredParams: [
+      { type: 'public-key', alg: -7 },   // ES256
+      { type: 'public-key', alg: -257 }  // RS256 (fallback, algunos autenticadores viejos)
+    ],
+    authenticatorSelection: {
+      authenticatorAttachment: 'platform',
+      userVerification: 'required',
+      residentKey: 'preferred'
+    },
+    timeout: 60000,
+    attestation: 'none'
+  };
+  const cred = await navigator.credentials.create({ publicKey });
+  if (!cred) throw new Error('No se pudo crear la credencial.');
+  return bufferToBase64(cred.rawId);
+}
+
+/* Verifica contra la credencial ya registrada: dispara el mismo prompt
+   biométrico nativo, pero en modo "confirmá tu identidad" en vez de alta. */
+async function verifyBiometricCredential(credIdB64) {
+  const publicKey = {
+    challenge: randomChallenge(),
+    allowCredentials: [{ type: 'public-key', id: base64ToBuffer(credIdB64) }],
+    userVerification: 'required',
+    timeout: 60000
+  };
+  const assertion = await navigator.credentials.get({ publicKey });
+  if (!assertion) throw new Error('Verificación cancelada.');
+  return true;
+}
+
+async function toggleBiometricAccess(inputEl) {
+  const turningOn = inputEl.checked;
+  const row = document.getElementById('biometric-row');
+
+  if (turningOn) {
+    if (!(await biometricPlatformAvailable())) {
+      inputEl.checked = false;
+      showToast('Este dispositivo no tiene Face ID, Touch ID o huella configurados.', 'error');
+      return;
+    }
+    inputEl.disabled = true;
+    try {
+      const credId = await registerBiometricCredential();
+      localStorage.setItem(LS_BIOMETRIC_CRED_ID, credId);
+      localStorage.setItem(LS_BIOMETRIC_ENABLED, '1');
+      syncBiometricUI();
+      showToast('Acceso biométrico activado', 'success');
+    } catch (err) {
+      inputEl.checked = false;
+      const cancelled = err && (err.name === 'NotAllowedError');
+      showToast(cancelled ? 'Configuración de Face ID cancelada.' : 'No se pudo activar el acceso biométrico.', 'error');
+    } finally {
+      inputEl.disabled = false;
+    }
+  } else {
+    localStorage.setItem(LS_BIOMETRIC_ENABLED, '0');
+    localStorage.removeItem(LS_BIOMETRIC_CRED_ID);
+    syncBiometricUI();
+    showToast('Acceso biométrico desactivado', '');
+  }
+}
+
+function syncBiometricUI() {
+  const row = document.getElementById('biometric-row');
+  const toggle = document.getElementById('biometric-toggle');
+  const status = document.getElementById('biometric-status');
+  if (!row || !toggle) return;
+  const enabled = getBiometricPref() && !!localStorage.getItem(LS_BIOMETRIC_CRED_ID);
+  toggle.checked = enabled;
+  row.classList.toggle('is-active', enabled);
+  if (status) status.style.display = enabled ? '' : 'none';
+}
+
+/* Inicialización: solo muestra la fila si el dispositivo puede de
+   verdad ofrecer biometría de plataforma. Si no hay soporte, no se
+   oculta la fila entera (mantiene el layout de la Variante 1) pero se
+   deshabilita con una leyenda clara en vez de dejar un switch roto. */
+async function initBiometricRow() {
+  const row = document.getElementById('biometric-row');
+  const toggle = document.getElementById('biometric-toggle');
+  if (!row || !toggle) return;
+  syncBiometricUI();
+  const available = await biometricPlatformAvailable();
+  if (!available) {
+    row.classList.add('biometric-row--unsupported');
+    toggle.disabled = true;
+    const descEl = row.querySelector('.biometric-row-desc');
+    if (descEl) descEl.textContent = 'No disponible en este dispositivo o navegador';
+  }
+}
+
+/* ══════════════════════════════════
    IDIOMA — Español / English / Português
    Traducción automática del texto visible del portal
    mediante un diccionario liviano (sin recargar la página).
@@ -18489,6 +18716,10 @@ const I18N = {
     'Seguir configuración del sistema': 'Follow system settings',
     'Se adapta automáticamente al modo de tu dispositivo': 'Automatically adapts to your device\'s mode',
     'Activo': 'Active',
+    'Acceso biométrico': 'Biometric access',
+    'Entrá más rápido y de forma segura desde tu celular': 'Sign in faster and securely from your phone',
+    'Configurado en este dispositivo': 'Set up on this device',
+    'No disponible en este dispositivo o navegador': 'Not available on this device or browser',
     'Tamaño de letra': 'Font size',
     'Ajustá el tamaño del texto en todo el portal': 'Adjust the text size across the portal',
     'Pequeño': 'Small',
@@ -18551,6 +18782,10 @@ const I18N = {
     'Seguir configuración del sistema': 'Seguir configuração do sistema',
     'Se adapta automáticamente al modo de tu dispositivo': 'Adapta-se automaticamente ao modo do seu dispositivo',
     'Activo': 'Ativo',
+    'Acceso biométrico': 'Acesso biométrico',
+    'Entrá más rápido y de forma segura desde tu celular': 'Entre mais rápido e com segurança pelo seu celular',
+    'Configurado en este dispositivo': 'Configurado neste dispositivo',
+    'No disponible en este dispositivo o navegador': 'Não disponível neste dispositivo ou navegador',
     'Tamaño de letra': 'Tamanho da fonte',
     'Ajustá el tamaño del texto en todo el portal': 'Ajuste o tamanho do texto em todo o portal',
     'Pequeño': 'Pequeno',
@@ -18687,6 +18922,7 @@ function syncLanguageUI() {
   syncAppearanceUI();
   applyFontSize(getFontSizePref());
   syncFontSizeUI();
+  initBiometricRow();
   translateApp(getLanguagePref());
   syncLanguageUI();
   seedData();
