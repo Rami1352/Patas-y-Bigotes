@@ -5149,6 +5149,144 @@ html[data-font-size="large"] .toast-container {
   color: #fff;
   filter: drop-shadow(0 2px 7px rgba(0,0,0,.14));
 }
+
+/* ── Animación del símbolo Face ID (idle → start → scanning → processing → success/error) ──
+   Solo afecta al ícono/símbolo. No toca #biometric-login-button ni el flujo de login. */
+:root {
+  --fid-green: #34c759;
+  --fid-red: #ff453a;
+}
+
+.biometric-login-gate-icon.fid-state-scanning,
+.biometric-login-gate-icon.fid-state-processing {
+  box-shadow: 0 18px 45px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18), 0 0 0 1px rgba(52,199,89,.16);
+  transition: box-shadow .35s ease;
+}
+.biometric-login-gate-icon.fid-state-success {
+  box-shadow: 0 18px 45px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18), 0 0 22px rgba(52,199,89,.35);
+  transition: box-shadow .3s ease;
+}
+.biometric-login-gate-icon.fid-state-error {
+  box-shadow: 0 18px 45px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.18), 0 0 16px rgba(255,69,58,.30);
+  transition: box-shadow .25s ease;
+}
+
+.pyb-faceid-icon { overflow: visible; }
+.pyb-faceid-icon * { transform-box: fill-box; transform-origin: center; }
+
+/* Estado base de cada pieza; los estados la sobreescriben */
+.fid-glow { opacity: 0; transition: opacity .35s ease, fill .35s ease; }
+.fid-ring {
+  opacity: 0;
+  stroke-dasharray: 191.6; /* 2 * PI * 30.5 */
+  stroke-dashoffset: 191.6;
+  transform: rotate(-90deg);
+  transition: opacity .25s ease;
+}
+.fid-scanline { opacity: 0; transition: opacity .2s ease; }
+.fid-corner { transition: stroke .35s ease, filter .35s ease; }
+.fid-face { transition: opacity .25s ease, transform .25s ease; }
+.fid-check {
+  opacity: 0;
+  stroke: var(--fid-green);
+  stroke-dasharray: 34;
+  stroke-dashoffset: 34;
+  transition: opacity .15s ease;
+}
+.fid-error-mark { opacity: 0; transition: opacity .15s ease; }
+.fid-error-line-1, .fid-error-line-2 { stroke: var(--fid-red); }
+
+/* ── IDLE: blanco, limpio, estático (comportamiento original) ── */
+.fid-state-idle .fid-corner { stroke: currentColor; }
+
+/* ── START: pequeño pulso de activación al presionar el botón ── */
+.fid-state-start .fid-corner { animation: fidPulseCorner .32s ease-out; }
+.fid-state-start .fid-face { animation: fidPulseFace .32s ease-out; }
+@keyframes fidPulseCorner { 0% { transform: scale(1); } 45% { transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes fidPulseFace { 0% { transform: scale(1); } 45% { transform: scale(1.05); } 100% { transform: scale(1); } }
+
+/* ── SCANNING: esquinas iluminándose en secuencia, glow verde, arco recorriendo el símbolo ── */
+.fid-state-scanning .fid-glow { opacity: .16; fill: var(--fid-green); animation: fidGlowBreathe 1.6s ease-in-out infinite; }
+.fid-state-scanning .fid-corner { stroke: var(--fid-green); }
+.fid-state-scanning .fid-corner-tl { animation: fidCornerLight 1.6s ease-in-out infinite; animation-delay: 0s; }
+.fid-state-scanning .fid-corner-tr { animation: fidCornerLight 1.6s ease-in-out infinite; animation-delay: .12s; }
+.fid-state-scanning .fid-corner-br { animation: fidCornerLight 1.6s ease-in-out infinite; animation-delay: .24s; }
+.fid-state-scanning .fid-corner-bl { animation: fidCornerLight 1.6s ease-in-out infinite; animation-delay: .36s; }
+.fid-state-scanning .fid-scanline {
+  opacity: .85; stroke: var(--fid-green);
+  animation: fidScanSweep 1.6s cubic-bezier(.45,0,.55,1) infinite;
+}
+.fid-state-scanning .fid-face { animation: fidFaceBreathe 1.6s ease-in-out infinite; }
+@keyframes fidGlowBreathe { 0%, 100% { opacity: .10; } 50% { opacity: .22; } }
+@keyframes fidCornerLight {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(52,199,89,0)); }
+  50% { filter: drop-shadow(0 0 3px rgba(52,199,89,.85)); }
+}
+@keyframes fidScanSweep {
+  0% { transform: translateY(-9px); opacity: 0; }
+  15% { opacity: .85; }
+  85% { opacity: .85; }
+  100% { transform: translateY(9px); opacity: 0; }
+}
+@keyframes fidFaceBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
+
+/* ── PROCESSING: anillo de progreso recorriendo el perímetro ── */
+.fid-state-processing .fid-glow { opacity: .14; fill: var(--fid-green); }
+.fid-state-processing .fid-corner { stroke: var(--fid-green); }
+.fid-state-processing .fid-ring {
+  opacity: .9; stroke: var(--fid-green);
+  animation: fidRingSpin 1.1s ease-in-out infinite;
+}
+@keyframes fidRingSpin {
+  0% { stroke-dashoffset: 191.6; transform: rotate(-90deg); }
+  50% { stroke-dashoffset: 48; transform: rotate(250deg); }
+  100% { stroke-dashoffset: 191.6; transform: rotate(630deg); }
+}
+
+/* ── SUCCESS: check dibujándose, pulso de luz verde, símbolo desvanece ── */
+.fid-state-success .fid-glow { opacity: .22; fill: var(--fid-green); animation: fidSuccessPulse .55s ease-out; }
+.fid-state-success .fid-corner { stroke: var(--fid-green); opacity: .55; }
+.fid-state-success .fid-face { opacity: 0; transform: scale(.9); }
+.fid-state-success .fid-check {
+  opacity: 1;
+  animation: fidCheckDraw .42s cubic-bezier(.65,0,.35,1) forwards;
+}
+@keyframes fidCheckDraw { from { stroke-dashoffset: 34; } to { stroke-dashoffset: 0; } }
+@keyframes fidSuccessPulse { 0% { opacity: .12; } 40% { opacity: .32; } 100% { opacity: .22; } }
+
+/* ── ERROR: X breve, sacudida horizontal, vuelve a idle ── */
+.fid-state-error .fid-corner { stroke: var(--fid-red); }
+.fid-state-error .fid-face { opacity: 0; }
+.fid-state-error .fid-error-mark { opacity: 1; }
+.fid-state-error.fid-shake { animation: fidShake .38s ease-in-out; }
+@keyframes fidShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2.5px); }
+  80% { transform: translateX(2.5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fid-state-start .fid-corner,
+  .fid-state-start .fid-face,
+  .fid-state-scanning .fid-glow,
+  .fid-state-scanning .fid-corner-tl,
+  .fid-state-scanning .fid-corner-tr,
+  .fid-state-scanning .fid-corner-br,
+  .fid-state-scanning .fid-corner-bl,
+  .fid-state-scanning .fid-scanline,
+  .fid-state-scanning .fid-face,
+  .fid-state-processing .fid-ring,
+  .fid-state-success .fid-glow,
+  .fid-state-error.fid-shake {
+    animation: none !important;
+  }
+  .fid-state-scanning .fid-scanline { opacity: .6; transform: none; }
+  .fid-state-processing .fid-ring { opacity: .9; stroke-dashoffset: 90; transform: rotate(-90deg); }
+  .fid-check { transition: opacity .15s ease; }
+  .fid-state-success .fid-check { stroke-dashoffset: 0; animation: none; }
+}
 .biometric-login-gate-title {
   color: #fff; font-size: 21px; font-weight: 700;
   letter-spacing: -.35px;
@@ -7408,12 +7546,39 @@ var PYB_AUTH = (function () {
         </div>
       </div>
       <div class="biometric-login-gate" id="biometric-login-gate" aria-live="polite">
-        <div class="biometric-login-gate-icon" aria-hidden="true">
-          <svg class="pyb-faceid-icon" viewBox="0 0 72 72" fill="none" aria-hidden="true">
-            <path d="M18 27v-4a5 5 0 0 1 5-5h4M54 27v-4a5 5 0 0 0-5-5h-4M18 45v4a5 5 0 0 0 5 5h4M54 45v4a5 5 0 0 1-5 5h-4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
-            <path d="M27 31c1.8-2.2 4.3-3.3 6.9-3.3S39 28.8 41 31M28.5 40.5c2 2 4.1 3 6.5 3s4.5-1 6.5-3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-            <circle cx="29.5" cy="34.5" r="1.7" fill="currentColor"/>
-            <circle cx="42.5" cy="34.5" r="1.7" fill="currentColor"/>
+        <div class="biometric-login-gate-icon" id="biometric-login-gate-icon" aria-hidden="true">
+          <svg class="pyb-faceid-icon" id="pyb-faceid-icon" viewBox="0 0 72 72" fill="none" aria-hidden="true">
+            <!-- resplandor sutil detrás del símbolo: solo visible en scanning/success -->
+            <circle class="fid-glow" cx="36" cy="36" r="27" fill="currentColor"/>
+
+            <!-- anillo de progreso (processing) -->
+            <circle class="fid-ring" cx="36" cy="36" r="30.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+
+            <!-- esquinas de escaneo, cada una animable por separado -->
+            <path class="fid-corner fid-corner-tl" d="M18 27v-4a5 5 0 0 1 5-5h4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+            <path class="fid-corner fid-corner-tr" d="M54 27v-4a5 5 0 0 0-5-5h-4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+            <path class="fid-corner fid-corner-bl" d="M18 45v4a5 5 0 0 0 5 5h4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+            <path class="fid-corner fid-corner-br" d="M54 45v4a5 5 0 0 1-5 5h-4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+
+            <!-- rostro estilizado -->
+            <g class="fid-face">
+              <path class="fid-brow fid-brow-l" d="M27 31c1.8-2.2 4.3-3.3 6.9-3.3S39 28.8 41 31" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <path class="fid-smile" d="M28.5 40.5c2 2 4.1 3 6.5 3s4.5-1 6.5-3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <circle class="fid-eye fid-eye-l" cx="29.5" cy="34.5" r="1.7" fill="currentColor"/>
+              <circle class="fid-eye fid-eye-r" cx="42.5" cy="34.5" r="1.7" fill="currentColor"/>
+            </g>
+
+            <!-- línea de escaneo que recorre el símbolo -->
+            <line class="fid-scanline" x1="16" y1="36" x2="56" y2="36" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+
+            <!-- check de éxito, se dibuja con stroke-dashoffset -->
+            <path class="fid-check" d="M24.5 36.5l8 8 15-16.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- X de error -->
+            <g class="fid-error-mark">
+              <path class="fid-error-line-1" d="M27 27l18 18" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+              <path class="fid-error-line-2" d="M45 27l-18 18" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/>
+            </g>
           </svg>
         </div>
         <div class="biometric-login-gate-title">Confirmá tu identidad</div>
@@ -9702,6 +9867,7 @@ function setBiometricLoginGateVisible(visible) {
     }
   });
   gate.classList.toggle('is-visible', !!visible);
+  if (visible) setFaceIdAnimState('idle');
 }
 
 function biometricLoginEligible() {
@@ -9710,9 +9876,36 @@ function biometricLoginEligible() {
   return !!localStorage.getItem(LS_BIOMETRIC_CRED_ID);
 }
 
+// ── Animación del ícono Face ID: IDLE → START → SCANNING → PROCESSING → SUCCESS/ERROR ──
+// Solo cambia clases CSS sobre el ícono. No toca WebAuthn, Firebase ni el backend.
+// setFaceIdAnimState() es la única función que escribe el estado visual; loginWithBiometric()
+// la llama en los puntos donde YA conoce el resultado real (nunca por un temporizador fijo).
+const FID_STATES = ['idle', 'start', 'scanning', 'processing', 'success', 'error'];
+let fidStateTimer = null;
+
+function setFaceIdAnimState(state) {
+  const iconWrap = document.getElementById('biometric-login-gate-icon');
+  if (!iconWrap) return; // el ícono puede no estar presente (ej. desktop); no-op seguro
+  if (fidStateTimer) { clearTimeout(fidStateTimer); fidStateTimer = null; }
+
+  FID_STATES.forEach(function (s) { iconWrap.classList.remove('fid-state-' + s); });
+  iconWrap.classList.remove('fid-shake');
+  iconWrap.classList.add('fid-state-' + state);
+
+  if (state === 'error') {
+    // Reinicia la clase de shake para poder retriggerearla si hay otro intento.
+    void iconWrap.offsetWidth;
+    iconWrap.classList.add('fid-shake');
+    fidStateTimer = setTimeout(function () { setFaceIdAnimState('idle'); }, 900);
+  }
+}
+
 async function loginWithBiometric() {
   const gateBtn = document.getElementById('biometric-login-button');
   if (gateBtn) { gateBtn.disabled = true; gateBtn.style.opacity = '.7'; }
+
+  // START: reacción inmediata al presionar "Continuar con Face ID".
+  setFaceIdAnimState('start');
 
   try {
     if (!biometricLoginEligible()) {
@@ -9720,6 +9913,11 @@ async function loginWithBiometric() {
     }
 
     authFlowInProgress = true;
+
+    // SCANNING: arranca antes de invocar WebAuthn y se mantiene en loop
+    // (animación continua, sin duración fija) mientras se espera la respuesta
+    // real del autenticador/servidor en verifyBiometricCredential().
+    setFaceIdAnimState('scanning');
 
     // IMPORTANTE: no usamos la sesión de Firebase existente para autorizar
     // esta operación. authentication-options es público y el servidor
@@ -9730,13 +9928,30 @@ async function loginWithBiometric() {
       throw new Error('El servidor no devolvió una sesión válida.');
     }
 
+    // PROCESSING: la firma WebAuthn ya fue verificada por el servidor y
+    // tenemos el custom token; mientras Firebase completa el inicio de
+    // sesión se muestra el anillo de progreso.
+    setFaceIdAnimState('processing');
+
     await PYB_AUTH.setNonePersistence();
     await PYB_AUTH.signInWithCustomToken(result.customToken);
     await entrarConCuentaVerificada('');
 
+    // SUCCESS: recién acá sabemos que WebAuthn + Firebase + carga posterior
+    // terminaron bien. Se detiene cualquier animación de escaneo y se
+    // muestra el check. Se sostiene ~650ms (dentro del rango 500-800ms
+    // pedido) antes de ocultar el gate y continuar el login normalmente.
+    setFaceIdAnimState('success');
+    await new Promise(function (resolve) { setTimeout(resolve, 650); });
+
     setBiometricLoginGateVisible(false);
   } catch (err) {
     console.warn('[passkey login]', err);
+
+    // ERROR: WebAuthn falló o el servidor rechazó la operación. Se muestra
+    // la X + shake y luego setFaceIdAnimState vuelve solo a 'idle'.
+    setFaceIdAnimState('error');
+
     const errEl = document.getElementById('login-error');
     if (errEl) {
       errEl.textContent = err && err.name === 'NotAllowedError'
