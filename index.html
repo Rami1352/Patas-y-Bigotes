@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Patas y Bigotes — Portal de Clientes</title>
+<!-- V13: verified mobile body-native scroll -->
 <!-- V10: mobile scroll stability / reduced compositor load -->
 <!-- V9: login initial-state guard + exact one-dot-per-pet mobile indicator -->
 
@@ -20677,6 +20678,73 @@ window.handleLoginAction = handleLoginAction;
   window.addEventListener('resize', copyArtworkToDocument, { passive: true });
 })();
 </script>
+
+
+<style id="pyb-mobile-scroll-body-native-v13">
+/* ================================================================
+   V13 — MOBILE BODY-NATIVE SCROLL (VERIFICADO)
+   En móvil: un único scroll vertical del documento.
+   El contenedor .content NO crea un scroller vertical anidado.
+   Se usa overflow-x: clip, no hidden, porque hidden convierte
+   overflow-y: visible en auto según la especificación CSS.
+================================================================ */
+@media (max-width: 767.98px),
+       (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+
+  html {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: clip !important;
+    overflow-y: auto !important;
+    overscroll-behavior-x: none !important;
+    overscroll-behavior-y: auto !important;
+    scroll-behavior: auto !important;
+  }
+
+  body {
+    height: auto !important;
+    min-height: 100vh !important;
+    min-height: 100svh !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+    overscroll-behavior-x: none !important;
+    overscroll-behavior-y: auto !important;
+  }
+
+  .main {
+    height: auto !important;
+    min-height: 100vh !important;
+    min-height: 100svh !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .content {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: auto !important;
+    overscroll-behavior: auto !important;
+    scroll-behavior: auto !important;
+    will-change: auto !important;
+  }
+
+  .topbar,
+  .mobile-nav {
+    position: fixed !important;
+  }
+
+  body::before,
+  body::after {
+    pointer-events: none !important;
+    transition: none !important;
+  }
+}
+</style>
 
 </body>
 </html>
