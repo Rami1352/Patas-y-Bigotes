@@ -9945,6 +9945,23 @@ async function loginWithBiometric() {
     // este no agrega ningún retraso adicional.
     setFaceIdAnimState('processing');
 
+    const loginScreenEl = document.getElementById('login-screen');
+    // entrarConCuentaVerificada() es la función real de login: arma
+    // currentUser desde el backend Y, como parte de su trabajo normal,
+    // oculta #login-screen / muestra #app al terminar (ver esa función,
+    // más abajo en este archivo). Eso pasa ANTES de que este código llegue
+    // a SUCCESS, así que el check nunca llegaba a verse: se pintaba dentro
+    // de un contenedor que ya estaba oculto. No se modifica esa función
+    // (haría falta separar "armar currentUser" de "cambiar de pantalla",
+    // y ambas cosas siguen intactas tal como estaban) — en cambio, si al
+    // terminar detectamos que login-screen quedó oculto, lo volvemos a
+    // mostrar nosotros mismos (con #app ya listo detrás, exactamente igual
+    // que hoy) solo para sostener la animación de éxito, y lo ocultamos acá
+    // al final del piso de 650ms.
+    const loginScreenWasHiddenBefore = loginScreenEl
+      ? loginScreenEl.classList.contains('hidden')
+      : true;
+
     await Promise.all([
       (async function () {
         await PYB_AUTH.setNonePersistence();
@@ -9954,12 +9971,28 @@ async function loginWithBiometric() {
       new Promise(function (resolve) { setTimeout(resolve, 350); })
     ]);
 
+    const loginScreenGotHiddenByLogin = !!(
+      loginScreenEl && !loginScreenWasHiddenBefore && loginScreenEl.classList.contains('hidden')
+    );
+    if (loginScreenGotHiddenByLogin) {
+      // Se vuelve a mostrar momentáneamente solo para que el check de éxito
+      // sea visible; #app ya quedó armado y visible detrás, sin cambios.
+      loginScreenEl.classList.remove('hidden');
+    }
+
     // SUCCESS: recién acá sabemos que WebAuthn + Firebase + carga posterior
     // terminaron bien. Se detiene cualquier animación de escaneo y se
     // muestra el check. Se sostiene ~650ms (dentro del rango 500-800ms
     // pedido) antes de ocultar el gate y continuar el login normalmente.
     setFaceIdAnimState('success');
     await new Promise(function (resolve) { setTimeout(resolve, 650); });
+
+    if (loginScreenGotHiddenByLogin) {
+      // Recién ahora se oculta login-screen; #app ya estaba listo desde
+      // que entrarConCuentaVerificada() terminó, así que no hay ningún
+      // trabajo nuevo acá, solo se retrasa el momento en que se tapa.
+      loginScreenEl.classList.add('hidden');
+    }
 
     setBiometricLoginGateVisible(false);
   } catch (err) {
