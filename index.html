@@ -7560,12 +7560,12 @@ var PYB_AUTH = (function () {
             <path class="fid-corner fid-corner-bl" d="M18 45v4a5 5 0 0 0 5 5h4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
             <path class="fid-corner fid-corner-br" d="M54 45v4a5 5 0 0 1-5 5h-4" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
 
-            <!-- rostro estilizado -->
+            <!-- rostro estilizado tipo Face ID de iOS: ojos verticales, nariz vertical, boca en arco -->
             <g class="fid-face">
-              <path class="fid-brow fid-brow-l" d="M27 31c1.8-2.2 4.3-3.3 6.9-3.3S39 28.8 41 31" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-              <path class="fid-smile" d="M28.5 40.5c2 2 4.1 3 6.5 3s4.5-1 6.5-3" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-              <circle class="fid-eye fid-eye-l" cx="29.5" cy="34.5" r="1.7" fill="currentColor"/>
-              <circle class="fid-eye fid-eye-r" cx="42.5" cy="34.5" r="1.7" fill="currentColor"/>
+              <line class="fid-eye fid-eye-l" x1="29" y1="30.5" x2="29" y2="35.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+              <line class="fid-eye fid-eye-r" x1="43" y1="30.5" x2="43" y2="35.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+              <line class="fid-nose" x1="36" y1="34" x2="36" y2="40" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+              <path class="fid-smile" d="M29 44.5c2.2 1.9 4.6 2.9 7 2.9s4.8-1 7-2.9" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/>
             </g>
 
             <!-- línea de escaneo que recorre el símbolo -->
