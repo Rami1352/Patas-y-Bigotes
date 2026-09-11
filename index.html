@@ -9890,11 +9890,19 @@ function setFaceIdAnimState(state) {
 
   FID_STATES.forEach(function (s) { iconWrap.classList.remove('fid-state-' + s); });
   iconWrap.classList.remove('fid-shake');
+
+  // Fuerza un reflow entre quitar la clase anterior y poner la nueva. Sin esto,
+  // si dos estados se suceden muy rápido (p. ej. Firebase resuelve en pocos ms
+  // y "processing" pasa a "success" casi en el mismo frame), el navegador puede
+  // fusionar ambos cambios de clase en un solo recálculo de estilos y las
+  // animaciones con "forwards" (fidRingSpin, fidCheckDraw) nunca llegan a
+  // dispararse como "nuevas". El reflow garantiza que siempre se detecten
+  // como una transición de estado real.
+  void iconWrap.offsetWidth;
+
   iconWrap.classList.add('fid-state-' + state);
 
   if (state === 'error') {
-    // Reinicia la clase de shake para poder retriggerearla si hay otro intento.
-    void iconWrap.offsetWidth;
     iconWrap.classList.add('fid-shake');
     fidStateTimer = setTimeout(function () { setFaceIdAnimState('idle'); }, 900);
   }
@@ -9930,12 +9938,21 @@ async function loginWithBiometric() {
 
     // PROCESSING: la firma WebAuthn ya fue verificada por el servidor y
     // tenemos el custom token; mientras Firebase completa el inicio de
-    // sesión se muestra el anillo de progreso.
+    // sesión se muestra el anillo de progreso. Se garantiza un piso mínimo
+    // de 350ms en pantalla (Promise.all corre en paralelo con las llamadas
+    // reales, nunca las reemplaza) para que el anillo sea perceptible aunque
+    // Firebase resuelva casi instantáneo; si Firebase tarda más que el piso,
+    // este no agrega ningún retraso adicional.
     setFaceIdAnimState('processing');
 
-    await PYB_AUTH.setNonePersistence();
-    await PYB_AUTH.signInWithCustomToken(result.customToken);
-    await entrarConCuentaVerificada('');
+    await Promise.all([
+      (async function () {
+        await PYB_AUTH.setNonePersistence();
+        await PYB_AUTH.signInWithCustomToken(result.customToken);
+        await entrarConCuentaVerificada('');
+      })(),
+      new Promise(function (resolve) { setTimeout(resolve, 350); })
+    ]);
 
     // SUCCESS: recién acá sabemos que WebAuthn + Firebase + carga posterior
     // terminaron bien. Se detiene cualquier animación de escaneo y se
