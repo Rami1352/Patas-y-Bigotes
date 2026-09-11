@@ -5189,8 +5189,8 @@ html[data-font-size="large"] .toast-container {
 .fid-check {
   opacity: 0;
   stroke: var(--fid-green);
-  stroke-dasharray: 34;
-  stroke-dashoffset: 34;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
   transition: opacity .15s ease;
 }
 .fid-error-mark { opacity: 0; transition: opacity .15s ease; }
@@ -5251,7 +5251,7 @@ html[data-font-size="large"] .toast-container {
   opacity: 1;
   animation: fidCheckDraw .42s cubic-bezier(.65,0,.35,1) forwards;
 }
-@keyframes fidCheckDraw { from { stroke-dashoffset: 34; } to { stroke-dashoffset: 0; } }
+@keyframes fidCheckDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes fidSuccessPulse { 0% { opacity: .12; } 40% { opacity: .32; } 100% { opacity: .22; } }
 
 /* ── ERROR: X breve, sacudida horizontal, vuelve a idle ── */
@@ -7572,7 +7572,7 @@ var PYB_AUTH = (function () {
             <line class="fid-scanline" x1="16" y1="36" x2="56" y2="36" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
 
             <!-- check de éxito, se dibuja con stroke-dashoffset -->
-            <path class="fid-check" d="M24.5 36.5l8 8 15-16.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="fid-check" pathLength="1" d="M24.5 36.5l8 8 15-16.5" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
 
             <!-- X de error -->
             <g class="fid-error-mark">
