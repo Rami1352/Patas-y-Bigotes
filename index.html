@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Patas y Bigotes — Portal de Clientes</title>
+<!-- V10: mobile scroll stability / reduced compositor load -->
 <!-- V9: login initial-state guard + exact one-dot-per-pet mobile indicator -->
 
 <!-- Safari iOS 26: no solid theme-color. The real scene artwork is allowed to
@@ -7484,6 +7485,142 @@ var PYB_AUTH = (function () {
 #login-screen.register-active #register-telefono-field,
 #login-screen.register-active #register-pass-confirm-field {
   display: block !important;
+}
+</style>
+
+
+<style id="pyb-mobile-scroll-stability-v10">
+/* ================================================================
+   V10 — MOBILE SCROLL STABILITY
+   Objetivo: eliminar el "rebote/vibración" visual al desplazar
+   lentamente las secciones en iPhone/Android.
+   No cambia datos, navegación, autenticación ni WebAuthn.
+================================================================ */
+
+@media (max-width: 767.98px),
+       (max-height: 500px) and (orientation: landscape) and (pointer: coarse) {
+
+  /* El scroll táctil no necesita smooth scrolling global.
+     Se deja auto para que el gesto del dedo tenga respuesta 1:1. */
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  /* Un único scroller estable dentro de la app. */
+  html, body {
+    height: 100%;
+    min-height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none !important;
+    overscroll-behavior-y: none !important;
+  }
+
+  #app {
+    min-height: 0 !important;
+  }
+
+  .main {
+    height: 100svh !important;
+    min-height: 0 !important;
+    max-height: 100svh !important;
+  }
+
+  .content {
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-y: contain !important;
+    scroll-behavior: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /*
+     Reducimos el coste de recomposición del Liquid Glass durante el
+     desplazamiento. Se conserva el aspecto translúcido, borde y sombra,
+     pero el blur es mucho menor. En el CSS original estas variables eran
+     blur(24px)/blur(36px), y muchos componentes las heredan.
+  */
+  :root {
+    --glass-blur: blur(7px) saturate(120%);
+    --glass-blur-strong: blur(9px) saturate(125%);
+  }
+
+  /*
+     Estas capas cubren toda la pantalla. No necesitan transición/animación
+     durante el scroll y así no fuerzan recomposición continua en WebKit.
+  */
+  body::before,
+  body::after {
+    animation: none !important;
+    transition: none !important;
+    will-change: auto !important;
+  }
+
+  /*
+     La barra inferior también usa backdrop-filter. Se mantiene el vidrio,
+     pero con blur más ligero para evitar tirones cuando el contenido pasa
+     por detrás.
+  */
+  .mobile-nav {
+    -webkit-backdrop-filter: blur(10px) saturate(140%) !important;
+    backdrop-filter: blur(10px) saturate(140%) !important;
+    will-change: auto !important;
+  }
+
+  html.safari-ios .mobile-nav {
+    -webkit-backdrop-filter: blur(10px) saturate(140%) !important;
+    backdrop-filter: blur(10px) saturate(140%) !important;
+  }
+
+  /*
+     Los paneles de vidrio principales conservan apariencia translúcida,
+     pero con una profundidad de blur moderada específicamente en móvil.
+  */
+  .card,
+  .stat-card,
+  .hc-stat-card,
+  .hc-row,
+  .food-timeline-card,
+  .mascotas-stats-card,
+  .pet-profile-card,
+  .timeline-row,
+  .food-empty,
+  .home-care-empty,
+  .mascota-stat-card,
+  .no-service-screen,
+  .week-tabs,
+  .walks-hero,
+  .hc-hero,
+  .mascotas-hero,
+  .deworm-header-bar,
+  .deworm-footer-tip,
+  .service-card,
+  .payments-stat-card,
+  .payments-chart-card,
+  .payments-table-card,
+  .payments-financial-note,
+  .payments-period-tabs,
+  .payments-live-badge,
+  .payments-period-pill,
+  .payments-clock-badge,
+  .payments-badge-stone {
+    -webkit-backdrop-filter: blur(8px) saturate(125%) !important;
+    backdrop-filter: blur(8px) saturate(125%) !important;
+  }
+
+  /*
+     Evita que las animaciones de entrada de tarjetas se acumulen justo
+     cuando el usuario navega entre vistas y empieza a desplazar.
+     Se conservan hover/active/feedback de botones.
+  */
+  .service-card,
+  .stat-card,
+  .pet-profile-card,
+  .timeline-row,
+  .dog-card {
+    animation-duration: .22s !important;
+  }
 }
 </style>
 
