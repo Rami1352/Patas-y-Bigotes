@@ -14331,17 +14331,82 @@ const PAYMENTS_MONTHS = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ];
 
-// Regla contable definitiva:
-// - Alimentación: mes de "Última compra" (campo Ultima).
-// - Desparasitarios: mes de "Última aplicación" (campo Ultima).
-// - Cuidado a Domicilio: solo reservas CONFIRMADAS, mes de FechaInicio.
-// - Paseos: abono mensual fijo de $1.220.000 desde diciembre de 2025,
-//   siempre que exista agenda de Paseos activa en state.walks.
-// Cambiar el mes es SOLO un filtro: nunca modifica state ni Google Sheets.
-const PAYMENTS_WALKS_START_YEAR = 2025;
-const PAYMENTS_WALKS_START_MONTH = 11; // diciembre = 11
-const PAYMENTS_WALKS_MONTHLY_TOTAL = 1220000;
-const PAYMENTS_WALKS_WEEKLY_TOTAL = 305000;
+// ================================================================
+// CIERRE MENSUAL — histórico congelado
+// ---------------------------------------------------------------
+// Cada mes puede estar:
+//   • ABIERTO  → se calcula en tiempo real desde los registros actuales.
+//   • CERRADO  → se leen los valores congelados desde resumen_mensual.
+//
+// El backend es la fuente de verdad del cierre. El cache del frontend
+// únicamente evita pedir la misma solapa una y otra vez durante la sesión.
+// ================================================================
+const monthlySummaryYearCache = new Map();
+const monthlySummaryYearLoads = new Map();
+
+function monthlySummaryKey(year, month1) {
+  return String(year) + '-' + String(month1).padStart(2, '0');
+}
+
+function getMonthlySummary(year, month1) {
+  const key = monthlySummaryKey(year, month1);
+  const list = monthlySummaryYearCache.get(Number(year)) || [];
+  return list.find(r => String(r.id || '').trim() === key) || null;
+}
+
+async function loadMonthlySummariesForYear(year, force) {
+  year = Number(year);
+  if (!Number.isInteger(year)) return [];
+
+  if (!force && monthlySummaryYearCache.has(year)) {
+    return monthlySummaryYearCache.get(year) || [];
+  }
+  if (!force && monthlySummaryYearLoads.has(year)) {
+    return monthlySummaryYearLoads.get(year);
+  }
+
+  const promise = (async () => {
+    try {
+      const token = await PYB_AUTH.getIdToken();
+      if (!token) {
+        monthlySummaryYearCache.set(year, []);
+        return [];
+      }
+      const url = APPS_SCRIPT_URL
+        + '?action=getResumenMensual'
+        + '&year=' + encodeURIComponent(year)
+        + '&idToken=' + encodeURIComponent(token);
+      const res = await fetchJSONP(url, undefined, token);
+      const first = Array.isArray(res) ? res[0] : res;
+      if (!first || first.ok !== true) {
+        throw new Error((first && first.error) || 'No se pudo leer el resumen mensual.');
+      }
+      const list = Array.isArray(first.summaries) ? first.summaries : [];
+      monthlySummaryYearCache.set(year, list);
+      return list;
+    } catch (err) {
+      console.warn('[RESUMEN_MENSUAL] Error cargando año ' + year + ':', err);
+      // Un fallo de consulta NO convierte un mes abierto en cerrado.
+      // Guardamos [] solo para evitar loops infinitos; el render queda con
+      // la lógica financiera viva exactamente como antes.
+      monthlySummaryYearCache.set(year, []);
+      return [];
+    } finally {
+      monthlySummaryYearLoads.delete(year);
+    }
+  })();
+
+  monthlySummaryYearLoads.set(year, promise);
+  return promise;
+}
+
+function ensureMonthlySummaryDataForCurrentYear() {
+  return loadMonthlySummariesForYear(paymentsYear, false);
+}
+
+async function refreshMonthlySummaryCache(year) {
+  return loadMonthlySummariesForYear(year, true);
+}
 
 function setPaymentsMonthYear(month, year) {
   month = Number(month); year = Number(year);
@@ -14349,7 +14414,15 @@ function setPaymentsMonthYear(month, year) {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) return;
   paymentsMonth = month;
   paymentsYear = year;
+  // Mostrar inmediatamente un estado de consulta; el render final se
+  // produce cuando ya sabemos si el período está cerrado o abierto.
+  monthlySummaryYearCache.delete(paymentsYear);
   renderPayments();
+  loadMonthlySummariesForYear(paymentsYear, false).then(() => {
+    if (currentView === 'payments' && paymentsYear === year && paymentsMonth === month) {
+      renderPayments();
+    }
+  });
 }
 
 function getPaymentsMonthLabel() {
@@ -14374,6 +14447,13 @@ function parsePaymentsDate(raw) {
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
+
+// Criterio contable actual de Cobros & Costos para períodos ABIERTOS.
+// Se preserva exactamente lo que ya mostraba tu portal antes del cierre.
+const PAYMENTS_WALKS_START_YEAR = 2025;
+const PAYMENTS_WALKS_START_MONTH = 11; // diciembre = 11 (0-based)
+const PAYMENTS_WALKS_MONTHLY_TOTAL = 1220000;
+const PAYMENTS_WALKS_WEEKLY_TOTAL = 305000;
 
 function getPaymentsServiceDate(record, service) {
   if (!record) return null;
@@ -14437,8 +14517,11 @@ function financialYears() {
   return Array.from(years).sort((a,b)=>a-b);
 }
 
-function paymentsSelectorsHtml() {
+function paymentsSelectorsHtml(closedSummary) {
   const years = financialYears();
+  const closedBadge = closedSummary
+    ? `<span class="badge" style="background:var(--sage-light);color:var(--sage);border:1px solid var(--svc-walks-border);white-space:nowrap"><i class="fa-solid fa-lock" style="margin-right:5px"></i>Mes cerrado</span>`
+    : `<button type="button" class="btn btn-primary btn-sm" style="gap:7px;white-space:nowrap" onclick="cerrarMesSeleccionado()"><i class="fa-solid fa-lock"></i> Cerrar ${getPaymentsMonthLabel()}</button>`;
   return `<div class="payments-period-pill">
     <button type="button" class="payments-period-nav" onclick="shiftPaymentsMonth(-1)" aria-label="Mes anterior"><i class="fa-solid fa-chevron-left"></i></button>
     <i class="fa-regular fa-calendar payments-period-icon"></i>
@@ -14450,6 +14533,7 @@ function paymentsSelectorsHtml() {
       ${years.map(y=>`<option value="${y}" ${y===paymentsYear?'selected':''}>${y}</option>`).join('')}
     </select>
     <button type="button" class="payments-period-nav" onclick="shiftPaymentsMonth(1)" aria-label="Mes siguiente"><i class="fa-solid fa-chevron-right"></i></button>
+    ${closedBadge}
   </div>`;
 }
 
@@ -14467,30 +14551,64 @@ function filterFinancialRecordsBySelectedMonth(records, service) {
   return unique.filter(r => paymentRecordBelongsToSelectedMonth(r, service));
 }
 
-function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year) {
+function buildPaymentsYearBuckets(foodAll, healthAll, homeAll, year, closedSummaries) {
   const buckets = PAYMENTS_MONTHS.map((label, i) => ({ month:i, label:label.slice(0,3), food:0, health:0, home:0, walks:0, total:0 }));
+
+  // Los meses cerrados se leen EXCLUSIVAMENTE del snapshot.
+  const summaryByMonth = new Map();
+  (closedSummaries || []).forEach(r => {
+    if (String(r.estado || '').trim().toUpperCase() === 'CERRADO') {
+      summaryByMonth.set(Number(r.month) - 1, r);
+    }
+  });
+
+  for (let m = 0; m < 12; m++) {
+    const closed = summaryByMonth.get(m);
+    if (closed) {
+      buckets[m].food = Number(closed.alimentacion) || 0;
+      buckets[m].health = Number(closed.desparasitarios) || 0;
+      buckets[m].home = Number(closed.cuidadoDomicilio) || 0;
+      buckets[m].walks = Number(closed.paseos) || 0;
+      buckets[m].total = Number(closed.ingresosTotal) || (buckets[m].food+buckets[m].health+buckets[m].home+buckets[m].walks);
+    }
+  }
+
+  // Los meses abiertos continúan calculándose como antes. Esto no modifica
+  // el comportamiento de los períodos que todavía no fueron cerrados.
   uniqueFinancialRecords(foodAll).forEach(r => {
     const d = getPaymentsServiceDate(r,'food');
-    if (d && d.getFullYear() === year) buckets[d.getMonth()].food += paymentRecordPrice(r,x=>foodPriceFor(x.brand));
+    if (!d || d.getFullYear() !== year) return;
+    const m = d.getMonth();
+    if (summaryByMonth.has(m)) return;
+    buckets[m].food += paymentRecordPrice(r,x=>foodPriceFor(x.brand));
   });
   uniqueFinancialRecords(healthAll).forEach(r => {
     const d = getPaymentsServiceDate(r,'health');
-    if (d && d.getFullYear() === year) buckets[d.getMonth()].health += paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price));
+    if (!d || d.getFullYear() !== year) return;
+    const m = d.getMonth();
+    if (summaryByMonth.has(m)) return;
+    buckets[m].health += paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price));
   });
   uniqueFinancialRecords(homeAll).forEach(r => {
     const d = getPaymentsServiceDate(r,'home');
     const status = String(r.status || '').trim().toLowerCase();
     const confirmed = status === 'confirmed' || status === 'confirmado' || status === 'confirmada' || status === 'confirmed/confirmada';
-    if (confirmed && d && d.getFullYear() === year) buckets[d.getMonth()].home += Number(r.cost)||0;
+    if (!confirmed || !d || d.getFullYear() !== year) return;
+    const m = d.getMonth();
+    if (summaryByMonth.has(m)) return;
+    buckets[m].home += Number(r.cost)||0;
   });
   const walksActive = Array.isArray(state.walks) && state.walks.some(w => w && w.dogId != null);
   if (walksActive) {
     for (let m=0; m<12; m++) {
+      if (summaryByMonth.has(m)) continue;
       const started = year > PAYMENTS_WALKS_START_YEAR || (year === PAYMENTS_WALKS_START_YEAR && m >= PAYMENTS_WALKS_START_MONTH);
       buckets[m].walks = started ? PAYMENTS_WALKS_MONTHLY_TOTAL : 0;
     }
   }
-  buckets.forEach(b => b.total = b.food+b.health+b.home+b.walks);
+  buckets.forEach(b => {
+    if (!summaryByMonth.has(b.month)) b.total = b.food+b.health+b.home+b.walks;
+  });
   return buckets;
 }
 
@@ -14499,6 +14617,18 @@ function refreshPaymentsIfActive() {
 }
 
 function exportPaymentsCSV() {
+  const closed = getMonthlySummary(paymentsYear, paymentsMonth + 1);
+  if (closed && String(closed.estado || '').toUpperCase() === 'CERRADO') {
+    const rows = [['Tipo','Servicio','Importe']];
+    rows.push(['Resumen congelado','Paseos',closed.paseos || 0]);
+    rows.push(['Resumen congelado','Alimentación',closed.alimentacion || 0]);
+    rows.push(['Resumen congelado','Desparasitarios',closed.desparasitarios || 0]);
+    rows.push(['Resumen congelado','Cuidado a Domicilio',closed.cuidadoDomicilio || 0]);
+    rows.push(['Total','Total cobrado',closed.ingresosTotal || 0]);
+    const csv = rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`cobros-costos-${paymentsYear}-${String(paymentsMonth+1).padStart(2,'0')}-cerrado.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href); return;
+  }
   const food = filterFinancialRecordsBySelectedMonth(state.food,'food');
   const health = filterFinancialRecordsBySelectedMonth(state.health,'health');
   const home = filterFinancialRecordsBySelectedMonth(state.homeCare,'home').filter(r => {
@@ -14509,7 +14639,7 @@ function exportPaymentsCSV() {
   const walksInfo = walksMonthlyTotal();
   if (walksInfo.total > 0) rows.push([`${String(paymentsMonth+1).padStart(2,'0')}/01/${paymentsYear}`,'Paseos','—','Abono mensual de Paseos',walksInfo.total]);
   food.forEach(f=>{ const d=getDog(f.dogId); rows.push([f.last||'', 'Alimentación', d?.name||'', f.brand||'', paymentRecordPrice(f,x=>foodPriceFor(x.brand))]); });
-  health.forEach(h=>{ const d=getDog(h.dogId); rows.push([h.last||'', 'Desparasitarios', d?.name||'', h.type||'', paymentRecordPrice(h,x=>dewormPriceFor(x.type,x.price))]); });
+  health.forEach(h=>{ const d=getDog(h.dogId); rows.push([h.last||'', 'Desparasitarios', d?.name||'', h.type||'', paymentRecordPrice(h,x=>dewormPriceFor(h.type,h.price))]); });
   home.forEach(b=>{ const d=getDog(b.dogId); rows.push([b.dateStart||'', 'Cuidado a Domicilio', d?.name||'', b.description||'', Number(b.cost)||0]); });
   const csv = rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
@@ -14517,7 +14647,7 @@ function exportPaymentsCSV() {
 }
 
 function paintPaymentsLoadingState(container) {
-  container.innerHTML = `<div class="card"><div class="card-body" style="padding:50px;text-align:center;color:var(--mist)"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px;margin-bottom:12px;display:block"></i>Cargando datos financieros…</div></div>`;
+  container.innerHTML = `<div class="card"><div class="card-body" style="padding:50px;text-align:center;color:var(--mist)"><i class="fa-solid fa-spinner fa-spin" style="font-size:22px;margin-bottom:12px;display:block"></i>Consultando cierre de ${escapeHtml(getPaymentsMonthLabel())}…</div></div>`;
 }
 
 function isPaymentsConfirmedHome(r) {
@@ -14526,9 +14656,6 @@ function isPaymentsConfirmedHome(r) {
 }
 
 function buildPaymentsEvolutionChart(buckets, selectedMonth) {
-  // Reserva una franja superior real para el tooltip. El área de trazado
-  // comienza debajo de esa franja para que el recuadro jamás tape barras,
-  // líneas de grilla ni el mes seleccionado.
   const w=640,h=320,padL=66,padR=10,padT=128,padB=38,innerW=w-padL-padR,innerH=h-padT-padB,n=buckets.length,gap=8,slot=innerW/n,barW=Math.max(10,slot-gap);
   const rawMax=Math.max(1,...buckets.map(b=>b.total));
   const maxVal=Math.max(2500000,Math.ceil(rawMax/500000)*500000);
@@ -14556,15 +14683,6 @@ function buildPaymentsEvolutionChart(buckets, selectedMonth) {
 }
 
 function buildPaymentsDonut(servicios, total) {
-  /* r sube de 72 a 80 y sw baja de 38 a 30 (mismo viewBox 220x220, el
-     anillo ahora vive más cerca del borde exterior): esto agranda el
-     hueco interior de diámetro 106px (72-38/2=53 de radio) a 130px
-     (80-30/2=65 de radio). Motivo: con el monto en font-size 24px y
-     peso 700, "$1.725.421" mide ~115-120px de ancho -- más que el hueco
-     de 106px de antes, así que el texto se salía del centro y pisaba el
-     anillo de color (ver captura del usuario). Con el hueco en 130px
-     entra con margen de sobra sin necesidad de angostar la tipografía
-     al tamaño chico que tenía antes de agrandarla. */
   const size=220,cx=110,cy=110,r=80,sw=30,circ=2*Math.PI*r;
   let acc=0;
   const segs=servicios.filter(s=>s.ingresos>0).map(s=>{const len=total?circ*s.ingresos/total:0;const off=-acc;acc+=len;return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len} ${Math.max(circ-len,0)}" stroke-dashoffset="${off}" transform="rotate(-90 ${cx} ${cy})"/>`;}).join('');
@@ -14576,39 +14694,78 @@ function renderPayments() {
   if(!container) return;
   if(!isAdmin()) { container.innerHTML=`<div class="card"><div class="card-body" style="padding:40px;text-align:center;color:var(--mist)">Esta sección financiera está disponible para administración.</div></div>`; return; }
 
+  // Para no mostrar ni por un instante un cálculo vivo de un mes que en
+  // realidad está cerrado, primero consultamos el snapshot del año.
+  if (!monthlySummaryYearCache.has(paymentsYear)) {
+    paintPaymentsLoadingState(container);
+    loadMonthlySummariesForYear(paymentsYear, false).then(() => {
+      if (currentView === 'payments') renderPayments();
+    });
+    return;
+  }
+
+  const closedSummary=getMonthlySummary(paymentsYear, paymentsMonth+1);
+  const isClosed=!!closedSummary && String(closedSummary.estado||'').trim().toUpperCase()==='CERRADO';
+
   const foodAll=uniqueFinancialRecords(state.food);
   const healthAll=uniqueFinancialRecords(state.health);
   const homeAll=uniqueFinancialRecords(state.homeCare);
-  const food=filterFinancialRecordsBySelectedMonth(foodAll,'food');
-  const health=filterFinancialRecordsBySelectedMonth(healthAll,'health');
-  const home=filterFinancialRecordsBySelectedMonth(homeAll,'home').filter(isPaymentsConfirmedHome);
 
-  const foodTotal=food.reduce((a,r)=>a+paymentRecordPrice(r,x=>foodPriceFor(x.brand)),0);
-  const healthTotal=health.reduce((a,r)=>a+paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price)),0);
-  const homeTotal=home.reduce((a,r)=>a+(Number(r.cost)||0),0);
-  const walksInfo=walksMonthlyTotal();
-  const walksTotal=walksInfo.total;
-  const ingresosTotal=walksTotal+foodTotal+healthTotal+homeTotal;
-  const recordCount=walksInfo.count+food.length+health.length+home.length;
+  let food=[],health=[],home=[];
+  let foodTotal=0,healthTotal=0,homeTotal=0,walksTotal=0,recordCount=0;
+  let detalle=[];
+
+  if (isClosed) {
+    // IMPORTANTE: para un mes cerrado NO se consulta ni se suma state.*.
+    foodTotal=Number(closedSummary.alimentacion)||0;
+    healthTotal=Number(closedSummary.desparasitarios)||0;
+    homeTotal=Number(closedSummary.cuidadoDomicilio)||0;
+    walksTotal=Number(closedSummary.paseos)||0;
+    recordCount=Number(closedSummary.cantidadRegistros)||0;
+
+    detalle = [
+      {fecha: closedSummary.fechaCierre || '', servicio:'Paseos', svcClass:'walks', dog:'—', detalle:'Resumen congelado · abono mensual', importe:walksTotal},
+      {fecha: closedSummary.fechaCierre || '', servicio:'Alimentación', svcClass:'food', dog:'—', detalle:'Resumen congelado del mes', importe:foodTotal},
+      {fecha: closedSummary.fechaCierre || '', servicio:'Desparasitarios', svcClass:'deworm', dog:'—', detalle:'Resumen congelado del mes', importe:healthTotal},
+      {fecha: closedSummary.fechaCierre || '', servicio:'Cuidado a Domicilio', svcClass:'home', dog:'—', detalle:'Resumen congelado del mes', importe:homeTotal}
+    ].filter(r=>r.importe>0);
+  } else {
+    food=filterFinancialRecordsBySelectedMonth(foodAll,'food');
+    health=filterFinancialRecordsBySelectedMonth(healthAll,'health');
+    home=filterFinancialRecordsBySelectedMonth(homeAll,'home').filter(isPaymentsConfirmedHome);
+    foodTotal=food.reduce((a,r)=>a+paymentRecordPrice(r,x=>foodPriceFor(x.brand)),0);
+    healthTotal=health.reduce((a,r)=>a+paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price)),0);
+    homeTotal=home.reduce((a,r)=>a+(Number(r.cost)||0),0);
+    const walksInfo=walksMonthlyTotal();
+    walksTotal=walksInfo.total;
+    recordCount=walksInfo.count+food.length+health.length+home.length;
+    detalle=[
+      ...(walksTotal>0?[{fecha:`01/${String(paymentsMonth+1).padStart(2,'0')}/${paymentsYear}`,servicio:'Paseos',svcClass:'walks',dog:'—',detalle:'Abono mensual de Paseos',importe:walksTotal}]:[]),
+      ...food.map(r=>({fecha:r.last,servicio:'Alimentación',svcClass:'food',dog:getDog(r.dogId)?.name||'—',detalle:r.brand||'—',importe:paymentRecordPrice(r,x=>foodPriceFor(x.brand))})),
+      ...health.map(r=>({fecha:r.last,servicio:'Desparasitarios',svcClass:'deworm',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
+      ...home.map(r=>({fecha:r.dateStart,servicio:'Cuidado a Domicilio',svcClass:'home',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
+    ].sort((a,b)=>(parsePaymentsDate(b.fecha)?.getTime()||0)-(parsePaymentsDate(a.fecha)?.getTime()||0));
+  }
+
+  const ingresosTotal=isClosed ? (Number(closedSummary.ingresosTotal)||0) : (walksTotal+foodTotal+healthTotal+homeTotal);
   const servicios=[
-    {key:'PASEOS',label:'Paseos',icon:'fa-person-walking',color:'var(--svc-walks)',ingresos:walksTotal,count:walksInfo.count},
-    {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bowl-food',color:'var(--svc-food)',ingresos:foodTotal,count:food.length},
-    {key:'DESPARASITARIOS',label:'Desparasitarios',icon:'fa-syringe',color:'var(--svc-deworm)',ingresos:healthTotal,count:health.length},
-    {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house-chimney',color:'var(--svc-home)',ingresos:homeTotal,count:home.length}
+    {key:'PASEOS',label:'Paseos',icon:'fa-person-walking',color:'var(--svc-walks)',ingresos:walksTotal,count:isClosed ? 0 : walksTotal>0?1:0},
+    {key:'ALIMENTOS',label:'Alimentación',icon:'fa-bowl-food',color:'var(--svc-food)',ingresos:foodTotal,count:isClosed ? 0 : food.length},
+    {key:'DESPARASITARIOS',label:'Desparasitarios',icon:'fa-syringe',color:'var(--svc-deworm)',ingresos:healthTotal,count:isClosed ? 0 : health.length},
+    {key:'CUIDADO_DOMICILIO',label:'Cuidado a Domicilio',icon:'fa-house-chimney',color:'var(--svc-home)',ingresos:homeTotal,count:isClosed ? 0 : home.length}
   ];
   const pct=v=>ingresosTotal?Math.round(v/ingresosTotal*100):0;
-  const yearBuckets=buildPaymentsYearBuckets(foodAll,healthAll,homeAll,paymentsYear);
-  const detalle=[
-    ...(walksTotal>0?[{fecha:`01/${String(paymentsMonth+1).padStart(2,'0')}/${paymentsYear}`,servicio:'Paseos',svcClass:'walks',dog:'—',detalle:'Abono mensual de Paseos',importe:walksTotal}]:[]),
-    ...food.map(r=>({fecha:r.last,servicio:'Alimentación',svcClass:'food',dog:getDog(r.dogId)?.name||'—',detalle:r.brand||'—',importe:paymentRecordPrice(r,x=>foodPriceFor(x.brand))})),
-    ...health.map(r=>({fecha:r.last,servicio:'Desparasitarios',svcClass:'deworm',dog:getDog(r.dogId)?.name||'—',detalle:r.type||'—',importe:paymentRecordPrice(r,x=>dewormPriceFor(x.type,x.price))})),
-    ...home.map(r=>({fecha:r.dateStart,servicio:'Cuidado a Domicilio',svcClass:'home',dog:getDog(r.dogId)?.name||'—',detalle:r.description||'—',importe:Number(r.cost)||0}))
-  ].sort((a,b)=>(parsePaymentsDate(b.fecha)?.getTime()||0)-(parsePaymentsDate(a.fecha)?.getTime()||0));
+  const yearSummaries=monthlySummaryYearCache.get(paymentsYear)||[];
+  const yearBuckets=buildPaymentsYearBuckets(foodAll,healthAll,homeAll,paymentsYear,yearSummaries);
   const detalleHtml=detalle.length?detalle.map(r=>`<tr><td>${escapeHtml(String(r.fecha||'').slice(0,10))}</td><td><span class="payments-svc-chip payments-svc-chip--${r.svcClass}">${escapeHtml(r.servicio)}</span></td><td>${escapeHtml(r.dog)}</td><td>${escapeHtml(r.detalle)}</td><td class="payments-amount-cell">${formatCLP(r.importe)}</td></tr>`).join(''):`<tr><td colspan="5" style="text-align:center;padding:44px 20px;color:var(--charcoal)">No hay registros en ${getPaymentsMonthLabel()}.</td></tr>`;
 
+  const closedNotice=isClosed
+    ? `<div style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:11px 14px;border-radius:14px;background:var(--sage-light);color:var(--sage);border:1px solid var(--svc-walks-border);font-size:13px;font-weight:600"><i class="fa-solid fa-lock"></i><span>Período cerrado el ${escapeHtml(String(closedSummary.fechaCierre||'').slice(0,10))}. Este resumen no cambia aunque elimines los registros individuales.</span></div>`
+    : `<div style="display:flex;align-items:center;gap:9px;margin-top:12px;padding:11px 14px;border-radius:14px;background:var(--amber-light);color:var(--amber);border:1px solid var(--svc-food-border);font-size:13px;font-weight:600"><i class="fa-solid fa-rotate"></i><span>Período abierto: los importes se recalculan en tiempo real a partir de los registros actuales.</span></div>`;
+
   container.innerHTML=`
-    <div class="payments-header"><div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero por mes</div></div><div class="payments-header-actions"><span class="payments-live-badge"><span class="payments-live-dot"></span>Actualizado en tiempo real</span><button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button></div></div>
-    <div class="payments-selector-row">${paymentsSelectorsHtml()}</div>
+    <div class="payments-header"><div><div class="section-title section-title--inter">Cobros & Costos</div><div class="section-sub">Resumen financiero por mes</div>${closedNotice}</div><div class="payments-header-actions"><span class="payments-live-badge"><span class="payments-live-dot"></span>${isClosed?'Histórico congelado':'Actualizado en tiempo real'}</span><button type="button" class="btn btn-secondary payments-export-btn" onclick="exportPaymentsCSV()"><i class="fa-solid fa-file-export"></i> Exportar</button></div></div>
+    <div class="payments-selector-row">${paymentsSelectorsHtml(closedSummary)}</div>
     <div class="payments-stats-grid">
       <div class="payments-stat-card payments-stat-card--primary"><div class="payments-stat-icon payments-stat-icon--sage"><i class="fa-solid fa-sack-dollar"></i></div><div class="payments-stat-value">${formatCLP(ingresosTotal)}</div><div class="payments-stat-label">Total cobrado · ${getPaymentsMonthLabel()}</div>${dewormSparkline(0, 'var(--sage)', true)}</div>
       <div class="payments-stat-card"><div class="payments-stat-icon payments-stat-icon--walks"><i class="fa-solid fa-person-walking"></i></div><div class="payments-stat-value">${formatCLP(walksTotal)}</div><div class="payments-stat-label">Paseos · ${pct(walksTotal)}% del total</div>${dewormSparkline(1, 'var(--svc-walks)', true)}</div>
@@ -14618,13 +14775,66 @@ function renderPayments() {
     </div>
     <div class="payments-charts-row"><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Evolución de ingresos</div><select class="payments-year-select" aria-label="Año del gráfico de evolución" onchange="setPaymentsMonthYear(paymentsMonth, this.value)">${financialYears().map(y=>`<option value="${y}" ${y===paymentsYear?'selected':''}>Año ${y}</option>`).join('')}</select></div>${buildPaymentsEvolutionChart(yearBuckets,paymentsMonth)}</div><div class="payments-chart-card"><div class="payments-chart-card-header"><div class="payments-chart-title">Distribución de ingresos</div></div>${buildPaymentsDonut(servicios,ingresosTotal)}</div></div>
     <div class="payments-bottom-row">
-      <div class="payments-table-card"><div class="payments-table-card-header"><div class="payments-detail-heading"><div><div class="payments-detail-title-row"><div class="payments-chart-title">Detalle de registros — ${getPaymentsMonthLabel()}</div><span class="badge payments-badge-stone payments-badge-count">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="payments-table-sub">Cada operación se cuenta una sola vez según la fecha contable definida para cada servicio.</div></div></div></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
+      <div class="payments-table-card"><div class="payments-table-card-header"><div class="payments-detail-heading"><div><div class="payments-detail-title-row"><div class="payments-chart-title">${isClosed?'Resumen congelado':'Detalle de registros'} — ${getPaymentsMonthLabel()}</div><span class="badge payments-badge-stone payments-badge-count">${recordCount} ${recordCount===1?'registro':'registros'}</span></div><div class="payments-table-sub">${isClosed?'Estos importes provienen del cierre mensual guardado en resumen_mensual y no dependen de los registros individuales.':'Cada operación se cuenta una sola vez según el criterio contable definido para este período.'}</div></div></div></div><div class="table-wrap"><table class="data-table payments-table"><thead><tr><th>FECHA</th><th>SERVICIO</th><th>MASCOTA</th><th>DESCRIPCIÓN</th><th>IMPORTE</th></tr></thead><tbody>${detalleHtml}</tbody></table></div></div>
       <div class="payments-sidebar">
         <div class="payments-quick-actions payments-chart-card"><div class="payments-chart-title">Acciones rápidas</div><div class="payments-quick-actions-grid"><button class="payments-quick-action" onclick="openFoodWizard()"><span class="payments-quick-action-icon" style="background:var(--svc-food-bg);color:var(--svc-food)"><i class="fa-solid fa-bowl-food"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Alimento</span><span class="payments-quick-action-sub">Nueva operación</span></span></button><button class="payments-quick-action" onclick="openDewormModal()"><span class="payments-quick-action-icon" style="background:var(--svc-deworm-bg);color:var(--svc-deworm)"><i class="fa-solid fa-syringe"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Desparasitario</span><span class="payments-quick-action-sub">Nueva operación</span></span></button><button class="payments-quick-action" onclick="openHomeCareModal()"><span class="payments-quick-action-icon" style="background:var(--svc-home-bg);color:var(--svc-home)"><i class="fa-solid fa-house"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Registrar Cuidado</span><span class="payments-quick-action-sub">Nueva reserva</span></span></button><button class="payments-quick-action" onclick="showView('admin-comprobantes')"><span class="payments-quick-action-icon" style="background:var(--sage-light);color:var(--sage)"><i class="fa-solid fa-file-circle-check"></i></span><span class="payments-quick-action-text"><span class="payments-quick-action-title">Verificar comprobantes</span><span class="payments-quick-action-sub">Pagos pendientes</span></span></button></div></div>
-        <div class="payments-financial-note"><i class="fa-solid fa-circle-info"></i><div><strong>Criterio contable</strong><div>Alimentación usa Última compra · Desparasitarios usa Última aplicación · Cuidado a Domicilio solo cuenta reservas confirmadas · Paseos se calcula como abono mensual fijo desde diciembre de 2025.</div></div></div>
+        <div class="payments-financial-note"><i class="fa-solid fa-circle-info"></i><div><strong>Criterio contable</strong><div>Mes abierto: Alimentación usa Última compra · Desparasitarios usa Última aplicación · Cuidado a Domicilio solo cuenta reservas confirmadas · Paseos se calcula como abono mensual fijo desde diciembre de 2025. Un mes cerrado queda congelado en resumen_mensual.</div></div></div>
       </div>
     </div>`;
 }
+
+async function cerrarMesSeleccionado() {
+  if (!isAdmin()) {
+    showToast('Solo administración puede cerrar un mes.', 'error');
+    return;
+  }
+  const existing = getMonthlySummary(paymentsYear, paymentsMonth + 1);
+  if (existing && String(existing.estado || '').toUpperCase() === 'CERRADO') {
+    showToast('Este mes ya está cerrado.', '');
+    return;
+  }
+  const periodLabel = getPaymentsMonthLabel();
+  const ok = window.confirm(
+    `¿Cerrar ${periodLabel}?\n\n` +
+    'Se guardará el resumen financiero actual de forma permanente.\n' +
+    'Los registros individuales podrán eliminarse después sin modificar este histórico.'
+  );
+  if (!ok) return;
+
+  const container=document.getElementById('payments-content');
+  if (container) paintPaymentsLoadingState(container);
+
+  try {
+    const token = await PYB_AUTH.getIdToken();
+    if (!token) throw new Error('La sesión de Firebase ya no está disponible.');
+    const url = APPS_SCRIPT_URL
+      + '?action=cerrarMes'
+      + '&year=' + encodeURIComponent(paymentsYear)
+      + '&month=' + encodeURIComponent(paymentsMonth + 1)
+      + '&idToken=' + encodeURIComponent(token);
+    const res = await fetchJSONP(url, undefined, token);
+    const first = Array.isArray(res) ? res[0] : res;
+
+    if (first && first.alreadyClosed) {
+      await refreshMonthlySummaryCache(paymentsYear);
+      renderPayments();
+      showToast('El mes ya estaba cerrado.', '');
+      return;
+    }
+    if (!first || first.ok !== true || !first.resumen) {
+      throw new Error((first && first.error) || 'El servidor no pudo cerrar el mes.');
+    }
+
+    await refreshMonthlySummaryCache(paymentsYear);
+    renderPayments();
+    showToast(`${periodLabel} quedó cerrado correctamente.`, 'success');
+  } catch (err) {
+    console.error('[cerrarMesSeleccionado]', err);
+    renderPayments();
+    showToast(err.message || 'No se pudo cerrar el mes.', 'error');
+  }
+}
+
 /* ══════════════════════════════════
    ADMIN — VERIFICACIÓN DE COMPROBANTES
    (getPagosPendientesVerificacion / aprobarComprobante /
