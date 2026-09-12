@@ -10066,6 +10066,8 @@ function setFaceIdAnimState(state) {
 
 async function loginWithBiometric() {
   const gateBtn = document.getElementById('biometric-login-button');
+  const loginScreenForFlow = document.getElementById('login-screen');
+  if (loginScreenForFlow) loginScreenForFlow.classList.add('pyb-faceid-flow');
   if (gateBtn) { gateBtn.disabled = true; gateBtn.style.opacity = '.7'; }
 
   // START: reacción inmediata al presionar "Continuar con Face ID".
@@ -10101,54 +10103,28 @@ async function loginWithBiometric() {
     // este no agrega ningún retraso adicional.
     setFaceIdAnimState('processing');
 
-    const loginScreenEl = document.getElementById('login-screen');
-    // entrarConCuentaVerificada() es la función real de login: arma
-    // currentUser desde el backend Y, como parte de su trabajo normal,
-    // oculta #login-screen / muestra #app al terminar (ver esa función,
-    // más abajo en este archivo). Eso pasa ANTES de que este código llegue
-    // a SUCCESS, así que el check nunca llegaba a verse: se pintaba dentro
-    // de un contenedor que ya estaba oculto. No se modifica esa función
-    // (haría falta separar "armar currentUser" de "cambiar de pantalla",
-    // y ambas cosas siguen intactas tal como estaban) — en cambio, si al
-    // terminar detectamos que login-screen quedó oculto, lo volvemos a
-    // mostrar nosotros mismos (con #app ya listo detrás, exactamente igual
-    // que hoy) solo para sostener la animación de éxito, y lo ocultamos acá
-    // al final del piso de 650ms.
-    const loginScreenWasHiddenBefore = loginScreenEl
-      ? loginScreenEl.classList.contains('hidden')
-      : true;
+    // IMPORTANTE:
+    // No llamamos a entrarConCuentaVerificada() antes del check de éxito.
+    // Esa función cambia la visibilidad de #login-screen y muestra #app.
+    // Si se ejecuta mientras la animación Face ID todavía está en pantalla,
+    // Safari/iOS puede recalcular el viewport y volver a ejecutar la animación
+    // de entrada de .login-card, produciendo el salto/descenso de la tarjeta
+    // justo cuando aparece el check.
+    //
+    // Primero autenticamos Firebase (sin cambiar de pantalla), mostramos el
+    // check durante 650 ms y recién después hacemos la transición normal a
+    // la aplicación. authFlowInProgress permanece true, por lo que el
+    // onAuthStateChanged no duplica el flujo.
+    await PYB_AUTH.setNonePersistence();
+    await PYB_AUTH.signInWithCustomToken(result.customToken);
 
-    await Promise.all([
-      (async function () {
-        await PYB_AUTH.setNonePersistence();
-        await PYB_AUTH.signInWithCustomToken(result.customToken);
-        await entrarConCuentaVerificada('');
-      })(),
-      new Promise(function (resolve) { setTimeout(resolve, 350); })
-    ]);
-
-    const loginScreenGotHiddenByLogin = !!(
-      loginScreenEl && !loginScreenWasHiddenBefore && loginScreenEl.classList.contains('hidden')
-    );
-    if (loginScreenGotHiddenByLogin) {
-      // Se vuelve a mostrar momentáneamente solo para que el check de éxito
-      // sea visible; #app ya quedó armado y visible detrás, sin cambios.
-      loginScreenEl.classList.remove('hidden');
-    }
-
-    // SUCCESS: recién acá sabemos que WebAuthn + Firebase + carga posterior
-    // terminaron bien. Se detiene cualquier animación de escaneo y se
-    // muestra el check. Se sostiene ~650ms (dentro del rango 500-800ms
-    // pedido) antes de ocultar el gate y continuar el login normalmente.
+    // SUCCESS: WebAuthn + Firebase ya fueron validados. La tarjeta permanece
+    // exactamente en el mismo layout mientras se muestra el check.
     setFaceIdAnimState('success');
     await new Promise(function (resolve) { setTimeout(resolve, 650); });
 
-    if (loginScreenGotHiddenByLogin) {
-      // Recién ahora se oculta login-screen; #app ya estaba listo desde
-      // que entrarConCuentaVerificada() terminó, así que no hay ningún
-      // trabajo nuevo acá, solo se retrasa el momento en que se tapa.
-      loginScreenEl.classList.add('hidden');
-    }
+    // Recién ahora se prepara la cuenta y se cambia de pantalla.
+    await entrarConCuentaVerificada('');
 
     setBiometricLoginGateVisible(false);
   } catch (err) {
@@ -10167,6 +10143,7 @@ async function loginWithBiometric() {
     }
   } finally {
     authFlowInProgress = false;
+    if (loginScreenForFlow) loginScreenForFlow.classList.remove('pyb-faceid-flow');
     if (gateBtn) { gateBtn.disabled = false; gateBtn.style.opacity = ''; }
   }
 }
@@ -20743,6 +20720,18 @@ window.handleLoginAction = handleLoginAction;
     pointer-events: none !important;
     transition: none !important;
   }
+}
+</style>
+
+
+<style id="pyb-faceid-success-layout-v14">
+/* V14 — durante el flujo Face ID, el contenedor de login no debe reanimar
+   la tarjeta ni introducir transformaciones de layout. */
+#login-screen.pyb-faceid-flow .login-card {
+  animation: none !important;
+}
+#login-screen.pyb-faceid-flow .login-tilt {
+  transition: none !important;
 }
 </style>
 
